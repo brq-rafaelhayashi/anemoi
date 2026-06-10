@@ -1,0 +1,493 @@
+{
+  "Accordion": {
+    "flows": [
+      {
+        "flowId": "collapsed",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Accordion recolhido com conteudo oculto"
+      },
+      {
+        "flowId": "expanded",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Accordion expandido com conteudo visivel"
+      }
+    ],
+    "references": []
+  },
+  "Avatar": {
+    "flows": [
+      {
+        "flowId": "default",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Avatar com iniciais e badge"
+      }
+    ],
+    "references": []
+  },
+  "CountryFlag": {
+    "flows": [
+      {
+        "flowId": "flags",
+        "category": "appScreen",
+        "label": "Home > Minha conta > Preferencias > linha \"Moeda\"/\"Idioma\" - PreferencesScreen.tsx",
+        "targetTestID": "ds-evidence-country-flags",
+        "component": "TgrListNavigation",
+        "flow": [
+          "Home",
+          "Minha conta",
+          "Preferencias",
+          "linha \"Moeda\"/\"Idioma\""
+        ],
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx",
+        "description": "Bandeiras de pais: Brasil (existente), Uniao Europeia (asset novo 2.11.1) e codigo nao cadastrado (fallback placeholder novo)."
+      },
+      {
+        "flowId": "select-pais",
+        "category": "appScreen",
+        "label": "Home > Comprar passagem > Passageiros > Dados pessoais > campo \"Codigo do pais (DDI)\" - PersonalDataForm.tsx",
+        "targetTestID": "ds-evidence-screen",
+        "component": "TgrInputSelect",
+        "flow": [
+          "Home",
+          "Comprar passagem",
+          "Passageiros",
+          "Dados pessoais",
+          "campo \"Codigo do pais (DDI)\""
+        ],
+        "screenPath": "src/Modules/Common/Containers/Passenger/NewPax/Forms/PersonalDataForm.tsx:448",
+        "description": "Uso real: TgrInputSelect do campo DDI (PersonalDataForm) com showCountryFlagOnLeft, drawerProps, searchProps, defaultText, fsClass e itens via formatCountriesOptions — Brasil, Uniao Europeia (novo) e codigo nao cadastrado (placeholder)."
+      },
+      {
+        "flowId": "prefs-list-select",
+        "category": "appScreen",
+        "label": "Home > Minha conta > Preferencias > drawer \"Moeda\" - PreferencesScreen.tsx",
+        "targetTestID": "ds-evidence-screen",
+        "component": "TgrListSelect",
+        "flow": ["Home", "Minha conta", "Preferencias", "drawer \"Moeda\""],
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx:88",
+        "description": "Uso real: TgrListSelect do drawer de moeda (PreferencesScreen) com type=countryFlag, inputType=radioButton, selected e linePosition — Brasil (selecionado), Uniao Europeia (novo) e codigo nao cadastrado (placeholder)."
+      }
+    ],
+    "references": [
+      {
+        "label": "Passageiros > Dados pessoais (DDI) - PersonalDataForm.tsx",
+        "screen": "PersonalDataForm",
+        "screenPath": "src/Modules/Common/Containers/Passenger/NewPax/Forms/PersonalDataForm.tsx",
+        "notes": "TgrInputSelect com showCountryFlagOnLeft; itens via formatCountriesOptions. Tambem em DocumentsDataForm, PaxBookingForm (nacionalidade/residencia), DrawerReservationContact, PayerData e AddressData."
+      },
+      {
+        "label": "Minha conta > Preferencias (moeda/idioma) - PreferencesScreen.tsx",
+        "screen": "PreferencesScreen",
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx",
+        "notes": "TgrListNavigation (linha de moeda/idioma com type=countryFlag) e TgrListSelect (drawer de selecao, inputType=radioButton)."
+      },
+      {
+        "label": "Cadastro > Edicao de endereco - FormAddress.tsx",
+        "screen": "FormAddress",
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Profile/ProfileEditAddressScreen/components/FormAddress.tsx",
+        "notes": "TgrInputSelect de pais com leading.countryflag pre-formatado."
+      }
+    ]
+  },
+  "Drawer": {
+    "flows": [
+      {
+        "flowId": "scrollable-content",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-drawer-content",
+        "overlay": true,
+        "description": "Drawer aberto com conteudo generico que preenche e ultrapassa a altura visivel (rolavel/clipado), exercitando effectiveHeight, overflow:hidden, inset do teclado e o botao de fechar (showCloseButton)."
+      }
+    ],
+    "references": [
+      {
+        "label": "Home > Ajuda > Contato - ContactScreen.tsx",
+        "screen": "Ajuda > Contato",
+        "screenPath": "src/Modules/Common/Containers/Help/Contact/ContactScreen.tsx",
+        "component": "TgrDrawer",
+        "flow": ["Home", "Ajuda", "Contato", "drawer de contato"],
+        "notes": "Fluxo mais simples de reproduzir (sem forcar erro). Valida ×, accessibilityViewIsModal, overflow/altura e reduceMotion."
+      },
+      {
+        "label": "Home > Minhas viagens > Status da viagem - TripStatusScreen.tsx",
+        "screen": "Minhas viagens > Status",
+        "screenPath": "src/Modules/MyTrips/Containers/TripStatus/TripStatusScreen.tsx",
+        "component": "TgrDrawer",
+        "flow": ["Home", "Minhas viagens", "(selecionar viagem)", "Status", "drawer de status"],
+        "notes": "Drawer de status da viagem."
+      },
+      {
+        "label": "Home > Comprar passagem > Passageiros > Tentar novamente - DrawerTryAgain.tsx",
+        "screen": "Comprar passagem > Passageiros (erro)",
+        "screenPath": "src/Modules/Acquisition/Containers/PaxBooking/components/DrawerTryAgain.tsx",
+        "component": "TgrDrawer",
+        "flow": ["Home", "Comprar passagem", "Passageiros", "(erro de carregamento)", "Tentar novamente"],
+        "notes": "Exatamente o caso dos testes A33/A36 da analise (accessibilityViewIsModal). Exige estado de erro para abrir."
+      }
+    ]
+  },
+  "Header": {
+    "flows": [
+      {
+        "flowId": "flow-jumbo",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "TgrHeaderFlowJumbo com titulo, subtitulo, botao fechar e barra de progresso"
+      },
+      {
+        "flowId": "navigation-jumbo",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "TgrHeaderNavigationJumbo com titulo, subtitulo e botao voltar"
+      }
+    ],
+    "references": [
+      {
+        "label": "Check-in > Confirmacao / Boarding Pass — TgrHeaderFlowJumbo",
+        "screen": "CheckinDoneScreen / BoardingPassScreen",
+        "notes": "Header com progress line e botao fechar"
+      },
+      {
+        "label": "Minha Conta > Dados Pessoais — TgrHeaderNavigationJumbo",
+        "screen": "EditPersonalDataScreen",
+        "notes": "Header com botao voltar"
+      }
+    ]
+  },
+  "Heading": {
+    "flows": [
+      {
+        "flowId": "sizes",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Tamanhos de heading usados para comparar alteracoes de line-height"
+      }
+    ],
+    "references": []
+  },
+  "Illustration": {
+    "flows": [
+      {
+        "flowId": "default",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Ilustracao SVG com role de imagem e label de acessibilidade"
+      }
+    ],
+    "references": [
+      {
+        "label": "Estados vazios e feedbacks visuais do app - @gol-smiles+tangerina-react-native-core+6.0.2.patch",
+        "screen": "Uso distribuido",
+        "screenPath": "patches/@gol-smiles+tangerina-react-native-core+6.0.2.patch",
+        "notes": "Componente corrigido no card CDCOM-72; usos reais devem ser curados conforme selecao de QA/dev."
+      }
+    ]
+  },
+  "InputCard": {
+    "flows": [
+      {
+        "flowId": "filled",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Campo de cartao preenchido com suporte textual"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Pagamento > Cartao de credito - CreditCard.tsx",
+        "screen": "CreditCard",
+        "screenPath": "modernization/modules/Acquisition/screens/AcquisitionPayment/screens/PaymentAcquisitionScreen/components/CreditCard/CreditCard.tsx",
+        "notes": "Campos de numero, validade e CVV do cartao."
+      },
+      {
+        "label": "Check-in > Pagamento > Cartao de credito - CreditCard.tsx",
+        "screen": "CreditCard",
+        "screenPath": "modernization/modules/CheckIn/CheckIn/screens/CheckInPayment/screens/CheckInPaymentFormScreen/components/CreditCard/CreditCard.tsx",
+        "notes": "Campos de cartao usados no pagamento do check-in."
+      },
+      {
+        "label": "Minhas viagens > Pagamento > Cartao de credito - CreditCard.tsx",
+        "screen": "CreditCard",
+        "screenPath": "modernization/modules/MyTrips/MyTripsPayment/screens/MyTripsPaymentFormScreen/components/CreditCard/CreditCard.tsx",
+        "notes": "Campos de cartao usados em pagamento de servicos de viagem."
+      },
+      {
+        "label": "Comprar passagem internacional > Dados de pagamento - PaymentInfo.tsx",
+        "screen": "PaymentInfo",
+        "screenPath": "modernization/modules/Acquisition/screens/AcquisitionPayment/screens/PaymentAcquisitionInterScreen/Forms/PaymentInfo/PaymentInfo.tsx",
+        "notes": "Cartoes renderizados dentro do formulario internacional."
+      }
+    ]
+  },
+  "InputCounter": {
+    "flows": [
+      {
+        "flowId": "default",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-input-counter",
+        "description": "Contador com controles de diminuir, valor atual e aumentar"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Buscar voos > Selecionar passageiros - PassengersModal.tsx",
+        "screen": "PassengersModal",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/PassengersModal/PassengersModal.tsx",
+        "notes": "Contadores de adultos, adolescentes, criancas e bebes."
+      },
+      {
+        "label": "Check-in > Bagagem despachada - BaggageCheckIn.tsx",
+        "screen": "BaggageCheckIn",
+        "screenPath": "modernization/modules/CheckIn/Baggage/components/BaggageCheckin/BaggageCheckIn.tsx",
+        "notes": "Contador de quantidade de bagagem despachada por passageiro."
+      },
+      {
+        "label": "Check-in > Bagagem de mao - BaggageCarryOnCheckin.tsx",
+        "screen": "BaggageCarryOnCheckin",
+        "screenPath": "modernization/modules/CheckIn/Baggage/components/BaggageCarryOnCheckin/BaggageCarryOnCheckin.tsx",
+        "notes": "Contador de quantidade de bagagem de mao por passageiro."
+      },
+      {
+        "label": "Bagagem > Item do passageiro - BaggageItem.tsx",
+        "screen": "BaggageItem",
+        "screenPath": "modernization/components/Baggage/components/BaggageItem/BaggageItem.tsx",
+        "notes": "Contador compartilhado de item de bagagem usado nos fluxos de compra de bagagem."
+      }
+    ]
+  },
+  "InputDate": {
+    "flows": [
+      {
+        "flowId": "filled",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Campo de data preenchido com suporte textual"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Busca ida - OneWayTrip.tsx",
+        "screen": "OneWayTrip",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/OneWayTrip/OneWayTrip.tsx",
+        "notes": "Selecao de data de ida."
+      },
+      {
+        "label": "Comprar passagem > Busca ida e volta - RoundTrip.tsx",
+        "screen": "RoundTrip",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/RoundTrip/RoundTrip.tsx",
+        "notes": "Selecao de datas de ida e volta."
+      },
+      {
+        "label": "Comprar passagem > Busca multiplos trechos - Multiple.tsx",
+        "screen": "Multiple",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/Multiple/Multiple.tsx",
+        "notes": "Selecao de datas por trecho."
+      }
+    ]
+  },
+  "InputRange": {
+    "flows": [
+      {
+        "flowId": "default",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Filtro de intervalo com valores minimo e maximo"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Selecionar voo > Filtros - FilterModal.tsx",
+        "screen": "FilterModal",
+        "screenPath": "modernization/modules/Acquisition/screens/SelectTripScreen/components/FilterModal/FilterModal.tsx",
+        "notes": "Filtros de preco e horario por intervalo."
+      },
+      {
+        "label": "Comprar passagem > Selecionar voo > Componente de filtro de intervalo - InputRange.tsx",
+        "screen": "InputRange",
+        "screenPath": "modernization/modules/Acquisition/screens/SelectTripScreen/components/FilterModal/components/InputRange/InputRange.tsx",
+        "notes": "Wrapper do filtro que repassa labels e valores ao TgrInputRange."
+      }
+    ]
+  },
+  "InputSelect": {
+    "flows": [
+      {
+        "flowId": "selected",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Select preenchido com item selecionado e texto de suporte"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Busca ida - OneWayTrip.tsx",
+        "screen": "OneWayTrip",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/OneWayTrip/OneWayTrip.tsx",
+        "notes": "Select customizado para origem/destino e opcoes do fluxo de busca."
+      },
+      {
+        "label": "Comprar passagem > Stopover - StoppingPoint.tsx",
+        "screen": "Stopover",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/Stopover/components/StoppingPoint/StoppingPoint.tsx",
+        "notes": "Selects de ponto de parada, trecho e noites no stopover."
+      },
+      {
+        "label": "Comprar passagem internacional > Dados do pagador - PayerData.tsx",
+        "screen": "PayerData",
+        "screenPath": "modernization/modules/Acquisition/screens/AcquisitionPayment/screens/PaymentAcquisitionInterScreen/Forms/PayerData/PayerData.tsx",
+        "notes": "Selects de pais e telefone no formulario do pagador."
+      },
+      {
+        "label": "Check-in > Recuperar cartao de embarque - RetrieveBoardingPassScreen.tsx",
+        "screen": "RetrieveBoardingPassScreen",
+        "screenPath": "modernization/modules/CheckIn/RetrieveBoardingPass/screens/RetrieveBoardingPassScreen.tsx",
+        "notes": "Select controlado por formulario no fluxo de recuperar cartao."
+      }
+    ]
+  },
+  "InputSingle": {
+    "flows": [
+      {
+        "flowId": "filled",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Input simples preenchido com acao de limpar"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Buscar aeroporto - SearchAirportModal.tsx",
+        "screen": "SearchAirportModal",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/SearchAirportModal/SearchAirportModal.tsx",
+        "notes": "Campo simples usado para digitar origem ou destino."
+      }
+    ]
+  },
+  "InputText": {
+    "flows": [
+      {
+        "flowId": "filled",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Campo de texto preenchido com suporte textual"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Codigo promocional - PromotionalCode.tsx",
+        "screen": "PromotionalCode",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/PromotionalCode/PromotionalCode.tsx",
+        "notes": "Campo de codigo promocional na busca de passagens."
+      },
+      {
+        "label": "Comprar passagem > Pagamento > Cartao de credito - CreditCard.tsx",
+        "screen": "CreditCard",
+        "screenPath": "modernization/modules/Acquisition/screens/AcquisitionPayment/screens/PaymentAcquisitionScreen/components/CreditCard/CreditCard.tsx",
+        "notes": "Campos textuais complementares do pagamento."
+      },
+      {
+        "label": "Check-in > Buscar reserva - CheckInSearchScreen.tsx",
+        "screen": "CheckInSearchScreen",
+        "screenPath": "modernization/modules/CheckIn/CheckIn/screens/CheckInSearchScreen/CheckInSearchScreen.tsx",
+        "notes": "Campos controlados por formulario no inicio do check-in."
+      },
+      {
+        "label": "Minhas viagens > Encontrar viagem - FindTripScreen.tsx",
+        "screen": "FindTripScreen",
+        "screenPath": "modernization/modules/MyTrips/MyTrips/screens/FindTrip/screens/FindTripScreen/FindTripScreen.tsx",
+        "notes": "Campos para localizar reserva."
+      },
+      {
+        "label": "Cadastro > Minha conta > Endereco - FormAddress.tsx",
+        "screen": "FormAddress",
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Profile/ProfileEditAddressScreen/components/FormAddress.tsx",
+        "notes": "Campos textuais de endereco no cadastro legado."
+      }
+    ]
+  },
+  "Search": {
+    "flows": [
+      {
+        "flowId": "filled",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Busca preenchida com acao de limpar"
+      }
+    ],
+    "references": [
+      {
+        "label": "Comprar passagem > Buscar aeroporto - SearchAirportModal.tsx",
+        "screen": "SearchAirportModal",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/SearchAirportModal/SearchAirportModal.tsx",
+        "notes": "Busca de aeroporto por texto."
+      }
+    ]
+  },
+  "SegmentedControl": {
+    "flows": [
+      {
+        "flowId": "selected",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Controle segmentado com estado selecionado"
+      }
+    ],
+    "references": []
+  },
+  "Tag": {
+    "flows": [
+      {
+        "flowId": "variants",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Variantes visuais e textuais de tag"
+      }
+    ],
+    "references": []
+  },
+  "TagTax": {
+    "flows": [
+      {
+        "flowId": "business",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Tags Business e Business Flex"
+      }
+    ],
+    "references": []
+  },
+  "TagTier": {
+    "flows": [
+      {
+        "flowId": "tiers",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-screen",
+        "description": "Tags de tier com estados Magno e Smiles"
+      }
+    ],
+    "references": []
+  }
+}
