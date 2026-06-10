@@ -249,10 +249,11 @@ yarn ds:evidence --component CountryFlag --card CDCOM-115 \
 | `--start-device`                  | desligado       | Reservado para hosts que configurarem comando de boot de simulador/emulador.                                                                 |
 | `--analysis <arquivo.json>`       | —               | JSON da `gol-ds-analyse`; deriva `component`/`card` e conta usos.                                                                            |
 | `--port <n>`                      | `8081`          | Porta do Metro. O orquestrador **exige a porta livre** (ele reinicia o Metro com o `TANGERINA_MODE` certo por fase).                         |
-| `--skip-build`                    | desligado       | Pula `detox build` (reaproveita o app já compilado).                                                                                         |
+| `--skip-build`                    | desligado       | Pula `detox build`. ⚠ Só após um build de **automação** (`ds:evidence` sem a flag): binário de dev comum não contém a Gallery (`E2E=true` é baked no build) e o deep link falha silencioso com timeout no `targetTestID`. |
 | `--dry-run`                       | desligado       | Só gera `manifest.json`/`summary.md`, sem emulador e sem HTML.                                                                               |
 | `--verbose`                       | desligado       | Ecoa o output do Metro no console. Sem a flag, o output vai para `metro-*.log` no diretório do run (o console mostra só porta/modo/caminho). |
 | `--parallel-builds`               | desligado       | Com `--platform both`, roda os `detox build` de iOS e Android em paralelo (`Promise.all`). Pesado em máquina de dev — opt-in.                |
+| `--doctor`                        | —               | Pre-flight: valida registry/config **e o ambiente** — `tangerina.corePath` aponta para o repo DS real (erro fatal: corePath errado vira fallback npm silencioso), `metroPaths` existem, simulador/AVD declarados existem, porta do Metro livre e binários de automação já buildados (warnings). |
 
 > **Pare o Metro antes de rodar.** Se já houver Metro na porta, o orquestrador aborta
 > com _"Metro is already running on port…"_. No fluxo de evidência (Antes/Depois) o

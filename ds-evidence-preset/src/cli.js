@@ -1628,9 +1628,93 @@ function runHtmlOnly(args, config) {
   console.log(`DS evidence HTML written to ${path.join(runDir, 'index.html')}`);
 }
 
+function doctorEnvironment(config, issues, warnings) {
+  // corePath errado e falha SILENCIOSA em runtime: o Metro cai no fallback npm
+  // e serve o app sem o source local — o doctor transforma isso em erro.
+  const corePath = config.tangerina?.corePath;
+  if (corePath) {
+    const corePackageJson = path.join(corePath, 'package.json');
+    if (!fs.existsSync(corePath)) {
+      issues.push(`tangerina.corePath does not exist: ${corePath}.`);
+    } else if (!fs.existsSync(corePackageJson)) {
+      issues.push(`tangerina.corePath has no package.json: ${corePath}.`);
+    } else {
+      try {
+        const name = readJson(corePackageJson).name;
+        if (name !== '@gol-smiles/tangerina-react-native-core') {
+          issues.push(
+            `tangerina.corePath resolves to "${name}", expected @gol-smiles/tangerina-react-native-core: ${corePath}.`,
+          );
+        }
+      } catch (error) {
+        issues.push(`tangerina.corePath package.json is unreadable: ${error.message}.`);
+      }
+    }
+  }
+  for (const [key, metroPath] of Object.entries(
+    config.tangerina?.metroPaths || {},
+  )) {
+    if (metroPath && !fs.existsSync(metroPath)) {
+      issues.push(`tangerina.metroPaths.${key} does not exist: ${metroPath}.`);
+    }
+  }
+
+  const iosDevice = config.devices?.ios;
+  if (iosDevice && process.platform === 'darwin') {
+    const sim = childProcess.spawnSync(
+      'xcrun',
+      ['simctl', 'list', 'devices', 'available'],
+      {encoding: 'utf8'},
+    );
+    if (sim.status === 0 && !sim.stdout.includes(`${iosDevice} (`)) {
+      warnings.push(
+        `iOS simulator "${iosDevice}" not found in xcrun simctl list — Detox launch will fail.`,
+      );
+    }
+  }
+  const androidDevice = config.devices?.android;
+  if (androidDevice) {
+    const avds = childProcess.spawnSync('emulator', ['-list-avds'], {
+      encoding: 'utf8',
+    });
+    if (avds.status === 0 && !avds.stdout.split('\n').includes(androidDevice)) {
+      warnings.push(
+        `Android AVD "${androidDevice}" not found in emulator -list-avds.`,
+      );
+    }
+  }
+
+  const port = config.metroPort || 8081;
+  const lsof = childProcess.spawnSync(
+    'lsof',
+    ['-nP', `-iTCP:${port}`, '-sTCP:LISTEN'],
+    {encoding: 'utf8'},
+  );
+  if (lsof.status === 0 && lsof.stdout.trim()) {
+    warnings.push(
+      `Metro port ${port} is already in use — stop the listener or pass --port.`,
+    );
+  }
+
+  try {
+    const {createDetoxConfig} = require('./lib/detoxConfig');
+    const detoxConfig = createDetoxConfig(config);
+    for (const [appName, app] of Object.entries(detoxConfig.apps || {})) {
+      if (app.binaryPath && !fs.existsSync(app.binaryPath)) {
+        warnings.push(
+          `Binary for ${appName} not built yet (${app.binaryPath}) — run without --skip-build first.`,
+        );
+      }
+    }
+  } catch (error) {
+    warnings.push(`Could not derive Detox config: ${error.message}.`);
+  }
+}
+
 function runDoctor(config) {
   const {registryPath, registry} = loadRegistry(config);
   const issues = [];
+  const warnings = [];
 
   if (!config.scheme) issues.push('Missing scheme.');
   if (!fs.existsSync(registryPath))
@@ -1641,6 +1725,8 @@ function runDoctor(config) {
   if (!config.tangerina?.corePath) {
     issues.push('Missing tangerina.corePath.');
   }
+
+  doctorEnvironment(config, issues, warnings);
 
   const componentsWithoutSourcePaths = Object.entries(registry)
     .filter(([component, entry]) => {
@@ -1686,13 +1772,23 @@ function runDoctor(config) {
     }
   }
 
+  if (warnings.length > 0) {
+    console.warn(
+      `DS Evidence doctor warnings:\n- ${warnings.join('\n- ')}`,
+    );
+  }
+
   if (issues.length > 0) {
     throw new Error(
       `DS Evidence doctor found issues:\n- ${issues.join('\n- ')}`,
     );
   }
 
-  console.log('DS Evidence doctor passed.');
+  console.log(
+    warnings.length > 0
+      ? 'DS Evidence doctor passed (with warnings).'
+      : 'DS Evidence doctor passed.',
+  );
 }
 
 function runInit(cwd) {
