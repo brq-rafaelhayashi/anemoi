@@ -534,6 +534,20 @@ function relative(config, filePath) {
   return path.relative(config.repoRoot, filePath).replaceAll(path.sep, '/');
 }
 
+function formatDatePtBr(isoDate, {withYear = true} = {}) {
+  const date = new Date(isoDate);
+  if (Number.isNaN(date.getTime())) {
+    return isoDate;
+  }
+
+  return new Intl.DateTimeFormat('pt-BR', {
+    day: '2-digit',
+    month: 'short',
+    ...(withYear ? {year: 'numeric'} : {}),
+    timeZone: 'America/Sao_Paulo',
+  }).format(date);
+}
+
 function imageFigure(runDir, imagePath, caption, alt) {
   const relativePath = path
     .relative(runDir, imagePath)
@@ -545,7 +559,7 @@ function imageFigure(runDir, imagePath, caption, alt) {
       <img src="${escapeHtml(relativePath)}" alt="${escapeHtml(
         alt,
       )}" onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';" />
-      <div class="missing-image">Imagem ainda nao gerada pelo Detox<br /><code>${escapeHtml(
+      <div class="missing-image">Imagem ainda não gerada pelo Detox<br /><code>${escapeHtml(
         relativePath,
       )}</code></div>
     </figure>
@@ -573,7 +587,7 @@ function writeSummary(config, runDir, data) {
     item => !item.cropped && !/overlay/.test(item.cropReason || ''),
   );
   const lines = [
-    `# DS Evidence - ${data.component}`,
+    `# Anemoi - ${data.component}`,
     '',
     `- Card: ${data.card}`,
     `- Generated at: ${data.generatedAt}`,
@@ -625,7 +639,7 @@ function flowDiagram(flow, componentLabel) {
 
   return `
         <div class="flow">
-          <h3>Fluxo ate o componente</h3>
+          <h3>Fluxo até o componente</h3>
           <div class="flow-steps">
             ${steps}<span class="arrow">&rarr;</span><span class="step target">&#9679; ${escapeHtml(
               componentLabel,
@@ -648,7 +662,7 @@ function renderHtml(runDir, data, flows) {
         <h3>${
           hasFlows
             ? 'Fluxos no app (QA) &mdash; onde encontrar o componente'
-            : 'Referencias sem fluxo renderizavel'
+            : 'Referências sem fluxo renderizável'
         }</h3>
         <ul>${references
           .map(item => {
@@ -738,61 +752,126 @@ function renderHtml(runDir, data, flows) {
     );
   }
 
+  const modeLabel = data.referenceMode
+    ? 'Referência (pós-fix)'
+    : 'Antes / Depois';
+  const subtitle = data.referenceMode
+    ? 'Evidência de referência visual — Design System Tangerina'
+    : 'Comparação antes/depois — Design System Tangerina';
+  const intro = data.referenceMode
+    ? 'Captura de referência visual pós-fix do componente, feita pela Anemoi Gallery via Detox. O print serve como guarda de regressão e referência para QA — não como prova do fix (ver escada de evidência).'
+    : 'Comparação por componente, lado a lado: <code>antes</code> usa Source baseline sem o fix; <code>depois</code> usa Source atual com o fix. A captura é feita pela Anemoi Gallery via Detox.';
+  const generatedAtLabel = formatDatePtBr(data.generatedAt, {withYear: false});
+  const techRows = [
+    ['Manifesto', '<a href="manifest.json"><code>manifest.json</code></a>'],
+    data.registryPath
+      ? ['Registry', `<code>${escapeHtml(data.registryPath)}</code>`]
+      : null,
+    data.htmlOutput ? ['Saída HTML', escapeHtml(data.htmlOutput)] : null,
+    ['Referências de uso', String(references.length)],
+    ['Run', `<code>${escapeHtml(path.basename(runDir))}</code>`],
+  ].filter(Boolean);
+
   const html = `<!doctype html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DS Evidence - ${escapeHtml(data.component)}</title>
+  <title>Anemoi - ${escapeHtml(data.component)}</title>
   <style>
-    :root { color-scheme: light; }
+    :root {
+      color-scheme: light;
+      --orange: #f4720b; --orange-light: #fff4ec;
+      --green: #1a7f4b; --green-light: #e8f7ef;
+      --blue: #1c5fa8; --blue-light: #e8f0fb;
+      --yellow: #d4860a; --yellow-light: #fef9ec;
+      --grey-100: #f8f8f8; --grey-200: #ebebeb; --grey-400: #999;
+      --grey-700: #444; --grey-900: #1a1a1a;
+      --radius: 8px; --shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
     * { box-sizing: border-box; }
-    body { background: #eef1f5; color: #17202a; font-family: Arial, sans-serif; margin: 0; }
-    header { background: #17202a; color: #fff; padding: 24px; }
-    header h1 { font-size: 28px; line-height: 1.2; margin: 0 0 8px; }
-    header p { color: #d7dde5; margin: 0; }
-    main { margin: 0 auto; max-width: 1760px; padding: 20px 24px 28px; }
-    .intro { color: #4f5d6b; font-size: 14px; line-height: 1.5; margin: 0 0 20px; }
+    body { background: #f0f2f5; color: var(--grey-900); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.55; margin: 0; }
+    code { background: var(--grey-100); border-radius: 4px; color: var(--grey-700); font-family: "SF Mono", "Fira Code", "Cascadia Code", monospace; font-size: 12px; overflow-wrap: anywhere; padding: 2px 4px; }
+    a { color: var(--blue); }
+    .page-header { background: var(--grey-900); color: #fff; padding: 28px 24px; }
+    .page-header .badge { background: var(--orange); border-radius: 999px; display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .03em; margin: 0 0 12px; padding: 4px 12px; text-transform: uppercase; }
+    .page-header h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; }
+    .page-header .subtitle { color: #c9ced6; font-size: 14px; margin: 0 0 16px; }
+    .meta { display: flex; flex-wrap: wrap; gap: 10px; }
+    .meta-item { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.14); border-radius: 6px; font-size: 13px; padding: 8px 14px; }
+    .meta-item strong { color: #9aa3ad; display: block; font-size: 11px; font-weight: 600; letter-spacing: .04em; margin: 0 0 2px; text-transform: uppercase; }
+    main { margin: 0 auto; max-width: 1280px; padding: 24px 24px 8px; }
+    .intro { color: var(--grey-700); font-size: 13.5px; margin: 0 0 20px; }
     .platform { font-size: 20px; margin: 24px 0 12px; }
-    .columns { display: grid; gap: 20px; grid-template-columns: repeat(${columnCount}, minmax(0, 1fr)); }
-    .component, .flow-map { background: #fff; border: 1px solid #cfd7e3; border-radius: 8px; padding: 18px; }
+    .columns { display: grid; gap: 16px; grid-template-columns: repeat(${columnCount}, minmax(0, 1fr)); }
+    .component, .flow-map, .tech-details { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); padding: 20px; }
     .component { display: flex; flex-direction: column; gap: 14px; }
     .component h2 { font-size: 20px; margin: 0; }
-    .flow-title { font-size: 16px; line-height: 1.3; margin: 0; }
-    .eyebrow { color: #8a4b00; font-size: 12px; font-weight: 700; letter-spacing: .02em; margin: 0; text-transform: uppercase; }
-    .flow { border: 1px solid #dfe5ec; border-radius: 6px; background: #f8fafc; padding: 12px; }
-    .flow h3 { color: #596775; font-size: 12px; font-weight: 700; letter-spacing: .02em; margin: 0 0 10px; text-transform: uppercase; }
+    .flow-title { font-size: 15px; line-height: 1.3; margin: 0; }
+    .eyebrow { color: var(--orange); font-size: 12px; font-weight: 700; letter-spacing: .03em; margin: 0; text-transform: uppercase; }
+    .flow { background: var(--grey-100); border: 1px solid var(--grey-200); border-radius: 6px; padding: 12px; }
+    .flow h3 { color: var(--grey-400); font-size: 11px; font-weight: 700; letter-spacing: .04em; margin: 0 0 10px; text-transform: uppercase; }
     .flow-steps { align-items: center; display: flex; flex-wrap: wrap; gap: 6px; }
-    .step { background: #fff; border: 1px solid #aeb9c6; border-radius: 5px; color: #24313f; font-size: 12.5px; line-height: 1.3; padding: 5px 9px; white-space: nowrap; }
-    .step.target { background: #fff3e8; border-color: #d96c00; color: #8a4b00; font-weight: 700; }
-    .arrow { color: #8a96a5; font-size: 14px; }
-    .flow small { color: #596775; display: block; font-size: 11.5px; line-height: 1.4; margin-top: 10px; }
+    .step { background: #fff; border: 1px solid var(--grey-200); border-radius: 5px; color: var(--grey-700); font-size: 12.5px; line-height: 1.3; padding: 5px 9px; white-space: nowrap; }
+    .step.target { background: var(--orange-light); border-color: var(--orange); color: var(--orange); font-weight: 700; }
+    .arrow { color: var(--grey-400); font-size: 14px; }
+    .flow small { color: var(--grey-700); display: block; font-size: 11.5px; line-height: 1.4; margin-top: 10px; }
     .flow-map { margin: 0 0 20px; }
-    .flow-map h3 { font-size: 18px; margin: 0 0 12px; }
+    .flow-map h3 { font-size: 16px; margin: 0 0 12px; }
     .flow-map ul { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); list-style: none; margin: 0; padding: 0; }
-    .flow-map li { border: 1px solid #dfe5ec; border-radius: 6px; display: grid; gap: 6px; padding: 12px; }
-    .flow-map strong { color: #17202a; font-size: 14px; line-height: 1.3; }
-    .flow-map span, .flow-map small, .desc { color: #596775; font-size: 13px; line-height: 1.4; }
+    .flow-map li { border: 1px solid var(--grey-200); border-radius: 6px; display: grid; gap: 6px; padding: 12px; }
+    .flow-map strong { font-size: 14px; line-height: 1.3; }
+    .flow-map span, .flow-map small, .desc { color: var(--grey-700); font-size: 13px; line-height: 1.45; }
     .desc { margin: 0; }
     .comparison { display: grid; gap: 12px; grid-template-columns: 1fr 1fr; margin-top: auto; }
     .comparison.single { grid-template-columns: 1fr; max-width: 320px; }
     figure { margin: 0; }
-    figcaption { color: #4f5d6b; font-size: 12px; line-height: 1.4; margin-bottom: 6px; }
-    img { background: #f9fafb; border: 1px solid #dfe5ec; display: block; max-width: 100%; min-height: 160px; object-fit: contain; width: 100%; }
-    .missing-image { align-items: center; background: #f8fafc; border: 1px dashed #aeb9c6; color: #596775; display: none; flex-direction: column; font-size: 14px; justify-content: center; line-height: 1.5; min-height: 160px; padding: 16px; text-align: center; width: 100%; }
-    code { background: #edf1f6; border-radius: 4px; color: #24313f; overflow-wrap: anywhere; padding: 2px 4px; }
+    figcaption { color: var(--grey-700); font-size: 12.5px; line-height: 1.4; margin-bottom: 6px; }
+    img { background: var(--grey-100); border: 1px solid #dde1e7; border-radius: 6px; box-shadow: 0 1px 4px rgba(0,0,0,.08); display: block; max-width: 100%; min-height: 160px; object-fit: contain; width: 100%; }
+    .missing-image { align-items: center; background: var(--grey-100); border: 1px dashed var(--grey-400); border-radius: 6px; color: var(--grey-700); display: none; flex-direction: column; font-size: 13px; justify-content: center; line-height: 1.5; min-height: 160px; padding: 16px; text-align: center; width: 100%; }
+    .tech-details { margin: 24px 0 0; }
+    .tech-details h3 { font-size: 15px; margin: 0 0 12px; }
+    .tech-details table { border-collapse: collapse; font-size: 13px; width: 100%; }
+    .tech-details th { background: var(--grey-100); border-bottom: 2px solid var(--grey-200); font-weight: 600; padding: 8px 10px; text-align: left; width: 200px; }
+    .tech-details td { border-bottom: 1px solid var(--grey-200); padding: 8px 10px; vertical-align: top; }
+    .footer { color: var(--grey-400); font-size: 12.5px; padding: 20px 24px 32px; text-align: center; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>DS Evidence - ${escapeHtml(data.component)}</h1>
-    <p>${escapeHtml(data.card)} | ${escapeHtml(data.generatedAt)}</p>
+  <header class="page-header">
+    <div class="badge">Anemoi &middot; ${escapeHtml(data.card)}</div>
+    <h1>${escapeHtml(data.component)}</h1>
+    <p class="subtitle">${escapeHtml(subtitle)}</p>
+    <div class="meta">
+      <div class="meta-item"><strong>Card</strong>${escapeHtml(data.card)}</div>
+      <div class="meta-item"><strong>Modo</strong>${escapeHtml(modeLabel)}</div>
+      <div class="meta-item"><strong>Plataformas</strong>${escapeHtml(
+        data.platforms.join(', '),
+      )}</div>
+      <div class="meta-item"><strong>Fluxos</strong>${flows.length}</div>
+      <div class="meta-item"><strong>Gerado em</strong>${escapeHtml(
+        generatedAtLabel,
+      )}</div>
+    </div>
   </header>
   <main>
-    <p class="intro">Comparacao por componente, lado a lado: <code>antes</code> usa Source baseline sem o fix; <code>depois</code> usa Source atual com o fix. A captura e feita pela DS Evidence Gallery via Detox.</p>
+    <p class="intro">${intro}</p>
     ${flowMap}
     ${sections.join('\n')}
+    <section class="tech-details">
+      <h3>Detalhes técnicos</h3>
+      <table>
+        ${techRows
+          .map(([label, value]) => `<tr><th>${label}</th><td>${value}</td></tr>`)
+          .join('\n        ')}
+      </table>
+    </section>
   </main>
+  <footer class="footer">
+    ${escapeHtml(data.card)} &middot; ${escapeHtml(
+      data.component,
+    )} &middot; Anemoi &middot; ${escapeHtml(formatDatePtBr(data.generatedAt))}
+  </footer>
 </body>
 </html>
 `;
@@ -832,24 +911,46 @@ function writeHtml(runDir, data) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>DS Evidence - ${escapeHtml(data.component)}</title>
+  <title>Anemoi - ${escapeHtml(data.component)}</title>
   <style>
-    body { background: #eef1f5; color: #17202a; font-family: Arial, sans-serif; margin: 0; }
-    header { background: #17202a; color: #fff; padding: 24px; }
+    :root {
+      --orange: #f4720b;
+      --grey-100: #f8f8f8; --grey-200: #ebebeb; --grey-400: #999;
+      --grey-700: #444; --grey-900: #1a1a1a;
+      --radius: 8px; --shadow: 0 2px 8px rgba(0,0,0,.08);
+    }
+    * { box-sizing: border-box; }
+    body { background: #f0f2f5; color: var(--grey-900); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; font-size: 14px; line-height: 1.55; margin: 0; }
+    .page-header { background: var(--grey-900); color: #fff; padding: 28px 24px; }
+    .page-header .badge { background: var(--orange); border-radius: 999px; display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: .03em; margin: 0 0 12px; padding: 4px 12px; text-transform: uppercase; }
+    .page-header h1 { font-size: 26px; line-height: 1.2; margin: 0 0 6px; }
+    .page-header .subtitle { color: #c9ced6; font-size: 14px; margin: 0; }
     main { margin: 0 auto; max-width: 960px; padding: 24px; }
-    li { background: #fff; border: 1px solid #cfd7e3; border-radius: 8px; margin: 0 0 12px; padding: 14px; }
-    a { color: #17202a; font-weight: 700; text-decoration: none; }
+    h2 { font-size: 18px; margin: 0 0 16px; }
+    ul { list-style: none; margin: 0; padding: 0; }
+    li { background: #fff; border-radius: var(--radius); box-shadow: var(--shadow); margin: 0 0 12px; padding: 14px 18px; }
+    a { color: var(--grey-900); font-weight: 700; text-decoration: none; }
+    a:hover { color: var(--orange); }
+    .footer { color: var(--grey-400); font-size: 12.5px; padding: 20px 24px 32px; text-align: center; }
   </style>
 </head>
 <body>
-  <header>
-    <h1>DS Evidence - ${escapeHtml(data.component)}</h1>
-    <p>${escapeHtml(data.card)} | ${escapeHtml(data.generatedAt)}</p>
+  <header class="page-header">
+    <div class="badge">Anemoi &middot; ${escapeHtml(data.card)}</div>
+    <h1>${escapeHtml(data.component)}</h1>
+    <p class="subtitle">Evidências por fluxo &mdash; ${escapeHtml(
+      formatDatePtBr(data.generatedAt, {withYear: false}),
+    )}</p>
   </header>
   <main>
     <h2>HTML por fluxo</h2>
     <ul>${indexSections.join('\n')}</ul>
   </main>
+  <footer class="footer">
+    ${escapeHtml(data.card)} &middot; ${escapeHtml(
+      data.component,
+    )} &middot; Anemoi &middot; ${escapeHtml(formatDatePtBr(data.generatedAt))}
+  </footer>
 </body>
 </html>
 `;

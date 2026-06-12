@@ -19,13 +19,18 @@ function ensureDir(dir) {
   fs.mkdirSync(dir, {recursive: true});
 }
 
-function normalizeFlow(item, index) {
+function normalizeFlow(item) {
   const flowId = item.flowId || item.scenarioId;
   return {
     ...item,
     flowId,
     scenarioId: flowId,
-    targetTestID: item.targetTestID || `ds-evidence-flow-${flowId || index}`,
+    // Default: crop on the component. `ds-evidence-target` is a real native
+    // <View> wrapper (DsEvidenceScreen.js) whose testID always resolves in the
+    // view hierarchy, so any flow without an explicit target crops on the
+    // component box. The registry only declares exceptions (overlays and
+    // grouped containers). See docs/adr/0004-recorte-no-componente-por-padrao.md.
+    targetTestID: item.targetTestID || 'ds-evidence-target',
   };
 }
 
@@ -125,16 +130,17 @@ async function cropScreenshot(fullImagePath, outputPath, xml, targetTestID) {
     Math.round((targetFrame.y + targetFrame.height + padding) * scaleY),
   );
 
+  const croppedWidth = right - left;
+  const croppedHeight = bottom - top;
+  const outputWidth = Math.round(croppedWidth / scaleX);
+  const outputHeight = Math.round(croppedHeight / scaleY);
+
   await sharp(fullImagePath)
-    .extract({
-      left,
-      top,
-      width: right - left,
-      height: bottom - top,
-    })
+    .extract({left, top, width: croppedWidth, height: croppedHeight})
+    .resize({width: outputWidth, height: outputHeight, fit: 'fill'})
     .toFile(outputPath);
 
-  return {cropped: true, reason: null};
+  return {cropped: true, resized: true, outputScale: '1x', reason: null};
 }
 
 function registerDetoxEvidenceTests() {

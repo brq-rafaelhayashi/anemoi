@@ -5,14 +5,12 @@
         "flowId": "collapsed",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Accordion recolhido com conteudo oculto"
       },
       {
         "flowId": "expanded",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Accordion expandido com conteudo visivel"
       }
     ],
@@ -24,7 +22,6 @@
         "flowId": "default",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Avatar com iniciais e badge"
       }
     ],
@@ -51,7 +48,6 @@
         "flowId": "select-pais",
         "category": "appScreen",
         "label": "Home > Comprar passagem > Passageiros > Dados pessoais > campo \"Codigo do pais (DDI)\" - PersonalDataForm.tsx",
-        "targetTestID": "ds-evidence-screen",
         "component": "TgrInputSelect",
         "flow": [
           "Home",
@@ -67,7 +63,6 @@
         "flowId": "prefs-list-select",
         "category": "appScreen",
         "label": "Home > Minha conta > Preferencias > drawer \"Moeda\" - PreferencesScreen.tsx",
-        "targetTestID": "ds-evidence-screen",
         "component": "TgrListSelect",
         "flow": ["Home", "Minha conta", "Preferencias", "drawer \"Moeda\""],
         "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx:88",
@@ -133,6 +128,42 @@
       }
     ]
   },
+  "FlightSearch": {
+    "flows": [
+      {
+        "flowId": "default",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "description": "Componente com GRU→GIG preenchidos e botao de inversao visivel"
+      }
+    ],
+    "references": [
+      {
+        "label": "Minhas viagens > Status da viagem — TgrFlightSearch",
+        "screen": "TripStatusScreen",
+        "screenPath": "src/Modules/MyTrips/Containers/TripStatus/TripStatusScreen.tsx",
+        "notes": "Busca de voo no status de viagem; origin/destination com value de nome de cidade, onChangeValue troca origem↔destino"
+      },
+      {
+        "label": "Comprar passagem > Busca ida — TgrFlightSearch",
+        "screen": "OneWayTrip",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/OneWayTrip/OneWayTrip.tsx",
+        "notes": "Host do FlightSearch modernizado; integrado com useOneWayTrip; origin/destination com code e value"
+      },
+      {
+        "label": "Comprar passagem > Busca ida e volta — TgrFlightSearch",
+        "screen": "RoundTrip",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/RoundTrip/RoundTrip.tsx",
+        "notes": "Trecho ida e volta; mesma interface de props"
+      },
+      {
+        "label": "Comprar passagem > Multiplos trechos — TgrFlightSearch",
+        "screen": "Multiple",
+        "screenPath": "modernization/modules/Acquisition/screens/SearchTripScreen/components/Multiple/Multiple.tsx",
+        "notes": "Trechos multiplos; mesma interface de props"
+      }
+    ]
+  },
   "Header": {
     "flows": [
       {
@@ -140,14 +171,14 @@
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
         "targetTestID": "ds-evidence-screen",
-        "description": "TgrHeaderFlowJumbo com titulo, subtitulo, botao fechar e barra de progresso"
+        "description": "TgrHeaderFlowJumbo com titulo, subtitulo, botao fechar e barra de progresso. targetTestID=ds-evidence-screen pois ds-evidence-target nao propaga visibilidade via RCTViewComponentView nas versoes atuais do iOS (mesmo comportamento do InputCounter)."
       },
       {
         "flowId": "navigation-jumbo",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
         "targetTestID": "ds-evidence-screen",
-        "description": "TgrHeaderNavigationJumbo com titulo, subtitulo e botao voltar"
+        "description": "TgrHeaderNavigationJumbo com titulo, subtitulo e botao voltar. targetTestID=ds-evidence-screen pelo mesmo motivo do flow-jumbo."
       }
     ],
     "references": [
@@ -169,11 +200,26 @@
         "flowId": "sizes",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Tamanhos de heading usados para comparar alteracoes de line-height"
       }
     ],
-    "references": []
+    "references": [
+      {
+        "label": "Check-in > Cartao de Embarque — TgrHeading",
+        "screen": "BoardingPassScreen",
+        "notes": "Titulo/secao no cartao de embarque (size lg)"
+      },
+      {
+        "label": "Aquisicao > Booking de Passageiros — TgrHeading",
+        "screen": "PaxBookingScreen",
+        "notes": "Titulos de secoes do formulario de passageiros"
+      },
+      {
+        "label": "Checkin > Necessidades Especiais — TgrHeading",
+        "screen": "ChooseSpecialNeedScreen",
+        "notes": "Titulo de categoria com accessibilityRole header (relevante a11y)"
+      }
+    ]
   },
   "Illustration": {
     "flows": [
@@ -181,7 +227,6 @@
         "flowId": "default",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Ilustracao SVG com role de imagem e label de acessibilidade"
       }
     ],
@@ -200,7 +245,6 @@
         "flowId": "filled",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Campo de cartao preenchido com suporte textual"
       }
     ],
@@ -274,7 +318,6 @@
         "flowId": "filled",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Campo de data preenchido com suporte textual"
       }
     ],
@@ -305,7 +348,6 @@
         "flowId": "default",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Filtro de intervalo com valores minimo e maximo"
       }
     ],
@@ -330,7 +372,6 @@
         "flowId": "selected",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Select preenchido com item selecionado e texto de suporte"
       }
     ],
@@ -367,7 +408,6 @@
         "flowId": "filled",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Input simples preenchido com acao de limpar"
       }
     ],
@@ -386,7 +426,6 @@
         "flowId": "filled",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Campo de texto preenchido com suporte textual"
       }
     ],
@@ -423,13 +462,69 @@
       }
     ]
   },
+  "ListNavigation": {
+    "flows": [
+      {
+        "flowId": "deprecated-country-flag",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-list-navigation-items",
+        "component": "TgrListNavigation",
+        "screenPath": "src/Automation/DsEvidence/DsEvidenceScreen.js",
+        "description": "TgrListNavigation sem deprecated (ListNavigationDeprecated) com type=countryFlag — valida accessibilityElementsHidden/importantForAccessibility no SvgXml de bandeira (CDCOM-73)."
+      }
+    ],
+    "references": [
+      {
+        "label": "Minha conta > Preferencias > linhas Moeda/Idioma - PreferencesScreen.tsx",
+        "screen": "PreferencesScreen",
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx",
+        "notes": "TgrListNavigation sem deprecated prop (deprecated=true por padrao) com type=countryFlag, linePosition, label, description e countryflag."
+      }
+    ]
+  },
+  "ListSelect": {
+    "flows": [
+      {
+        "flowId": "deprecated-selected",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-list-select-deprecated-items",
+        "component": "TgrListSelect",
+        "screenPath": "src/Automation/DsEvidence/DsEvidenceScreen.js",
+        "description": "TgrListSelect sem deprecated (ListSelectDeprecated) com selected=true — valida cor alias.color.selected.onBgColor em label/description e a11y role/state/label (CDCOM-73)."
+      },
+      {
+        "flowId": "new-selected",
+        "category": "testState",
+        "label": "Estado de teste - DsEvidenceScreen.js",
+        "targetTestID": "ds-evidence-list-select-new-items",
+        "component": "TgrListSelect",
+        "screenPath": "src/Automation/DsEvidence/DsEvidenceScreen.js",
+        "description": "TgrListSelect com deprecated=false (ListSelectNew) com selected=true — valida cor alias.color.selected.onBgColor e a11y role/state/label na variante New (CDCOM-73)."
+      }
+    ],
+    "references": [
+      {
+        "label": "Minha conta > Preferencias > drawer Moeda - PreferencesScreen.tsx",
+        "screen": "PreferencesScreen",
+        "screenPath": "src/Modules/Register/Containers/MyAccount/Preferences/PreferencesScreen.tsx",
+        "notes": "TgrListSelect sem deprecated com type=countryFlag, inputType=radioButton, selected e linePosition no drawer de selecao de moeda."
+      },
+      {
+        "label": "Comprar passagem > Selecionar moeda - CurrencyModal.tsx",
+        "screen": "CurrencyModal",
+        "screenPath": "modernization/modules/Acquisition/screens/SelectTripScreen/components/CurrencyModal/CurrencyModal.tsx",
+        "notes": "TgrListSelect com type=text, inputType=radioButton e selected dinamico por isoCountry."
+      }
+    ]
+  },
   "Search": {
     "flows": [
       {
         "flowId": "filled",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Busca preenchida com acao de limpar"
       }
     ],
@@ -448,7 +543,6 @@
         "flowId": "selected",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Controle segmentado com estado selecionado"
       }
     ],
@@ -460,7 +554,6 @@
         "flowId": "variants",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Variantes visuais e textuais de tag"
       }
     ],
@@ -472,7 +565,6 @@
         "flowId": "business",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Tags Business e Business Flex"
       }
     ],
@@ -484,7 +576,6 @@
         "flowId": "tiers",
         "category": "testState",
         "label": "Estado de teste - DsEvidenceScreen.js",
-        "targetTestID": "ds-evidence-screen",
         "description": "Tags de tier com estados Magno e Smiles"
       }
     ],

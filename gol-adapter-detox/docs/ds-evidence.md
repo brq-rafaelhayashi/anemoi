@@ -334,9 +334,9 @@ yarn ds:evidence --component Heading --card CDCOM-78 \
 
 - **`--mode` é obrigatório** com `--reference` (`package` resolve via pacote npm + patches;
   `source` aponta pro DS local — útil para conferir o porte).
-- O alvo de recorte em referência costuma ser `ds-evidence-screen` (tela inteira), o que
-  **inclui o contexto** (rótulo do componente + flowId + card branco) — para QA isso é
-  mais informativo que um crop apertado. Recorte pós-captura se precisar de um crop justo.
+- O alvo de recorte em referência segue o padrão `ds-evidence-target` (recorte no
+  componente). Se a QA quiser o contexto (rótulo do componente + flowId + card branco),
+  o `*-screen.png` da tela inteira fica salvo ao lado do recorte.
 - Os PNGs de referência alimentam a seção **2.6** do relatório artesanal (grid iOS × Android
   — ver [`anemoi-relatorio-html.md`](anemoi-relatorio-html.md)).
 
@@ -415,6 +415,9 @@ outputs/ds-evidence/<card>/<component>/<timestamp>/
 - **Recorte:** o teste lê o frame do `ds-evidence-screen` e do `targetTestID` na
   hierarquia XML, calcula a escala vs. o screenshot real e recorta com `sharp` (8px de
   padding). Se algum frame não resolver, copia o print inteiro e marca `cropped: false`.
+  O `targetTestID` default é **`ds-evidence-target`** (recorte no componente) — ver
+  [ADR 0004](../../ds-evidence-preset/docs/adr/0004-recorte-no-componente-por-padrao.md).
+  O registry só declara `targetTestID` para **exceções** (overlay, containers agrupados).
 - **Entregue a pasta `<timestamp>/` INTEIRA.** O `index.html` referencia as imagens por
   **caminho relativo** (`before/<plat>/…`, `after/<plat>/…`); abrir/anexar só o HTML solto
   deixa as imagens quebradas (cai no placeholder "Imagem ainda não gerada"). Para anexar no
@@ -498,7 +501,6 @@ automaticamente.
        { "flowId": "preferences-currency",
          "category": "appScreen",
          "label": "Home > Minha conta > Preferencias - PreferencesScreen.tsx",
-         "targetTestID": "ds-evidence-screen",
          "component": "TgrMeuComponente",
          "flow": ["Home", "Minha conta", "Tela X", "elemento Y"],
          "screenPath": "src/Modules/.../TelaX.tsx:123",
@@ -508,11 +510,11 @@ automaticamente.
    }
    ```
 
-   - `targetTestID` é o `testID` que o `sharp` recorta. Use um `testID` específico do
-     componente para um recorte justo; `ds-evidence-screen` (tela toda) só quando o
-     componente compõe subárvore acessível e o `testID` custom não é endereçável pelo
-     Detox — nesse caso, **recorte o PNG pós-captura** (sharp/Pillow) antes de montar
-     galeria combinada/anexar no card, para que o par Antes|Depois foque o componente.
+   - **Omita `targetTestID`** no caso comum: o default `ds-evidence-target` recorta no
+     componente (ver [ADR 0004](../../ds-evidence-preset/docs/adr/0004-recorte-no-componente-por-padrao.md)).
+     Declare `targetTestID` **só em exceções**: flows overlay (Modal/Dialog, print em tela
+     cheia) ou quando quiser recortar um container próprio agrupado com `testID` específico
+     que resolva na árvore nativa (ex.: `ds-evidence-list-select-new-items`).
    - `component` é o nome do componente real exibido como título da coluna (fallback:
      `Tgr<Componente>`).
    - `flowId` é o id passado em `--flows`.
