@@ -17,7 +17,7 @@
 // Seletor de recorte: #storybook-root  (contém o custom element hidratado)
 
 const { spawnSync } = require('node:child_process');
-const { VIEWPORT_WIDTHS, BRAND_ATTR, THEME_ATTR, brandGlobal } = require('../brands');
+const { VIEWPORT_WIDTHS, THEME_ATTR, brandGlobal } = require('../brands');
 
 // Cor de background dark (sem '#') usada pelo Storybook para acionar data-theme=dark.
 const DARK_BG_HEX = '211E1C';
@@ -41,7 +41,7 @@ function urlFor(cell, baseUrl) {
     globals.push(`backgrounds.value:%23${DARK_BG_HEX}`);
   }
 
-  let url = `${baseUrl}/iframe.html?id=${encodeURIComponent(cell.storyId)}&globals=${globals.join(';')}`;
+  let url = `${baseUrl}/iframe.html?id=${cell.storyId}&globals=${globals.join(';')}`;
 
   const argsStr = encodeArgs(cell.args);
   if (argsStr) {
@@ -61,31 +61,18 @@ function selectorFor(_cell) {
 async function verify(page, _cell) {
   const timeout = 10000;
 
-  // Tenta via customElements.whenDefined para o primeiro custom element dentro de #storybook-root
-  try {
-    await page.waitForFunction(
-      () => {
-        const root = document.querySelector('#storybook-root');
-        if (!root) return false;
-        // Qualquer filho que seja custom element (tag com hífen)
-        const el = root.querySelector(':scope > *') || root.firstElementChild;
-        if (!el) return false;
-        const tag = el.tagName.toLowerCase();
-        if (!tag.includes('-')) return true; // não é CE, skip
-        return el.shadowRoot !== null;
-      },
-      { timeout }
-    );
-  } catch (_e) {
-    // Fallback: espera pelo menos o #storybook-root ter conteúdo
-    await page.waitForFunction(
-      () => {
-        const root = document.querySelector('#storybook-root');
-        return root && root.children.length > 0;
-      },
-      { timeout }
-    );
-  }
+  // Busca recursivamente o primeiro descendente custom element (tagName com '-')
+  // dentro de #storybook-root e aguarda seu shadowRoot estar hidratado.
+  // Cobre o caso em que a story é embrulhada em um elemento wrapper (ex.: decorator de div).
+  await page.waitForFunction(
+    () => {
+      const root = document.querySelector('#storybook-root');
+      if (!root) return false;
+      const ce = [...root.querySelectorAll('*')].find(e => e.tagName.includes('-'));
+      return ce ? ce.shadowRoot !== null : false;
+    },
+    { timeout }
+  );
 }
 
 // Roda o build estático do Storybook do tangerina-web-core.
