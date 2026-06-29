@@ -36,7 +36,8 @@ const HOST_FACTORIES = {
 async function ensureStorybookIndex(wcHost, repo, sbDir) {
   if (!fs.existsSync(path.join(sbDir, 'index.json'))) {
     console.log('⬛ Buildando Storybook para obter index.json…');
-    wcHost.build(repo, sbDir);
+    const built = (await wcHost.build(repo, sbDir)) || sbDir;
+    return wcHost.indexDir ? wcHost.indexDir(built) : built;
   }
   return wcHost.indexDir(sbDir);
 }
@@ -62,7 +63,7 @@ async function captureFramework(host, repo, cells, runDir) {
 }
 
 async function runCurrentState(argv, cwd) {
-  const args = parseArgs(argv);
+  const args = Array.isArray(argv) ? parseArgs(argv) : argv;
 
   // --doctor
   if (args.doctor) {
@@ -164,7 +165,7 @@ async function runCurrentState(argv, cwd) {
 
     // WC já foi buildado — reutiliza
     if (framework === 'wc') {
-      const served = sbDir;
+      const served = indexDir;
       const server = await serveStatic(served);
       try {
         console.log(`\n⬛ Capturando ${cells.length} célula(s) para wc…`);
@@ -218,7 +219,7 @@ async function runCurrentState(argv, cwd) {
 // Ponto de entrada da CLI
 function runCli(argv, cwd) {
   const args = parseArgs(argv);
-  runCurrentState(argv, cwd).catch(err => {
+  runCurrentState(args, cwd).catch(err => {
     console.error('Erro fatal:', err.message || err);
     process.exit(1);
   });
