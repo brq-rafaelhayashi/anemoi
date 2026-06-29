@@ -49,6 +49,25 @@ test('renderHtml: gera galeria com img das capturas (modo current)', () => {
   assert.match(html, /country_flag/);
 });
 
+test('renderHtml layout parity monta grade wc|react|angular', () => {
+  const html = renderHtml({
+    tool: 'Anemoi Cross', component: 'tgr-button', card: 'NO-CARD',
+    mode: 'current', layout: 'parity', cellCount: 1,
+    generatedAt: '2026-06-29T00:00:00Z',
+    axes: {frameworks: ['wc','react','angular'], stories: ['Primary'], themes: ['light'], viewports: ['sm'], brands: ['gol']},
+    groups: [{
+      label: 'gol · Primary · sm · light',
+      wc: 'wc/gol/Primary/sm/light.png',
+      react: 'react/gol/Primary/sm/light.png',
+      angular: 'angular/gol/Primary/sm/light.png',
+      parity: [{against: 'react', mismatch: 0}, {against: 'angular', mismatch: 0}],
+    }],
+  });
+  assert.match(html, /react\/gol\/Primary\/sm\/light\.png/);
+  assert.match(html, /angular\/gol\/Primary\/sm\/light\.png/);
+  assert.match(html, /paridade/i);
+});
+
 test('renderHtml: before/after gera 3-up (before/after/diff)', () => {
   const manifest = sampleManifest('/tmp/run');
   manifest.mode = 'before-after';

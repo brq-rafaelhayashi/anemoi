@@ -17,17 +17,19 @@ function writeManifest(runDir, manifest) {
 
 function writeSummary(runDir, manifest) {
   const summaryPath = path.join(runDir, 'summary.md');
-  const {axes} = manifest;
+  const tool = manifest.tool || 'Anemoi';
+  const axes = manifest.axes || {};
+  const joinAxis = (value) => (Array.isArray(value) && value.length ? value.join(', ') : '(default)');
   const lines = [
-    `# Anemoi Web - ${manifest.component}`,
+    `# ${tool} - ${manifest.component}`,
     '',
     `- Card: ${manifest.card}`,
     `- Modo: ${manifest.mode}`,
     `- Gerado em: ${manifest.generatedAt}`,
-    `- Brands: ${axes.brands.join(', ')}`,
-    `- Stories: ${axes.stories.join(', ')}`,
-    `- Viewports: ${axes.viewports.join(', ')}`,
-    `- Modes: ${axes.modes.length ? axes.modes.join(', ') : '(default)'}`,
+    `- Brands: ${joinAxis(axes.brands)}`,
+    `- Stories: ${joinAxis(axes.stories)}`,
+    `- Viewports: ${joinAxis(axes.viewports)}`,
+    `- Themes: ${joinAxis(axes.themes || axes.modes)}`,
     `- Prints: ${manifest.cellCount}`,
     '',
     '## Saida',
@@ -74,33 +76,54 @@ function renderCapture(manifest, capture) {
     </section>`;
 }
 
+function renderParityGroup(group) {
+  const badges = (group.parity || []).map(p =>
+    `<span class="parity ${p.mismatch === 0 ? 'ok' : 'diff'}">${escapeHtml(p.against)}: ${p.mismatch === 0 ? 'paridade OK' : p.mismatch + 'px'}</span>`
+  ).join(' ');
+  return `
+    <section class="cell">
+      <h3>${escapeHtml(group.label)} ${badges}</h3>
+      <div class="threeup">
+        ${imageFigure(group.wc, 'web component')}
+        ${imageFigure(group.react, 'react')}
+        ${imageFigure(group.angular, 'angular')}
+      </div>
+    </section>`;
+}
+
 function renderHtml(manifest) {
-  const cells = manifest.captures.map(c => renderCapture(manifest, c)).join('\n');
+  const tool = manifest.tool || 'Anemoi';
+  let body;
+  if (manifest.layout === 'parity') {
+    body = (manifest.groups || []).map(renderParityGroup).join('\n');
+  } else {
+    body = (manifest.captures || []).map(c => renderCapture(manifest, c)).join('\n');
+  }
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
-<title>Anemoi Web — ${escapeHtml(manifest.component)} (${escapeHtml(manifest.card)})</title>
+<title>${escapeHtml(tool)} — ${escapeHtml(manifest.component)} (${escapeHtml(manifest.card)})</title>
 <style>
   body { font-family: system-ui, sans-serif; margin: 24px; background: #fafafa; color: #211e1c; }
-  header { margin-bottom: 24px; }
   .badge { display:inline-block; background:#211e1c; color:#fff; padding:2px 8px; border-radius:4px; font-size:12px; }
   .cell { background:#fff; border:1px solid #eee; border-radius:8px; padding:16px; margin-bottom:16px; }
   .threeup { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
   .single img, .threeup img { max-width:100%; border:1px solid #eee; background:#fff; }
   figcaption { font-size:12px; color:#666; margin-bottom:4px; }
-  .mismatch { font-size:12px; color:#b00; font-weight:normal; }
+  .parity { font-size:12px; font-weight:normal; padding:1px 6px; border-radius:4px; }
+  .parity.ok { background:#e6f4ea; color:#137333; }
+  .parity.diff { background:#fce8e6; color:#b00; }
   .missing { font-size:12px; color:#b00; }
 </style>
 </head>
 <body>
 <header>
-  <span class="badge">Anemoi Web · ${escapeHtml(manifest.card)}</span>
+  <span class="badge">${escapeHtml(tool)} · ${escapeHtml(manifest.card)}</span>
   <h1>${escapeHtml(manifest.component)}</h1>
   <p>Modo: ${escapeHtml(manifest.mode)} · Prints: ${manifest.cellCount} · Gerado em ${escapeHtml(manifest.generatedAt)}</p>
-  <p>Brands: ${escapeHtml(manifest.axes.brands.join(', '))} · Viewports: ${escapeHtml(manifest.axes.viewports.join(', '))}</p>
 </header>
-${cells}
+${body}
 </body>
 </html>
 `;
