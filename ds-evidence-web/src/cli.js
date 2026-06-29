@@ -17,9 +17,20 @@ const {
   popStash,
 } = require('@gol-smiles/ds-evidence-core');
 const {readIndexJson, filterStoriesForComponent, buildStorybook} = require('./storybook');
+const {storybookHost, BRAND_GLOBALS, VIEWPORT_WIDTHS} = require('./host');
 
 const DEFAULT_BRANDS = ['gol', 'smiles', 'smiles-club'];
 const DEFAULT_VIEWPORTS = ['xs', 'sm', 'md', 'lg', 'xl'];
+
+function assertKnownBrands(brands) {
+  for (const brand of brands) {
+    if (!BRAND_GLOBALS[brand]) {
+      throw new Error(
+        `Brand desconhecida: "${brand}". Use uma de: ${Object.keys(BRAND_GLOBALS).join(', ')}.`,
+      );
+    }
+  }
+}
 
 function splitList(value, fallback) {
   if (!value || value === true) return fallback;
@@ -66,12 +77,28 @@ function resolveStories(indexDir, component, storiesArg) {
 async function captureMatrix(cells, indexDir, destDir) {
   const server = await serveStatic(indexDir);
   try {
-    return await captureCells(cells, server.url, destDir, {
+    return await captureCells(cells, storybookHost, server.url, destDir, {
       onProgress: (n, total, rel) => console.log(`  [${n}/${total}] ${rel}`),
     });
   } finally {
     await server.close();
   }
+}
+
+// O web sempre captura web components (framework 'wc'). O core agora exige
+// `frameworks`/`themes`/`viewportWidths` explicitos; `modes` (CLI antigo) vira
+// `themes` (default light quando vazio) e o map de larguras vem do storybookHost.
+function buildWebMatrix({stories, brands, viewports, modes, args}) {
+  assertKnownBrands(brands);
+  return buildMatrix({
+    frameworks: ['wc'],
+    stories,
+    brands,
+    themes: modes.length ? modes : ['light'],
+    viewports,
+    viewportWidths: VIEWPORT_WIDTHS,
+    args,
+  });
 }
 
 async function runCurrentState(args) {
@@ -92,7 +119,7 @@ async function runCurrentState(args) {
     const modes = splitList(args.modes, []);
     const argPairs = parseArgPairs(args.args);
 
-    const cells = buildMatrix({stories, brands, viewports, modes, args: argPairs});
+    const cells = buildWebMatrix({stories, brands, viewports, modes, args: argPairs});
     console.log(`Capturando ${cells.length} prints...`);
     const captured = await captureMatrix(cells, buildDir, runDir);
 
@@ -101,7 +128,7 @@ async function runCurrentState(args) {
       axes: {brands, stories: stories.map(s => s.name), viewports, modes, args: argPairs},
       cellCount: cells.length,
       captures: captured.map(c => ({
-        brand: c.brand, storyName: c.storyName, viewport: c.viewport, mode: c.mode || null,
+        brand: c.brand, storyName: c.storyName, viewport: c.viewport, mode: c.theme,
         path: c.relPath,
       })),
     });
@@ -142,7 +169,7 @@ async function runBeforeAfter(args) {
     const modes = splitList(args.modes, []);
     const argPairs = parseArgPairs(args.args);
 
-    const cells = buildMatrix({stories, brands, viewports, modes, args: argPairs});
+    const cells = buildWebMatrix({stories, brands, viewports, modes, args: argPairs});
     console.log(`Capturando ${cells.length} prints (after)...`);
     const afterCaps = await captureMatrix(cells, afterBuild, path.join(runDir, 'after'));
     console.log(`Capturando ${cells.length} prints (before)...`);
@@ -159,7 +186,7 @@ async function runBeforeAfter(args) {
         diffAbs,
       );
       return {
-        brand: after.brand, storyName: after.storyName, viewport: after.viewport, mode: after.mode || null,
+        brand: after.brand, storyName: after.storyName, viewport: after.viewport, mode: after.theme,
         beforePath: path.join('before', before.relPath),
         afterPath: path.join('after', after.relPath),
         diffPath: diffRel,
