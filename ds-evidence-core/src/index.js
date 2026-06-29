@@ -4,7 +4,6 @@ module.exports = {
   ...require('./diff'),
   ...require('./server'),
   ...require('./matrix'),
-  ...require('./url'),
   ...require('./capture'),
   ...require('./output'),
   ...require('./doctor'),
