@@ -1,0 +1,14 @@
+{
+  "name": "@gol-smiles/ds-evidence-cross",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Anemoi cross-framework: evidencia de componentes Stencil em WC/React/Angular.",
+  "main": "src/cli.js",
+  "bin": {"ds-evidence-cross": "bin/ds-evidence-cross.js"},
+  "files": ["bin", "src", "harness"],
+  "scripts": {"test": "node --test"},
+  "dependencies": {
+    "@gol-smiles/ds-evidence-core": "file:../ds-evidence-core",
+    "@storybook/csf": "^0.1.11"
+  }
+}
