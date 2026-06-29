@@ -68,10 +68,18 @@ function hasBuildStorybookScript(repoPath) {
 }
 
 function playwrightChromiumInstalled() {
+  // playwright é dependência do @gol-smiles/ds-evidence-core (usado por captureCells),
+  // não do cross — resolve a partir do dir do core para detectar o chromium do mesmo jeito.
+  let cwd = __dirname;
+  try {
+    cwd = path.dirname(require.resolve('@gol-smiles/ds-evidence-core/package.json'));
+  } catch (e) {
+    // mantém __dirname como fallback
+  }
   const result = childProcess.spawnSync(
     'node',
     ['-e', "const {chromium}=require('playwright'); process.stdout.write(require('node:fs').existsSync(chromium.executablePath())?'1':'0')"],
-    {cwd: __dirname, encoding: 'utf8'}
+    {cwd, encoding: 'utf8'}
   );
   return result.stdout === '1';
 }

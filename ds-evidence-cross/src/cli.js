@@ -216,18 +216,17 @@ async function runCurrentState(argv, cwd) {
   console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
 }
 
-// Ponto de entrada da CLI
+// Ponto de entrada da CLI — retorna a Promise para o chamador (bin) tratar erros.
 function runCli(argv, cwd) {
-  const args = parseArgs(argv);
-  runCurrentState(args, cwd).catch(err => {
-    console.error('Erro fatal:', err.message || err);
-    process.exit(1);
-  });
+  return runCurrentState(argv, cwd);
 }
 
 module.exports = {runCli, runCurrentState};
 
 // Executa diretamente se for o módulo principal
 if (require.main === module) {
-  runCli(process.argv.slice(2), process.cwd());
+  runCli(process.argv.slice(2), process.cwd()).catch(err => {
+    console.error('Erro fatal:', err.message || err);
+    process.exit(1);
+  });
 }
