@@ -1,69 +1,32 @@
-const {test} = require('node:test');
+const test = require('node:test');
 const assert = require('node:assert');
-const {
-  BRAND_GLOBALS,
-  VIEWPORT_WIDTHS,
-  buildMatrix,
-  countCells,
-} = require('../src/matrix');
+const {buildMatrix, countCells} = require('../src/matrix');
 
-test('BRAND_GLOBALS e VIEWPORT_WIDTHS expostos', () => {
-  assert.equal(BRAND_GLOBALS['gol'], 'gol|default_theme');
-  assert.equal(BRAND_GLOBALS['smiles'], 'smiles|default_theme');
-  assert.equal(BRAND_GLOBALS['smiles-club'], 'smiles|club');
-  assert.equal(VIEWPORT_WIDTHS.xs, 320);
-  assert.equal(VIEWPORT_WIDTHS.xl, 1440);
-});
-
-test('buildMatrix: default sem modes nem args', () => {
+test('buildMatrix gera uma celula por combinacao incluindo framework', () => {
   const cells = buildMatrix({
-    stories: [{id: 'badge--badge', name: 'Badge'}],
-    brands: ['gol', 'smiles'],
-    viewports: ['xs', 'md'],
-    modes: [],
+    frameworks: ['wc', 'react'],
+    stories: [{id: 'a--primary', name: 'Primary'}],
+    brands: ['gol'],
+    themes: ['light', 'dark'],
+    viewports: ['sm'],
+    viewportWidths: {sm: 360},
     args: {},
   });
-  // 1 story x 2 brands x 2 viewports x (sem mode) = 4
-  assert.equal(cells.length, 4);
-  const first = cells[0];
-  assert.equal(first.brand, 'gol');
-  assert.equal(first.brandGlobal, 'gol|default_theme');
-  assert.equal(first.storyId, 'badge--badge');
-  assert.equal(first.viewport, 'xs');
-  assert.equal(first.width, 320);
-  assert.equal(first.mode, undefined);
-});
-
-test('buildMatrix: com modes light/dark multiplica', () => {
-  const cells = buildMatrix({
-    stories: [{id: 'badge--badge', name: 'Badge'}],
-    brands: ['gol'],
-    viewports: ['xs'],
-    modes: ['light', 'dark'],
-    args: {},
-  });
-  assert.equal(cells.length, 2);
-  assert.deepEqual(cells.map(c => c.mode), ['light', 'dark']);
-});
-
-test('buildMatrix: args sao anexados a cada celula', () => {
-  const cells = buildMatrix({
-    stories: [{id: 'badge--badge', name: 'Badge'}],
-    brands: ['gol'],
-    viewports: ['xs'],
-    modes: [],
-    args: {inverse: true},
-  });
-  assert.deepEqual(cells[0].args, {inverse: true});
-});
-
-test('countCells: produto dos eixos', () => {
-  assert.equal(
-    countCells({stories: 4, brands: 3, viewports: 5, modes: 0}),
-    60,
+  assert.equal(cells.length, 2 * 1 * 2 * 1); // fw × stories × themes × viewports
+  assert.deepEqual(
+    cells.map(c => `${c.framework}/${c.theme}`).sort(),
+    ['react/dark', 'react/light', 'wc/dark', 'wc/light'],
   );
-  assert.equal(
-    countCells({stories: 4, brands: 3, viewports: 5, modes: 2}),
-    120,
-  );
+  assert.equal(cells[0].width, 360);
+});
+
+test('countCells multiplica os eixos', () => {
+  assert.equal(countCells({frameworks: 2, stories: 3, brands: 1, themes: 2, viewports: 2}), 24);
+});
+
+test('buildMatrix rejeita viewport sem largura', () => {
+  assert.throws(() => buildMatrix({
+    frameworks: ['wc'], stories: [{id: 'a', name: 'A'}],
+    brands: ['gol'], themes: ['light'], viewports: ['zz'], viewportWidths: {sm: 360}, args: {},
+  }), /Viewport desconhecido/);
 });
