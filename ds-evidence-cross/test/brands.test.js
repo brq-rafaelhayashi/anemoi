@@ -12,3 +12,7 @@ test('maps de brand/tema/viewport batem com .storybook/preview.ts', () => {
   assert.equal(THEME_ATTR.light, null);          // light = sem data-theme
   assert.equal(brandGlobal('gol'), 'gol');        // global do Storybook
 });
+
+test('brandGlobal lanca erro claro para brand desconhecida', () => {
+  assert.throws(() => brandGlobal('xyz'), /Brand desconhecida/);
+});

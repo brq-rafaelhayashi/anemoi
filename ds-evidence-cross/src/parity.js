@@ -1,3 +1,4 @@
+const fs = require('node:fs');
 const path = require('node:path');
 const {writeDiff} = require('@gol-smiles/ds-evidence-core');
 
@@ -18,7 +19,7 @@ function groupByCell(captures) {
   return [...map.values()];
 }
 
-// Para cada grupo, compara react×wc e angular×wc; grava diffs em <runDir>/diff/...
+// Compara react×wc e angular×wc com writeDiff e GRAVA os PNGs de diff em <runDir>/diff/. Retorna os grupos com parity[].
 function computeParity(groups, runDir) {
   return groups.map(g => {
     const parity = [];
@@ -31,13 +32,14 @@ function computeParity(groups, runDir) {
         parity.push({against: fw, mismatch, diffPath: diffRel});
       }
     }
-    return {...g, parity};
+    const {_cell, ...rest} = g;
+    return {...rest, parity};
   });
 }
 
 function ensureDir(p) {
-  require('node:fs').mkdirSync(path.dirname(p), {recursive: true});
+  fs.mkdirSync(path.dirname(p), {recursive: true});
   return p;
 }
 
-module.exports = {groupByCell, computeParity, keyOf};
+module.exports = {groupByCell, computeParity};
