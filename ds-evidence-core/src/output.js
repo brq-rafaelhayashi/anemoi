@@ -29,7 +29,7 @@ function writeSummary(runDir, manifest) {
     `- Brands: ${joinAxis(axes.brands)}`,
     `- Stories: ${joinAxis(axes.stories)}`,
     `- Viewports: ${joinAxis(axes.viewports)}`,
-    `- Themes: ${joinAxis(axes.themes || axes.modes)}`,
+    `- Themes: ${joinAxis(axes.themes)}`,
     `- Prints: ${manifest.cellCount}`,
     '',
     '## Saida',
@@ -114,6 +114,7 @@ function renderHtml(manifest) {
   .parity { font-size:12px; font-weight:normal; padding:1px 6px; border-radius:4px; }
   .parity.ok { background:#e6f4ea; color:#137333; }
   .parity.diff { background:#fce8e6; color:#b00; }
+  .mismatch { font-size:12px; color:#b00; font-weight:normal; }
   .missing { font-size:12px; color:#b00; }
 </style>
 </head>

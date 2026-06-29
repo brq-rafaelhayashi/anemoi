@@ -24,7 +24,7 @@ const DEFAULT_VIEWPORTS = ['xs', 'sm', 'md', 'lg', 'xl'];
 
 function assertKnownBrands(brands) {
   for (const brand of brands) {
-    if (!BRAND_GLOBALS[brand]) {
+    if (!(brand in BRAND_GLOBALS)) {
       throw new Error(
         `Brand desconhecida: "${brand}". Use uma de: ${Object.keys(BRAND_GLOBALS).join(', ')}.`,
       );
@@ -125,7 +125,7 @@ async function runCurrentState(args) {
 
     finalize(runDir, {
       card, component, mode: 'current',
-      axes: {brands, stories: stories.map(s => s.name), viewports, modes, args: argPairs},
+      axes: {brands, stories: stories.map(s => s.name), viewports, themes: modes.length ? modes : ['light'], args: argPairs},
       cellCount: cells.length,
       captures: captured.map(c => ({
         brand: c.brand, storyName: c.storyName, viewport: c.viewport, mode: c.theme,
@@ -196,7 +196,7 @@ async function runBeforeAfter(args) {
 
     finalize(runDir, {
       card, component, mode: 'before-after',
-      axes: {brands, stories: stories.map(s => s.name), viewports, modes, args: argPairs},
+      axes: {brands, stories: stories.map(s => s.name), viewports, themes: modes.length ? modes : ['light'], args: argPairs},
       cellCount: cells.length,
       captures,
     });
