@@ -1,14 +1,22 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const {parseArgs} = require('./args');
-const {buildMatrix, countCells} = require('./matrix');
+const {
+  parseArgs,
+  buildMatrix,
+  countCells,
+  serveStatic,
+  captureCells,
+  writeDiff,
+  writeManifest,
+  writeSummary,
+  renderHtml,
+  runDoctor,
+  assertNoOrphanStash,
+  ensureWorkingTreeDiff,
+  pushStash,
+  popStash,
+} = require('@gol-smiles/ds-evidence-core');
 const {readIndexJson, filterStoriesForComponent, buildStorybook} = require('./storybook');
-const {serveStatic} = require('./server');
-const {captureCells} = require('./capture');
-const {writeDiff} = require('./diff');
-const {writeManifest, writeSummary, renderHtml} = require('./output');
-const {runDoctor} = require('./doctor');
-const {assertNoOrphanStash, ensureWorkingTreeDiff, pushStash, popStash} = require('./git');
 
 const DEFAULT_BRANDS = ['gol', 'smiles', 'smiles-club'];
 const DEFAULT_VIEWPORTS = ['xs', 'sm', 'md', 'lg', 'xl'];
