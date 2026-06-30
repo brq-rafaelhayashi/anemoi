@@ -7,6 +7,7 @@
   "bin": {"ds-evidence-cross": "bin/ds-evidence-cross.js"},
   "files": ["bin", "src", "harness"],
   "scripts": {"test": "node --test"},
+  "engines": { "node": ">=24" },
   "dependencies": {
     "@gol-smiles/ds-evidence-core": "file:../ds-evidence-core",
     "@storybook/csf": "^0.1.11"

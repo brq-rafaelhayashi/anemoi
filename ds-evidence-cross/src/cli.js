@@ -90,6 +90,10 @@ async function runCurrentState(argv, cwd) {
 
   // Defaults
   const frameworks = (args.frameworks || 'wc,react,angular').split(',').map(f => f.trim());
+  if (!frameworks.includes('wc') && (frameworks.includes('react') || frameworks.includes('angular'))) {
+    console.log('ℹ️  Incluindo "wc" nos frameworks: o baseline WC é necessário para o diff de paridade.');
+    frameworks.unshift('wc');
+  }
   const themes = (args.themes || 'light,dark').split(',').map(t => t.trim());
   const viewports = (args.viewports || 'sm,lg').split(',').map(v => v.trim());
   const brands = (args.brands || 'gol').split(',').map(b => b.trim());
@@ -158,7 +162,7 @@ async function runCurrentState(argv, cwd) {
       ...c,
       component,
       // WC: sem args na URL (usa storyId nativo do Storybook, evita coerção de tipos)
-      // React: args ignorados pelo urlFor (harness carrega próprios args)
+      // React: cell.args passado como JSON na URL (resolvido pelo CLI — mesma fonte do Angular)
       // Angular: cell.args é passado como JSON na URL
       args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
     }));

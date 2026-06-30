@@ -5,7 +5,9 @@ const {resolveStoryArgs} = require('../src/storyArgs');
 
 const PACKAGE_DIR = path.join(__dirname, '..');
 
-test('mescla meta.args + story.args para cada storyId', async () => {
+const supportsTs = Boolean(process.features?.typescript) || Number(process.versions.node.split('.')[0]) >= 24;
+
+test('mescla meta.args + story.args para cada storyId', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
   const stories = [
     {id: 'action-button--primary', name: 'Primary', importPath: './test/fixtures/sample.stories.ts'},
     {id: 'action-button--disabled', name: 'Disabled', importPath: './test/fixtures/sample.stories.ts'},
@@ -16,7 +18,7 @@ test('mescla meta.args + story.args para cada storyId', async () => {
   assert.deepEqual(got['action-button--disabled'], {label: 'Salvar', variant: 'primary', disabled: true});
 });
 
-test('retorna objeto vazio para storyId nao encontrado na story', async () => {
+test('retorna objeto vazio para storyId nao encontrado na story', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
   const stories = [
     {id: 'action-button--nope', name: 'Nope', importPath: './test/fixtures/sample.stories.ts'},
   ];
