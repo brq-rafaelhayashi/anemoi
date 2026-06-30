@@ -28,6 +28,7 @@ function computeParity(groups, runDir) {
         const diffRel = path.join('diff', `${fw}-vs-wc`, `${g._cell.brand}-${g._cell.storyName}-${g._cell.viewport}-${g._cell.theme}.png`);
         const {mismatch} = writeDiff(
           path.join(runDir, g.wc), path.join(runDir, g[fw]), ensureDir(path.join(runDir, diffRel)),
+          {fit: 'intersection'},
         );
         parity.push({against: fw, mismatch, diffPath: diffRel});
       }

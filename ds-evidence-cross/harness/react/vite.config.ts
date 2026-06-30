@@ -5,15 +5,11 @@ import path from 'node:path';
 const repo =
   process.env.DS_REPO ||
   path.resolve('../../../../tangerina-ds/tangerina-web-core');
-const stories =
-  process.env.DS_STORIES_DIR ||
-  path.join(repo, 'packages/components/src/components');
 
 export default defineConfig({
   plugins: [react()],
   resolve: {
     alias: {
-      '/stories': stories,
       '@gol-smiles/tangerina-react': path.join(
         repo,
         'packages/components-react/dist/index.mjs'

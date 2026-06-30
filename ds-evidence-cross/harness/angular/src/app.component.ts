@@ -41,6 +41,7 @@ export class AppComponent implements OnInit {
     theme === 'dark'
       ? html.setAttribute('data-theme', 'dark')
       : html.removeAttribute('data-theme');
+    document.body.style.background = theme === 'dark' ? '#211E1C' : '';
 
     // Find component from DIRECTIVES by selector.
     // DIRECTIVES is [TgrButton, ...]; TgrButton.ɵcmp.selectors = [['tgr-button']]

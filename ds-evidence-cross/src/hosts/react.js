@@ -29,7 +29,6 @@ function build(repo, outDir) {
       env: {
         ...process.env,
         DS_REPO: repo,
-        DS_STORIES_DIR: path.join(repo, 'packages/components/src/components'),
       },
       shell: false,
     }
@@ -56,7 +55,8 @@ function urlFor(cell, baseUrl) {
   const brand = encodeURIComponent(cell.brand ?? 'gol');
   const theme = encodeURIComponent(cell.theme ?? 'light');
   const viewport = encodeURIComponent(cell.viewport ?? 'sm');
-  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}`;
+  const args = encodeURIComponent(JSON.stringify(cell.args || {}));
+  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}`;
 }
 
 /** Seletor da raiz montada pelo React. */

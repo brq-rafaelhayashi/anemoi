@@ -41,3 +41,60 @@ test('writeDiff: imagens diferentes => mismatch > 0', () => {
   const {mismatch} = writeDiff(a, b, out);
   assert.equal(mismatch, 16); // 4x4 px todos diferentes
 });
+
+// Helpers para testes de fit
+function writePngSized(filePath, w, h, fill) {
+  const png = new PNG({width: w, height: h});
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = fill.r;
+    png.data[i + 1] = fill.g;
+    png.data[i + 2] = fill.b;
+    png.data[i + 3] = 255;
+  }
+  fs.writeFileSync(filePath, PNG.sync.write(png));
+}
+
+test('writeDiff union (default): trecho extra e contado como divergencia', () => {
+  // before: 4x4 vermelho; after: 6x4 vermelho nos primeiros 4 cols, diferente nos 2 cols extras
+  // No union (pad para 6x4), a area extra da imagem menor (before) fica transparente → diverge do vermelho
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-union-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePngSized(a, 4, 4, {r: 200, g: 0, b: 0}); // 4 wide
+  writePngSized(b, 6, 4, {r: 200, g: 0, b: 0}); // 6 wide, mesma cor mas mais larga
+
+  const {mismatch, width, height} = writeDiff(a, b, out);
+  assert.equal(width, 6);
+  assert.equal(height, 4);
+  // Os 2 cols extras (2x4=8 px) da imagem menor ficam transparentes vs vermelho → mismatch > 0
+  assert.ok(mismatch > 0, `esperado mismatch > 0, obtido ${mismatch}`);
+});
+
+test('writeDiff intersection: regiao comum identica => mismatch 0', () => {
+  // Mesmo cenario acima, mas com fit:'intersection' => corta para 4x4 => regiao comum identica => 0
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-inter-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePngSized(a, 4, 4, {r: 200, g: 0, b: 0});
+  writePngSized(b, 6, 4, {r: 200, g: 0, b: 0});
+
+  const {mismatch, width, height} = writeDiff(a, b, out, {fit: 'intersection'});
+  assert.equal(width, 4);
+  assert.equal(height, 4);
+  assert.equal(mismatch, 0);
+});
+
+test('writeDiff intersection: retorna dimensoes menores', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-inter2-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePngSized(a, 10, 8, {r: 0, g: 0, b: 0});
+  writePngSized(b, 6, 12, {r: 0, g: 0, b: 0});
+
+  const {width, height} = writeDiff(a, b, out, {fit: 'intersection'});
+  assert.equal(width, 6);   // min(10,6)
+  assert.equal(height, 8);  // min(8,12)
+});

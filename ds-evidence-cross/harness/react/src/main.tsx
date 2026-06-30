@@ -12,14 +12,12 @@ defineCustomElements();
 // Todos os wrappers React
 import * as Tgr from '@gol-smiles/tangerina-react';
 
-import { resolveArgs } from './registry';
-
 // Lê querystring
 const params = new URLSearchParams(location.search);
 const component = params.get('c') ?? '';
-const storyId = params.get('story') ?? '';
 const brand = params.get('brand') ?? 'gol';
 const theme = params.get('theme') ?? 'light';
+const args = JSON.parse(decodeURIComponent(params.get('args') || '%7B%7D'));
 
 // Aplica brand/tema no <html> (convenção: gol = sem atributo, dark = data-theme="dark")
 const htmlEl = document.documentElement;
@@ -33,6 +31,7 @@ if (theme === 'dark') {
 } else {
   htmlEl.removeAttribute('data-theme');
 }
+document.body.style.background = theme === 'dark' ? '#211E1C' : '';
 
 // Deriva o nome do export React: tgr-button → TgrButton
 function toPascalCase(tagName: string): string {
@@ -58,6 +57,5 @@ if (!Comp) {
     </div>
   );
 } else {
-  const args = resolveArgs(component, storyId);
   root.render(createElement(Comp, args as React.ComponentProps<typeof Comp>));
 }

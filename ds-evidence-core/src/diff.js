@@ -2,14 +2,20 @@ const fs = require('node:fs');
 const {PNG} = require('pngjs');
 const pixelmatch = require('pixelmatch');
 
-// Compara before vs after. Se as dimensoes diferem, normaliza para a maior
-// (a menor e copiada num canvas do tamanho da maior) antes de comparar.
-function writeDiff(beforePath, afterPath, outPath) {
+// Compara before vs after. Se as dimensoes diferem, normaliza conforme opts.fit:
+//   'union' (default): dimensoes = Math.max; imagem menor recebe pad transparente top-left.
+//   'intersection': dimensoes = Math.min; ambas as imagens sao recortadas para a menor area.
+function writeDiff(beforePath, afterPath, outPath, opts = {}) {
   const before = PNG.sync.read(fs.readFileSync(beforePath));
   const after = PNG.sync.read(fs.readFileSync(afterPath));
 
-  const width = Math.max(before.width, after.width);
-  const height = Math.max(before.height, after.height);
+  const fit = opts.fit || 'union';
+  const width = fit === 'intersection'
+    ? Math.min(before.width, after.width)
+    : Math.max(before.width, after.width);
+  const height = fit === 'intersection'
+    ? Math.min(before.height, after.height)
+    : Math.max(before.height, after.height);
 
   const a = resizeCanvas(before, width, height);
   const b = resizeCanvas(after, width, height);
@@ -24,12 +30,15 @@ function writeDiff(beforePath, afterPath, outPath) {
 }
 
 // Coloca a imagem num canvas WxH (preenchido de transparente), top-left.
+// Se o canvas for menor que a imagem (fit='intersection'), recorta para WxH.
 function resizeCanvas(png, width, height) {
   if (png.width === width && png.height === height) {
     return png;
   }
   const canvas = new PNG({width, height});
-  PNG.bitblt(png, canvas, 0, 0, png.width, png.height, 0, 0);
+  const copyW = Math.min(png.width, width);
+  const copyH = Math.min(png.height, height);
+  PNG.bitblt(png, canvas, 0, 0, copyW, copyH, 0, 0);
   return canvas;
 }
 
