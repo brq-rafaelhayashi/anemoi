@@ -38,7 +38,10 @@ npm install
 ```
 
 Isso resolve as dependências de todos os workspaces (`anemoi-core`, `anemoi-web`, `anemoi-cross`,
-`anemoi-preset`).
+`anemoi-preset`) e, via `postinstall`, instala também as deps dos harnesses do `anemoi-cross`
+(`harness/react` e `harness/angular`) — eles não são membros do workspace (o Angular precisa das
+suas próprias deps isoladas para evitar NG0203), mas o `npm install` já os prepara. Para reinstalar
+só os harnesses: `npm run setup:harnesses`.
 
 ## Rodar (cross-framework, web)
 

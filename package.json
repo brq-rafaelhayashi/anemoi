@@ -12,6 +12,8 @@
   "scripts": {
     "cross": "node anemoi-cross/bin/anemoi-cross.js",
     "web": "node anemoi-web/bin/anemoi-web.js",
-    "test": "npm test --workspaces --if-present"
+    "test": "npm test --workspaces --if-present",
+    "setup:harnesses": "npm --prefix anemoi-cross/harness/react install && npm --prefix anemoi-cross/harness/angular install",
+    "postinstall": "npm run setup:harnesses"
   }
 }
