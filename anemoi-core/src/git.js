@@ -1,6 +1,6 @@
 const childProcess = require('node:child_process');
 
-const STASH_MESSAGE_PREFIX = 'ds-evidence-web:';
+const STASH_MESSAGE_PREFIX = 'anemoi:';
 
 function run(repoPath, args) {
   const result = childProcess.spawnSync('git', args, {
@@ -37,7 +37,7 @@ function assertNoOrphanStash(repoPath) {
     .find(line => line.includes(STASH_MESSAGE_PREFIX));
   if (orphan) {
     throw new Error(
-      `Encontrado um stash residual do ds-evidence-web em ${repoPath}: ${orphan}. Recupere-o (git stash pop) antes de rodar de novo.`,
+      `Encontrado um stash residual do anemoi em ${repoPath}: ${orphan}. Recupere-o (git stash pop) antes de rodar de novo.`,
     );
   }
 }

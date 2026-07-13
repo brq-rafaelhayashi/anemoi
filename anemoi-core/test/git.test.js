@@ -36,6 +36,8 @@ test('push/pop stash: alterna HEAD vs working tree', () => {
   assert.doesNotThrow(() => ensureWorkingTreeDiff(dir));
 
   const stash = pushStash(dir, 'CDCOM-1', 'badge');
+  // stash message usa o prefixo do motor renomeado (anemoi:)
+  assert.equal(stash.message, 'anemoi:CDCOM-1:badge');
   // apos stash, conteudo volta ao HEAD (before) = v1
   assert.equal(fs.readFileSync(path.join(dir, 'a.txt'), 'utf8'), 'v1\n');
 

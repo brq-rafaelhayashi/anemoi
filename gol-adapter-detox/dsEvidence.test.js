@@ -1,5 +1,5 @@
 const {
   registerDetoxEvidenceTests,
-} = require('../ds-evidence-preset/src/lib/detoxEvidenceTest');
+} = require('../anemoi-preset/src/lib/detoxEvidenceTest');
 
 registerDetoxEvidenceTests();

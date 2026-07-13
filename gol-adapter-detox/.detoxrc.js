@@ -1,6 +1,6 @@
 const path = require('path');
 
-const {createDetoxConfig} = require('../ds-evidence-preset/src');
+const {createDetoxConfig} = require('../anemoi-preset/src');
 
 // O adaptador vive no BRQ-AI e é consumido pelo app via symlink (detox/), mas o
 // ds-evidence.config.js é per-app e fica na raiz do host — resolve pelo cwd
@@ -12,7 +12,7 @@ const config = createDetoxConfig(hostConfig);
 // Allow per-app config or env var to constrain the iOS simulator OS version.
 // Useful when multiple "iPhone X" simulators with different OS versions are installed
 // and Detox would otherwise pick the newest (which may have compatibility issues).
-const iosOs = process.env.DS_EVIDENCE_IOS_OS || hostConfig.devices?.iosOs;
+const iosOs = process.env.ANEMOI_IOS_OS || hostConfig.devices?.iosOs;
 if (iosOs && config.devices?.['ios.simulator']?.device) {
   config.devices['ios.simulator'].device.os = iosOs;
 }

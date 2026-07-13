@@ -105,7 +105,7 @@ async function runCurrentState(args) {
   const repo = path.resolve(args.repo);
   const component = args.component;
   const card = args.card || 'NO-CARD';
-  const runDir = path.join(repo, 'outputs/ds-evidence-web', card, component, timestamp());
+  const runDir = path.join(repo, 'outputs/anemoi-web', card, component, timestamp());
   fs.mkdirSync(runDir, {recursive: true});
 
   const buildDir = path.join(runDir, '.storybook-static');
@@ -141,7 +141,7 @@ async function runBeforeAfter(args) {
   const repo = path.resolve(args.repo);
   const component = args.component;
   const card = args.card || 'NO-CARD';
-  const runDir = path.join(repo, 'outputs/ds-evidence-web', card, component, timestamp());
+  const runDir = path.join(repo, 'outputs/anemoi-web', card, component, timestamp());
   fs.mkdirSync(runDir, {recursive: true});
 
   assertNoOrphanStash(repo);
@@ -218,7 +218,7 @@ function finalize(runDir, partial) {
 function runListStories(args) {
   // Exige um build existente (--index-dir) OU builda rapido.
   const repo = path.resolve(args.repo);
-  const tmp = path.join(repo, 'outputs/ds-evidence-web', '_list', timestamp());
+  const tmp = path.join(repo, 'outputs/anemoi-web', '_list', timestamp());
   fs.mkdirSync(tmp, {recursive: true});
   try {
     buildStorybook(repo, tmp, {logPath: path.join(tmp, 'build.log')});

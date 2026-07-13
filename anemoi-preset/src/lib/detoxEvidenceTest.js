@@ -9,7 +9,7 @@ const sharp = hostRequire('sharp');
 
 function loadRegistry() {
   const registryPath =
-    process.env.DS_EVIDENCE_REGISTRY_PATH ||
+    process.env.ANEMOI_REGISTRY_PATH ||
     path.resolve(process.cwd(), 'detox/ds-evidence/registry.json');
 
   return require(path.resolve(registryPath));
@@ -36,7 +36,7 @@ function normalizeFlow(item) {
 
 function flowList(registry, component, flowFilter) {
   if (!component) {
-    throw new Error('DS_EVIDENCE_COMPONENT is required.');
+    throw new Error('ANEMOI_COMPONENT is required.');
   }
 
   const entry = registry[component];
@@ -145,17 +145,17 @@ async function cropScreenshot(fullImagePath, outputPath, xml, targetTestID) {
 
 function registerDetoxEvidenceTests() {
   const registry = loadRegistry();
-  const component = process.env.DS_EVIDENCE_COMPONENT;
+  const component = process.env.ANEMOI_COMPONENT;
   const flowFilter =
-    process.env.DS_EVIDENCE_FLOWS || process.env.DS_EVIDENCE_SCENARIOS;
-  const outputDir = process.env.DS_EVIDENCE_OUTPUT_DIR;
-  const phase = process.env.DS_EVIDENCE_PHASE || 'unknown';
-  const platformName = process.env.DS_EVIDENCE_PLATFORM || device.getPlatform();
+    process.env.ANEMOI_FLOWS || process.env.ANEMOI_SCENARIOS;
+  const outputDir = process.env.ANEMOI_OUTPUT_DIR;
+  const phase = process.env.ANEMOI_PHASE || 'unknown';
+  const platformName = process.env.ANEMOI_PLATFORM || device.getPlatform();
 
   describe('DS Evidence', () => {
     beforeAll(async () => {
       if (!outputDir) {
-        throw new Error('DS_EVIDENCE_OUTPUT_DIR is required.');
+        throw new Error('ANEMOI_OUTPUT_DIR is required.');
       }
     });
 
@@ -163,7 +163,7 @@ function registerDetoxEvidenceTests() {
       it(`${component} ${flow.flowId}`, async () => {
         const scenarioDir = path.join(outputDir, phase, platformName);
         const baseName = `${component}-${flow.flowId}`;
-        const scheme = process.env.DS_EVIDENCE_SCHEME || 'gol://';
+        const scheme = process.env.ANEMOI_SCHEME || 'gol://';
         const route = `${scheme.replace(
           /\/$/,
           '',

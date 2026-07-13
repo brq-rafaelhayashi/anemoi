@@ -1,11 +1,11 @@
 function createDetoxConfig(hostConfig = {}) {
   const tangerinaMode = process.env.TANGERINA_MODE || 'package';
   const iosDevice =
-    process.env.DS_EVIDENCE_IOS_DEVICE ||
+    process.env.ANEMOI_IOS_DEVICE ||
     hostConfig.devices?.ios ||
     'iPhone 16';
   const androidAvd =
-    process.env.DS_EVIDENCE_ANDROID_AVD ||
+    process.env.ANEMOI_ANDROID_AVD ||
     hostConfig.devices?.android ||
     'Medium_Phone_API_36.1';
   const envFile = hostConfig.envFile || '.env.automation';

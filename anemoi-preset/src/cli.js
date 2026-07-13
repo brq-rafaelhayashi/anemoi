@@ -1134,8 +1134,8 @@ function detoxCommandArgs(config, command, platform) {
 
 function detoxCommandEnv(config, env) {
   return {
-    DS_EVIDENCE_REGISTRY_PATH: resolveHostPath(config, config.registryPath),
-    DS_EVIDENCE_SCHEME: config.scheme,
+    ANEMOI_REGISTRY_PATH: resolveHostPath(config, config.registryPath),
+    ANEMOI_SCHEME: config.scheme,
     ...env,
   };
 }
@@ -1201,12 +1201,12 @@ async function runDetoxPhase(
       ensureDir(path.join(outputDir, phase, platform));
 
       detoxCommand(config, 'test', platform, {
-        DS_EVIDENCE_COMPONENT: input.component,
-        DS_EVIDENCE_FLOWS: input.flows.join(','),
-        DS_EVIDENCE_SCENARIOS: input.flows.join(','),
-        DS_EVIDENCE_OUTPUT_DIR: outputDir,
-        DS_EVIDENCE_PHASE: phase,
-        DS_EVIDENCE_PLATFORM: platform,
+        ANEMOI_COMPONENT: input.component,
+        ANEMOI_FLOWS: input.flows.join(','),
+        ANEMOI_SCENARIOS: input.flows.join(','),
+        ANEMOI_OUTPUT_DIR: outputDir,
+        ANEMOI_PHASE: phase,
+        ANEMOI_PLATFORM: platform,
         TANGERINA_MODE: tangerina_mode,
         RCT_METRO_PORT: String(port),
       });
@@ -1275,7 +1275,7 @@ async function runEvidence(args, config, input) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const runDir = path.join(
     config.repoRoot,
-    config.outputDir || 'outputs/ds-evidence',
+    config.outputDir || 'outputs/anemoi',
     slug(input.card),
     slug(input.component),
     timestamp,
@@ -1309,7 +1309,7 @@ async function runEvidence(args, config, input) {
 
   if (!skipBuild) {
     const buildEnv = platform => ({
-      DS_EVIDENCE_PLATFORM: platform,
+      ANEMOI_PLATFORM: platform,
       TANGERINA_MODE: 'source',
       RCT_METRO_PORT: String(port),
     });
@@ -1368,7 +1368,7 @@ async function runReference(args, config, input) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
   const runDir = path.join(
     config.repoRoot,
-    config.outputDir || 'outputs/ds-evidence',
+    config.outputDir || 'outputs/anemoi',
     slug(input.card),
     slug(input.component),
     timestamp,
@@ -1385,7 +1385,7 @@ async function runReference(args, config, input) {
   if (!skipBuild) {
     for (const platform of input.platforms) {
       detoxCommand(config, 'build', platform, {
-        DS_EVIDENCE_PLATFORM: platform,
+        ANEMOI_PLATFORM: platform,
         TANGERINA_MODE: mode,
         RCT_METRO_PORT: String(port),
       });
@@ -1906,7 +1906,7 @@ function runInit(cwd) {
   envFile: '.env.automation',
   detoxConfigPath: 'detox/.detoxrc.js',
   registryPath: 'detox/ds-evidence/registry.json',
-  outputDir: 'outputs/ds-evidence',
+  outputDir: 'outputs/anemoi',
   metroPort: 8081,
   devices: {
     ios: 'iPhone 16',
