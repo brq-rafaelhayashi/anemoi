@@ -1,11 +1,11 @@
 {
-  "name": "@gol-smiles/ds-evidence-preset",
+  "name": "@gol-smiles/anemoi-preset",
   "version": "0.1.0",
   "private": true,
   "description": "Preset interno para evidencias de componentes Tangerina em apps React Native.",
   "main": "src/index.js",
   "bin": {
-    "ds-evidence": "bin/ds-evidence.js"
+    "anemoi": "bin/anemoi.js"
   },
   "files": [
     "bin",

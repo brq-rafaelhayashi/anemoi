@@ -1,11 +1,11 @@
 {
-  "name": "@gol-smiles/ds-evidence-web",
+  "name": "@gol-smiles/anemoi-web",
   "version": "0.1.0",
   "private": true,
   "description": "Motor de evidencias visuais de componentes Tangerina web (Storybook + Lit).",
   "main": "src/cli.js",
   "bin": {
-    "ds-evidence-web": "bin/ds-evidence-web.js"
+    "anemoi-web": "bin/anemoi-web.js"
   },
   "files": ["bin", "src"],
   "scripts": {
