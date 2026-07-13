@@ -1,4 +1,4 @@
-# ADR 0001: Use Detox for DS evidence automation
+# ADR 0001: Use Detox for Anemoi evidence automation
 
 ## Status
 

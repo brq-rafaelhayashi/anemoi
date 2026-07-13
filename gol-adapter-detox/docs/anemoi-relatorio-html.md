@@ -6,10 +6,11 @@ a paleta e o comportamento do relatório de evidência que a dev entrega no card
 QA consome. O padrão de referência canônico é o
 `CDCOM-78-Header-Heading.html` (port de a11y de `TgrHeading` + `Header`).
 
-> **Nome da ferramenta:** "Anemoi" é o nome do produto. Os identificadores técnicos
-> (`yarn ds:evidence`, env `DS_EVIDENCE_*`, `ds-evidence.config.js`, `outputs/ds-evidence/`,
-> pacote `@gol-smiles/ds-evidence-preset`) **mantêm o nome legado `ds-evidence`** por
-> compatibilidade — não os renomeie. Anemoi é a marca; `ds-evidence` é o slug interno.
+> **Nome da ferramenta:** "Anemoi" é a marca **e** o slug técnico — env `ANEMOI_*`,
+> `outputs/anemoi/`, pacote `@gol-smiles/anemoi-preset`. Sobrevivem com o nome legado
+> `ds-evidence` só os artefatos que são contrato do lado do app (ainda não repontados com
+> o mobile): comando `yarn ds:evidence`, arquivo `ds-evidence.config.js`, os symlinks
+> (`packages/ds-evidence-preset`, `detox/`) e o deep link `automation/ds` — não os renomeie.
 
 ---
 
@@ -24,7 +25,7 @@ lento — escolha pelo que o card precisa:
 | **Relatório artesanal** _(este doc)_ | Montado à mão (ou por agente) a partir das capturas | Card que precisa de **narrativa completa**: escada de evidência, antes/depois conceitual de a11y, roteiros de navegação QA, diffs do source, decisões técnicas. | Multi-seção, cards colapsáveis, alerts, test-blocks, grids de imagem, tabelas, diffs. |
 
 Este documento descreve o **relatório artesanal**. O HTML auto-gerado está coberto em
-[`ds-evidence.md`](ds-evidence.md) (flags `--html` / `--html-output` / `--html-only`).
+[`anemoi.md`](anemoi.md) (flags `--html` / `--html-output` / `--html-only`).
 
 > **Regra de fidelidade das imagens:** os dois níveis referenciam os PNGs por **caminho
 > relativo** dentro da pasta `<timestamp>/`. O relatório artesanal frequentemente vive numa
@@ -301,7 +302,7 @@ Badges de fluxo (tons locais): `.badge-checkin` (azul), `.badge-aquis` (verde),
 ### Grid de prints de referência (seção 2.6)
 
 Duas colunas iOS × Android por componente. Esta é a saída do **modo `--reference`** do
-Anemoi (captura pós-fix única — ver [`ds-evidence.md`](ds-evidence.md)).
+Anemoi (captura pós-fix única — ver [`anemoi.md`](anemoi.md)).
 
 ```html
 <p class="ref-component-title">TgrHeaderFlowJumbo</p>
@@ -390,9 +391,9 @@ Não adicione libs nem mais JS — o relatório é estático por princípio.
 
 1. **Capture os prints** com o Anemoi no modo referência (pós-fix), iOS e Android:
    `yarn ds:evidence --component <Comp> --card CDCOM-XX --reference --mode package --platform both`
-   (ou `--mode source` se já apontando pro DS local). Ver [`ds-evidence.md`](ds-evidence.md).
+   (ou `--mode source` se já apontando pro DS local). Ver [`anemoi.md`](anemoi.md).
 2. **Escolha a pasta agregadora** do relatório. Para um card multi-componente, use
-   `outputs/ds-evidence/CDCOM-XX/<Comp1>-<Comp2>/<timestamp>/` e referencie os PNGs das
+   `outputs/anemoi/CDCOM-XX/<Comp1>-<Comp2>/<timestamp>/` e referencie os PNGs das
    pastas irmãs por `../../<Comp>/<ts>/reference/<plat>/<arq>.png`.
 3. **Copie o esqueleto base** e preencha header/footer com o card, componentes e data.
 4. **Monte as seções** na ordem canônica usando os blocos acima. Comece pelo mínimo
@@ -401,7 +402,7 @@ Não adicione libs nem mais JS — o relatório é estático por princípio.
    a pasta do HTML e confirme que o arquivo existe (um `<img>` quebrado passa despercebido):
 
    ```bash
-   HTML_DIR="outputs/ds-evidence/CDCOM-XX/.../<timestamp>"
+   HTML_DIR="outputs/anemoi/CDCOM-XX/.../<timestamp>"
    grep -o 'src="[^"]*\.png"' "$HTML_DIR"/*.html | sed 's/src="//;s/"//' | while IFS= read -r rel; do
      abs=$(python3 -c "import os;print(os.path.normpath(os.path.join('$HTML_DIR','$rel')))")
      [ -f "$abs" ] && echo "OK  $(basename "$rel")" || echo "FALTA $rel"
@@ -412,7 +413,7 @@ Não adicione libs nem mais JS — o relatório é estático por princípio.
    abra pelo `localhost`:
 
    ```bash
-   cd outputs/ds-evidence/CDCOM-XX && python3 -m http.server 9123
+   cd outputs/anemoi/CDCOM-XX && python3 -m http.server 9123
    # abra http://localhost:9123/<sub>/<timestamp>/CDCOM-XX-….html
    ```
 7. **Entregue a árvore inteira** (HTML + pastas de imagem) ou um `.zip` da pasta do
@@ -434,8 +435,8 @@ Não adicione libs nem mais JS — o relatório é estático por princípio.
 
 ## Referências
 
-- [`ds-evidence.md`](ds-evidence.md) — guia operacional do harness (captura, flags, modo
+- [`anemoi.md`](anemoi.md) — guia operacional do harness (captura, flags, modo
   `--reference`, troubleshooting).
 - [`CONTEXT.md`](../CONTEXT.md) — glossário do domínio.
 - [ADR 0003 — Escada de Evidência: a11y vs pixel](adr/0003-escada-evidencia-a11y-vs-pixel.md)
-- Relatório de referência: `outputs/ds-evidence/CDCOM-78/Header-Heading/<ts>/CDCOM-78-Header-Heading.html`.
+- Relatório de referência: `outputs/anemoi/CDCOM-78/Header-Heading/<ts>/CDCOM-78-Header-Heading.html`.

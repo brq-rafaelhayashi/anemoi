@@ -10,7 +10,7 @@ const sharp = hostRequire('sharp');
 function loadRegistry() {
   const registryPath =
     process.env.ANEMOI_REGISTRY_PATH ||
-    path.resolve(process.cwd(), 'detox/ds-evidence/registry.json');
+    path.resolve(process.cwd(), 'detox/anemoi/registry.json');
 
   return require(path.resolve(registryPath));
 }
@@ -41,7 +41,7 @@ function flowList(registry, component, flowFilter) {
 
   const entry = registry[component];
   if (!entry) {
-    throw new Error(`No DS evidence registry entry for ${component}.`);
+    throw new Error(`No Anemoi registry entry for ${component}.`);
   }
 
   const allFlows = (entry.flows || entry.harness || []).map(normalizeFlow);
@@ -152,7 +152,7 @@ function registerDetoxEvidenceTests() {
   const phase = process.env.ANEMOI_PHASE || 'unknown';
   const platformName = process.env.ANEMOI_PLATFORM || device.getPlatform();
 
-  describe('DS Evidence', () => {
+  describe('Anemoi', () => {
     beforeAll(async () => {
       if (!outputDir) {
         throw new Error('ANEMOI_OUTPUT_DIR is required.');
@@ -258,7 +258,7 @@ function registerDetoxEvidenceTests() {
           );
           if (!crop.cropped) {
             console.warn(
-              `[ds-evidence] ${baseName}: crop fallback to full screenshot (${crop.reason})`,
+              `[anemoi] ${baseName}: crop fallback to full screenshot (${crop.reason})`,
             );
           }
         }

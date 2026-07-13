@@ -5,7 +5,7 @@ const path = require('path');
 const readline = require('readline');
 
 const DEFAULT_PLATFORMS = ['ios'];
-const STASH_MESSAGE_PREFIX = 'ds-evidence-preset:';
+const STASH_MESSAGE_PREFIX = 'anemoi-preset:';
 const FLOW_CATEGORIES = {
   appScreen: 'Telas do app',
   testState: 'Estados de teste',
@@ -70,7 +70,7 @@ function loadConfig(args, cwd) {
 
   if (!fs.existsSync(configPath)) {
     throw new Error(
-      `DS Evidence config not found at ${configPath}. Run with --config or create ds-evidence.config.js.`,
+      `Anemoi config not found at ${configPath}. Run with --config or create ds-evidence.config.js.`,
     );
   }
 
@@ -1088,7 +1088,7 @@ function assertNoOrphanStash(config) {
 
   if (orphan) {
     throw new Error(
-      `Found a previous DS Evidence stash in ${repoRoot}: ${orphan}. Recover it before running again.`,
+      `Found a previous Anemoi stash in ${repoRoot}: ${orphan}. Recover it before running again.`,
     );
   }
 }
@@ -1250,7 +1250,7 @@ function collectCaptureMetadata(runDir) {
           });
         } catch (error) {
           console.warn(
-            `[ds-evidence] unreadable capture metadata: ${path.join(platformDir, file)}`,
+            `[anemoi] unreadable capture metadata: ${path.join(platformDir, file)}`,
           );
         }
       }
@@ -1298,7 +1298,7 @@ async function runEvidence(args, config, input) {
     }
 
     const manifestPath = writeOutputs(config, runDir, manifest, false);
-    console.log(`DS evidence dry-run written to ${runDir}`);
+    console.log(`Anemoi dry-run written to ${runDir}`);
     console.log(`Manifest: ${manifestPath}`);
     return;
   }
@@ -1355,7 +1355,7 @@ async function runEvidence(args, config, input) {
   }
 
   const manifestPath = writeOutputs(config, runDir, manifest, html);
-  console.log(`DS evidence written to ${runDir}`);
+  console.log(`Anemoi evidence written to ${runDir}`);
   console.log(`Manifest: ${manifestPath}`);
 }
 
@@ -1397,7 +1397,7 @@ async function runReference(args, config, input) {
   });
 
   const manifestPath = writeOutputs(config, runDir, manifest, html);
-  console.log(`DS evidence reference written to ${runDir}`);
+  console.log(`Anemoi reference written to ${runDir}`);
   console.log(`Manifest: ${manifestPath}`);
 }
 
@@ -1695,7 +1695,7 @@ async function runInteractive(args, config, input) {
     }?flows=${encodeURIComponent(input.flows.join(','))}&t=${Date.now()}`;
     relaunchAppBeforeDeepLink(config, platform);
     await openInteractiveUrl(config, platform, url);
-    console.log(`DS Evidence interactive route opened: ${url}`);
+    console.log(`Anemoi interactive route opened: ${url}`);
     console.log(
       'Metro is still running. Stop this process with Ctrl+C when done.',
     );
@@ -1726,7 +1726,7 @@ function runHtmlOnly(args, config) {
   writeHtml(runDir, manifest);
   writeManifest(runDir, manifest);
   writeSummary(config, runDir, manifest);
-  console.log(`DS evidence HTML written to ${path.join(runDir, 'index.html')}`);
+  console.log(`Anemoi HTML written to ${path.join(runDir, 'index.html')}`);
 }
 
 function doctorEnvironment(config, issues, warnings) {
@@ -1875,26 +1875,26 @@ function runDoctor(config) {
 
   if (warnings.length > 0) {
     console.warn(
-      `DS Evidence doctor warnings:\n- ${warnings.join('\n- ')}`,
+      `Anemoi doctor warnings:\n- ${warnings.join('\n- ')}`,
     );
   }
 
   if (issues.length > 0) {
     throw new Error(
-      `DS Evidence doctor found issues:\n- ${issues.join('\n- ')}`,
+      `Anemoi doctor found issues:\n- ${issues.join('\n- ')}`,
     );
   }
 
   console.log(
     warnings.length > 0
-      ? 'DS Evidence doctor passed (with warnings).'
-      : 'DS Evidence doctor passed.',
+      ? 'Anemoi doctor passed (with warnings).'
+      : 'Anemoi doctor passed.',
   );
 }
 
 function runInit(cwd) {
   const configPath = path.resolve(cwd, 'ds-evidence.config.js');
-  const registryDir = path.resolve(cwd, 'detox/ds-evidence');
+  const registryDir = path.resolve(cwd, 'detox/anemoi');
   const registryPath = path.join(registryDir, 'registry.json');
 
   if (!fs.existsSync(configPath)) {
@@ -1905,7 +1905,7 @@ function runInit(cwd) {
   scheme: 'app://',
   envFile: '.env.automation',
   detoxConfigPath: 'detox/.detoxrc.js',
-  registryPath: 'detox/ds-evidence/registry.json',
+  registryPath: 'detox/anemoi/registry.json',
   outputDir: 'outputs/anemoi',
   metroPort: 8081,
   devices: {
@@ -1958,7 +1958,7 @@ function runInit(cwd) {
     );
   }
 
-  console.log('DS Evidence templates created.');
+  console.log('Anemoi templates created.');
 }
 
 async function runCli(argv, cwd = process.cwd()) {

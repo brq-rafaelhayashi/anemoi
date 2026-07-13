@@ -19,7 +19,7 @@ governa a fonte) e cópia+sync (reintroduz o drift de duas cópias).
 
 A fonte canônica vive no repo **BRQ-AI** (mesmo precedente da skill `gol-ds-create-pr`):
 
-- `anemoi/ds-evidence-preset/` — o preset app-agnostic.
+- `anemoi/anemoi-preset/` — o preset app-agnostic.
 - `anemoi/gol-adapter-detox/` — o adaptador GOL (jest.config, .detoxrc, registry, testes, docs/ADRs).
 
 O app consome via symlink (`packages/ds-evidence-preset` e `detox/` → BRQ-AI) e continua untracked.
@@ -30,7 +30,7 @@ Regras de resolução exigidas pelo symlink (Node resolve `require` pelo realpat
 
 1. Dependências do host (`metro-config`, `sharp`) via `hostRequire` (`createRequire` ancorado em
    `process.cwd()` — todos os entry points rodam da raiz do app).
-2. Preset ↔ adaptador se referenciam como irmãos (`../ds-evidence-preset/`), nunca via caminho do app.
+2. Preset ↔ adaptador se referenciam como irmãos (`../anemoi-preset/`), nunca via caminho do app.
 3. `ds-evidence.config.js` e o pacote `detox` (globalSetup/reporter/testEnvironment do jest.config)
    resolvidos pelo cwd do host; `rootDir` do jest = o próprio adaptador (`__dirname`).
 
@@ -43,3 +43,10 @@ Regras de resolução exigidas pelo symlink (Node resolve `require` pelo realpat
   a partir do BRQ-AI (drift consciente, último recurso).
 - O preset deixa de pressupor que vive sob a raiz do host: qualquer require novo de dependência do
   host deve usar `hostRequire`.
+- **Update (unificação de marca):** o slug interno do repo BRQ-AI foi unificado para `anemoi`
+  (diretórios, pacotes npm, bins e env vars — `ds-evidence-preset` → `anemoi-preset`, etc.),
+  revertendo a decisão original de preservar o slug legado. Ficam com o nome legado `ds-evidence`
+  apenas os artefatos que são contrato do lado do app e ainda não foram repontados com o mobile:
+  os symlinks `packages/ds-evidence-preset`/`detox`, o arquivo `ds-evidence.config.js`, o script
+  `yarn ds:evidence`, o deep link `automation/ds` e os testIDs da Gallery (`ds-evidence-screen`,
+  `ds-evidence-target`, etc.).

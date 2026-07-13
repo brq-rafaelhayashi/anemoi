@@ -1,4 +1,4 @@
-# Anemoi (DS Evidence) — Guia de Uso (Dev e QA)
+# Anemoi — Guia de Uso (Dev e QA)
 
 **Anemoi** é a ferramenta de evidência de Design System do GOL: um harness de automação
 **Detox** que captura prints de componentes do Design System **Tangerina** para os cards
@@ -8,13 +8,15 @@ _Gallery_), tira o screenshot, recorta no componente-alvo e monta um _Bundle de 
 captura: **Antes/Depois** (par comparativo) e **Referência** (pós-fix único — ver
 [Captura de Referência](#captura-de-referência-modo-pós-fix)).
 
-> **Nome:** "Anemoi" é o nome do produto. Os **identificadores técnicos mantêm o slug
-> legado `ds-evidence`** por compatibilidade — não renomeie: comando `yarn ds:evidence`,
-> env `DS_EVIDENCE_*`, arquivo `ds-evidence.config.js`, pacote
-> `@gol-smiles/ds-evidence-preset`, pasta `outputs/ds-evidence/` e a `DsEvidenceScreen`.
-> Renomear esses identificadores quebra runs, config e patches existentes sem ganho.
+> **Nome:** "Anemoi" é a marca **e** o slug técnico — env `ANEMOI_*`, pasta
+> `outputs/anemoi/`, path do registry `detox/anemoi/registry.json`, pacote
+> `@gol-smiles/anemoi-preset`. Sobrevivem com o nome legado `ds-evidence` só os
+> artefatos que são contrato do lado do app (ainda não repontados com o mobile) — **não
+> renomeie**: comando `yarn ds:evidence`, arquivo `ds-evidence.config.js`, os symlinks
+> (`packages/ds-evidence-preset`, `detox/`), o deep link `automation/ds` e a
+> `DsEvidenceScreen` (com seus testIDs `ds-evidence-*`).
 
-O GOL consome o preset local extraível `@gol-smiles/ds-evidence-preset`
+O GOL consome o preset local extraível `@gol-smiles/anemoi-preset`
 (`packages/ds-evidence-preset`). O app continua dono da Gallery, do registry e
 dos fluxos reais; o preset fornece CLI, factory Detox, preset Metro, captura e
 geração opcional de HTML.
@@ -57,7 +59,7 @@ yarn ds:evidence --component <Comp> --card <CDCOM-x>
         └─ 3. para cada fase [after, before]:
                  ├─ after: Source atual; before: Source com sourcePaths stashed
                  │     (o watcher do Metro re-transforma após o stash — sem restart)
-                 ├─ detox test  → detox/dsEvidence.test.js
+                 ├─ detox test  → detox/anemoi.test.js
                  │     ├─ device.launchApp + openURL("gol://automation/ds/<Comp>/<cenario>")
                  │     ├─ espera o testID "ds-evidence-screen"
                  │     │     (a Gallery só renderiza o componente-alvo com __DEV__ + Config.E2E === 'true')
@@ -65,7 +67,7 @@ yarn ds:evidence --component <Comp> --card <CDCOM-x>
                  │     └─ sharp recorta o print no frame do testID-alvo
                  └─ (Metro segue vivo; é derrubado ao final da run)
         │
-        └─ 3. escreve outputs/ds-evidence/<card>/<comp>/<timestamp>/
+        └─ 3. escreve outputs/anemoi/<card>/<comp>/<timestamp>/
                  → manifest.json + summary.md
                  → index.html somente quando rodar com --html
 ```
@@ -74,15 +76,15 @@ yarn ds:evidence --component <Comp> --card <CDCOM-x>
 
 | Arquivo                                         | Papel                                                                                                                                    |
 | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
-| `package.json` → `ds:evidence`                  | Atalho para o preset (`node ./packages/ds-evidence-preset/bin/ds-evidence.js`).                                                          |
+| `package.json` → `ds:evidence`                  | Atalho para o preset (`node ./packages/ds-evidence-preset/bin/anemoi.js`).                                                               |
 | `ds-evidence.config.js`                         | Adaptador do app: scheme, paths, registry, devices, comandos e source paths.                                                             |
 | `packages/ds-evidence-preset`                   | **Preset**: CLI, factory Detox, preset Metro, teste comum e HTML opcional.                                                               |
 | `scripts/metro/tangerinaSourceConfig.js`        | Compatibilidade: reexporta o preset Metro.                                                                                               |
 | `detox/.detoxrc.js`                             | Config Detox criada pela factory do preset.                                                                                              |
 | `detox/jest.config.js`                          | Runner Jest do Detox (`maxWorkers: 1`, timeouts longos).                                                                                 |
-| `detox/dsEvidence.test.js`                      | Wrapper do teste comum do preset.                                                                                                        |
-| `detox/ds-evidence/registry.json`               | **Registro** de componentes → fluxos renderizáveis (`flows`) + referências informativas (`references`).                                  |
-| `src/Automation/DsEvidence/DsEvidenceScreen.js` | **DS Evidence Gallery**: renderiza o componente do fluxo com props representativas. Só funciona com `__DEV__` + `Config.E2E === 'true'`. |
+| `detox/anemoi.test.js`                          | Wrapper do teste comum do preset.                                                                                                        |
+| `detox/anemoi/registry.json`                    | **Registro** de componentes → fluxos renderizáveis (`flows`) + referências informativas (`references`).                                  |
+| `src/Automation/DsEvidence/DsEvidenceScreen.js` | **Gallery** (Anemoi): renderiza o componente do fluxo com props representativas. Só funciona com `__DEV__` + `Config.E2E === 'true'`. |
 | `src/Navigators/deepLinking/index.ts`           | Registra a rota `automation/ds/:component?flows=<flowId>` e mantém `:scenario` legado.                                                   |
 | `src/Navigators/routes/index.ts`                | Liga a rota `automation.DsEvidence` à tela.                                                                                              |
 | `detox/android/src/java/.../DetoxTest.java`     | Entry point nativo do Detox no Android (instrumentação JUnit).                                                                           |
@@ -97,7 +99,7 @@ yarn ds:evidence --component <Comp> --card <CDCOM-x>
 >
 > **Assume o ambiente padrão do `GOL_APP_Mobile` já funcional** (Node 20.19.2, Ruby/CocoaPods,
 > Xcode, Android Studio/JDK — ver [`CLAUDE.md`](../../CLAUDE.md)). As seções abaixo cobrem
-> **só o delta do Detox / DS Evidence**.
+> **só o delta do Detox / Anemoi**.
 
 ### 1. Base do projeto
 
@@ -112,7 +114,7 @@ yarn pod                # bundle install + pod install --clean-install
 
 ### 2. `sharp` (recorte do print)
 
-O `detox/dsEvidence.test.js` usa `sharp` para recortar o screenshot no componente-alvo.
+O `detox/anemoi.test.js` usa `sharp` para recortar o screenshot no componente-alvo.
 O `sharp` é uma **devDependency declarada** (`sharp@0.32.6`, alinhado à versão que o
 `react-native-bootsplash` já trazia) — o `yarn install` do passo 1 já o instala, nada
 a fazer aqui.
@@ -150,11 +152,11 @@ emulator -list-avds
 
 Se o AVD não existir, crie-o pelo **Android Studio → Device Manager** (ou `avdmanager`).
 Para usar um AVD com outro nome sem renomear, sobrescreva com a variável
-`DS_EVIDENCE_ANDROID_AVD` — ver [Sobrescrevendo device/AVD](#sobrescrevendo-deviceavd).
+`ANEMOI_ANDROID_AVD` — ver [Sobrescrevendo device/AVD](#sobrescrevendo-deviceavd).
 
 ### 5. `.env.automation`
 
-O ambiente de automação. A **DS Evidence Gallery só renderiza com `__DEV__` + `E2E=true`**
+O ambiente de automação. A **Gallery só renderiza com `__DEV__` + `E2E=true`**
 (fora desse gate, a tela retorna um placeholder). O `.env.automation`
 **já é versionado no repo** (clone novo o recebe) e contém `E2E=true` + as `API_BASE_*` de
 staging para automação. O Detox carrega esse arquivo via `ENVFILE=.env.automation` nos
@@ -229,7 +231,7 @@ yarn ds:evidence --component CountryFlag --card CDCOM-115 \
   --interactive --mode source --skip-build
 ```
 
-**Flags** (do preset `@gol-smiles/ds-evidence-preset`):
+**Flags** (do preset `@gol-smiles/anemoi-preset`):
 
 | Flag                              | Default         | Descrição                                                                                                                                    |
 | --------------------------------- | --------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -274,21 +276,21 @@ atual do Metro, em vez de manter a tela antiga em memória.
 yarn detox:build:ios        # detox build -c ds.ios.debug
 yarn detox:build:android    # detox build -c ds.android.debug
 
-# test (precisa das variáveis DS_EVIDENCE_* + Metro no modo desejado)
+# test (precisa das variáveis ANEMOI_* + Metro no modo desejado)
 yarn detox:test:ios         # detox test -c ds.ios.debug
 yarn detox:test:android     # detox test -c ds.android.debug
 ```
 
-**Variáveis de ambiente lidas pelo teste** (`detox/dsEvidence.test.js`):
+**Variáveis de ambiente lidas pelo teste** (`detox/anemoi.test.js`):
 
-| Variável                 | Obrigatória     | Papel                                                             |
-| ------------------------ | --------------- | ----------------------------------------------------------------- |
-| `DS_EVIDENCE_COMPONENT`  | sim             | Componente a capturar (chave do registry).                        |
-| `DS_EVIDENCE_OUTPUT_DIR` | sim             | Pasta raiz do run (o teste cria `<dir>/<phase>/<platform>/`).     |
-| `DS_EVIDENCE_FLOWS`      | não             | Filtra `flowId` (vírgula). Vazio = todos os fluxos do componente. |
-| `DS_EVIDENCE_SCENARIOS`  | legado          | Alias temporário de `DS_EVIDENCE_FLOWS`.                          |
-| `DS_EVIDENCE_PHASE`      | não (`unknown`) | `before` / `after` — vira subpasta.                               |
-| `DS_EVIDENCE_PLATFORM`   | não             | `ios` / `android` — subpasta; default = `device.getPlatform()`.   |
+| Variável            | Obrigatória     | Papel                                                             |
+| ------------------- | --------------- | ----------------------------------------------------------------- |
+| `ANEMOI_COMPONENT`  | sim             | Componente a capturar (chave do registry).                        |
+| `ANEMOI_OUTPUT_DIR` | sim             | Pasta raiz do run (o teste cria `<dir>/<phase>/<platform>/`).     |
+| `ANEMOI_FLOWS`      | não             | Filtra `flowId` (vírgula). Vazio = todos os fluxos do componente. |
+| `ANEMOI_SCENARIOS`  | legado          | Alias temporário de `ANEMOI_FLOWS`.                                |
+| `ANEMOI_PHASE`      | não (`unknown`) | `before` / `after` — vira subpasta.                               |
+| `ANEMOI_PLATFORM`   | não             | `ios` / `android` — subpasta; default = `device.getPlatform()`.   |
 
 > **`TANGERINA_MODE` NÃO é lido pelo teste.** Ele é consumido pelo `detox/.detoxrc.js`
 > (comando de build) e pelo `metro.config.js` (resolver do Modo Source), e é **definido por
@@ -300,8 +302,8 @@ yarn detox:test:android     # detox test -c ds.android.debug
 O `detox/.detoxrc.js` lê estas variáveis (úteis se seu simulador/AVD tem outro nome):
 
 ```bash
-DS_EVIDENCE_IOS_DEVICE="iPhone 15 Pro" yarn ds:evidence --component Tag --card CDCOM-90
-DS_EVIDENCE_ANDROID_AVD="Pixel_7_API_34" yarn ds:evidence --component Tag --platform android
+ANEMOI_IOS_DEVICE="iPhone 15 Pro" yarn ds:evidence --component Tag --card CDCOM-90
+ANEMOI_ANDROID_AVD="Pixel_7_API_34" yarn ds:evidence --component Tag --platform android
 ```
 
 ---
@@ -399,7 +401,7 @@ adb exec-out screencap -p > /tmp/header.png              # Android
 Cada run grava em:
 
 ```
-outputs/ds-evidence/<card>/<component>/<timestamp>/
+outputs/anemoi/<card>/<component>/<timestamp>/
 ├── index.html                       ← opcional com --html / --html-only, somente com imagens reais
 ├── <card>-<component>.html          ← opcional com --html / --html-only, somente com imagens reais
 ├── manifest.json                    ← metadados do run (card, fluxos, plataformas, referências)
@@ -416,7 +418,7 @@ outputs/ds-evidence/<card>/<component>/<timestamp>/
   hierarquia XML, calcula a escala vs. o screenshot real e recorta com `sharp` (8px de
   padding). Se algum frame não resolver, copia o print inteiro e marca `cropped: false`.
   O `targetTestID` default é **`ds-evidence-target`** (recorte no componente) — ver
-  [ADR 0004](../../ds-evidence-preset/docs/adr/0004-recorte-no-componente-por-padrao.md).
+  [ADR 0004](../../anemoi-preset/docs/adr/0004-recorte-no-componente-por-padrao.md).
   O registry só declara `targetTestID` para **exceções** (overlay, containers agrupados).
 - **Entregue a pasta `<timestamp>/` INTEIRA.** O `index.html` referencia as imagens por
   **caminho relativo** (`before/<plat>/…`, `after/<plat>/…`); abrir/anexar só o HTML solto
@@ -448,7 +450,7 @@ A QA normalmente **não roda** o harness. O fluxo é consumir o Bundle e validar
      leitura única). A dev indica o ponto a validar no comentário do card.
 
 > **Qual build instalar para a validação em device?** O harness só produz o **app de
-> automação** (a _DS Evidence Gallery_ isolada, com `__DEV__` + `Config.E2E='true'`) — ele renderiza o
+> automação** (a _Gallery_ isolada, com `__DEV__` + `Config.E2E='true'`) — ele renderiza o
 > componente fora dos fluxos reais. Para validar o componente isolado no leitor de tela, a
 > Gallery já serve. Para validar num **fluxo real do app**, use um **build staging que já
 > contenha o fix** (tipicamente pós-merge do porte + novo patch/versão, via pipeline) — a
@@ -489,11 +491,11 @@ yarn ds:evidence --add-flow CountryFlag
 ```
 
 O comando pergunta `category`, `flowId`, `label`, componente renderizado, `targetTestID`,
-`screenPath` e `description`; grava o fluxo em `detox/ds-evidence/registry.json`; e imprime
+`screenPath` e `description`; grava o fluxo em `detox/anemoi/registry.json`; e imprime
 um stub para a Gallery. Ele **não edita** `src/Automation/DsEvidence/DsEvidenceScreen.js`
 automaticamente.
 
-1. **Registry** — adicione a entrada em `detox/ds-evidence/registry.json`:
+1. **Registry** — adicione a entrada em `detox/anemoi/registry.json`:
 
    ```json
    "MeuComponente": {
@@ -511,7 +513,7 @@ automaticamente.
    ```
 
    - **Omita `targetTestID`** no caso comum: o default `ds-evidence-target` recorta no
-     componente (ver [ADR 0004](../../ds-evidence-preset/docs/adr/0004-recorte-no-componente-por-padrao.md)).
+     componente (ver [ADR 0004](../../anemoi-preset/docs/adr/0004-recorte-no-componente-por-padrao.md)).
      Declare `targetTestID` **só em exceções**: flows overlay (Modal/Dialog, print em tela
      cheia) ou quando quiser recortar um container próprio agrupado com `testID` específico
      que resolva na árvore nativa (ex.: `ds-evidence-list-select-new-items`).
@@ -543,9 +545,9 @@ automaticamente.
 | Fase `after` falha ao resolver Tangerina                              | Falta o checkout `../projects_tangerina/` (ver [Setup §6](#6-checkout-do-ds-para-o-modo-source)).                                                  |
 | Tela mostra "DS evidence is available only in E2E."                   | O build não está em `__DEV__` ou `Config.E2E` não é `'true'` — confira `.env.automation` (`E2E=true`) e se o build usou `ENVFILE=.env.automation`. |
 | "Scenario not registered for this component."                         | Fluxo ausente no `scenarioMap` da Gallery, embora esteja no registry. Adicione a função do fluxo.                                                  |
-| `Component <X> is not registered in detox/ds-evidence/registry.json.` | Componente fora do `registry.json` — mensagem do orquestrador (`yarn ds:evidence`). Adicione a entrada.                                            |
-| `No DS evidence registry entry for <Comp>.`                           | Mesma causa, mas vinda do teste Detox cru (sem passar pelo orquestrador).                                                                          |
-| Simulador/AVD não encontrado                                          | Nome diferente do default. Use `DS_EVIDENCE_IOS_DEVICE` / `DS_EVIDENCE_ANDROID_AVD`.                                                               |
+| `Component <X> is not registered in detox/anemoi/registry.json.`      | Componente fora do `registry.json` — mensagem do orquestrador (`yarn ds:evidence`). Adicione a entrada.                                            |
+| `No Anemoi registry entry for <Comp>.`                                 | Mesma causa, mas vinda do teste Detox cru (sem passar pelo orquestrador).                                                                          |
+| Simulador/AVD não encontrado                                          | Nome diferente do default. Use `ANEMOI_IOS_DEVICE` / `ANEMOI_ANDROID_AVD`.                                                                         |
 | Print não recortado (`cropped: false`)                                | O frame do `targetTestID`/`ds-evidence-screen` não foi resolvido na hierarquia XML; o teste copia o print inteiro como fallback.                   |
 | Bundle do Metro demora 3–8 min                                        | `yarn start` foi rodado com `--reset-cache` — descarta todo o cache de transformação e reprocessa o grafo inteiro. Use `yarn start` puro; só resete ao mudar config de Metro/Babel.            |
 | Tela vermelha "No script URL provided"                                | App lançado **antes** de o Metro estar pronto; o RN não reconecta sozinho. **Relance** o app (não use "Reload") com o Metro já no ar.             |
@@ -563,7 +565,7 @@ automaticamente.
   (anatomia, blocos reutilizáveis, paleta, checklist de montagem).
 - [`CONTEXT.md`](../CONTEXT.md) — glossário do domínio (Modo Package/Source, Antes/Depois,
   Bundle de Evidência, Escada de Evidência, etc.).
-- [ADR 0001 — Use Detox for DS evidence automation](adr/0001-detox-for-ds-evidence.md)
+- [ADR 0001 — Use Detox for Anemoi evidence automation](adr/0001-detox-for-anemoi.md)
 - [ADR 0002 — Toggle Antes/Depois: Modo Source + git stash](adr/0002-toggle-antes-depois-source-stash.md)
   _(implementado e validado em smoke — inclusive com Metro compartilhado entre as fases; ver [estado atual](#estado-atual-vs-design-alvo-leia-antes-de-interpretar-os-prints))._
 - [ADR 0003 — Escada de Evidência: a11y vs pixel](adr/0003-escada-evidencia-a11y-vs-pixel.md)

@@ -1,10 +1,15 @@
-# Anemoi (ds-evidence)
+# Anemoi
 
 Glossário do domínio da bancada de evidência visual do Tangerina DS no GOL_APP_Mobile. **Anemoi** é a
-marca da ferramenta; os identificadores técnicos mantêm o slug legado `ds-evidence` (`yarn ds:evidence`,
-`DS_EVIDENCE_*`, `ds-evidence.config.js`, `outputs/ds-evidence/`) — renomear quebraria runs, config e
-patches sem ganho. Este arquivo é a fonte da linguagem; o guia operacional é `docs/ds-evidence.md` e as
-decisões arquiteturais vivem em `docs/adr/` e `../packages/ds-evidence-preset/docs/adr/`.
+marca da ferramenta; a marca e o slug técnico foram unificados — env vars `ANEMOI_*`, diretório de
+saída `outputs/anemoi/`, path do registry `detox/anemoi/registry.json`, pacote `@gol-smiles/anemoi-preset`
+—, revertendo a decisão original de preservar o slug legado `ds-evidence`. Sobrevivem com o nome
+legado apenas os artefatos que são contrato do lado do app (`GOL_APP_Mobile`) e ainda não foram
+repontados com o mobile: o script `yarn ds:evidence`, o arquivo `ds-evidence.config.js` (raiz do app),
+os symlinks (`packages/ds-evidence-preset`, `detox/`), o deep link `automation/ds` e os testIDs da
+Gallery (`ds-evidence-screen`, `ds-evidence-target`, etc.). Este arquivo é a fonte da linguagem; o
+guia operacional é `docs/anemoi.md` e as decisões arquiteturais vivem em `docs/adr/` e
+`../anemoi-preset/docs/adr/`.
 
 ## Language
 
@@ -42,13 +47,13 @@ isolados com props espelhadas das telas reais. Existe apenas em build de automa�
 _Avoid_: showcase, storybook
 
 **Registry**:
-O catálogo (`detox/ds-evidence/registry.json`) que declara, por componente, seus Fluxos de Evidência e
+O catálogo (`detox/anemoi/registry.json`) que declara, por componente, seus Fluxos de Evidência e
 suas referências de tela real. Componente fora do registry não é capturável. Sincronização com o DS é
 manual.
 _Avoid_: manifest (que é o artefato de saída), config
 
 **Bundle de Evidência**:
-O diretório de saída de uma run (`outputs/ds-evidence/<card>/<Componente>/<timestamp>/`): prints,
+O diretório de saída de uma run (`outputs/anemoi/<card>/<Componente>/<timestamp>/`): prints,
 hierarquias, `manifest.json`, `summary.md` e HTML opcional. É o que se anexa ao card.
 _Avoid_: outputs (genérico), relatório (que é o HTML)
 
