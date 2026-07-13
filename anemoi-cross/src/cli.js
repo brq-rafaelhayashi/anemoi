@@ -13,7 +13,7 @@ const {
   writeManifest,
   writeSummary,
   renderHtml,
-} = require('@gol-smiles/ds-evidence-core');
+} = require('@gol-smiles/anemoi-core');
 
 const {VIEWPORT_WIDTHS} = require('./brands');
 const {readIndexJson, filterStoriesForComponent} = require('./stories');

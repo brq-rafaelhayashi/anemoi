@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const {writeDiff} = require('@gol-smiles/ds-evidence-core');
+const {writeDiff} = require('@gol-smiles/anemoi-core');
 
 function keyOf(c) {
   return [c.brand, c.storyName, c.viewport, c.theme].join('|');

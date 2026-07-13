@@ -15,7 +15,7 @@ const {
   ensureWorkingTreeDiff,
   pushStash,
   popStash,
-} = require('@gol-smiles/ds-evidence-core');
+} = require('@gol-smiles/anemoi-core');
 const {readIndexJson, filterStoriesForComponent, buildStorybook} = require('./storybook');
 const {storybookHost, BRAND_GLOBALS, VIEWPORT_WIDTHS} = require('./host');
 

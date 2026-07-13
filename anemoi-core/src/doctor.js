@@ -70,7 +70,7 @@ function playwrightChromiumInstalled() {
 
 function runDoctor(repoPath, options) {
   const checks = collectChecks(repoPath, options);
-  console.log('Doctor — ds-evidence-web\n');
+  console.log('Doctor — anemoi-web\n');
   for (const c of checks) {
     console.log(`${c.ok ? '✅' : '⚠️ '} ${c.label}\n   ${c.detail}`);
   }

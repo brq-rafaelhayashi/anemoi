@@ -68,11 +68,11 @@ function hasBuildStorybookScript(repoPath) {
 }
 
 function playwrightChromiumInstalled() {
-  // playwright é dependência do @gol-smiles/ds-evidence-core (usado por captureCells),
+  // playwright é dependência do @gol-smiles/anemoi-core (usado por captureCells),
   // não do cross — resolve a partir do dir do core para detectar o chromium do mesmo jeito.
   let cwd = __dirname;
   try {
-    cwd = path.dirname(require.resolve('@gol-smiles/ds-evidence-core/package.json'));
+    cwd = path.dirname(require.resolve('@gol-smiles/anemoi-core/package.json'));
   } catch (e) {
     // mantém __dirname como fallback
   }

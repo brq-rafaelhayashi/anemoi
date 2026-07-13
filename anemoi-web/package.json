@@ -12,6 +12,6 @@
     "test": "node --test"
   },
   "dependencies": {
-    "@gol-smiles/ds-evidence-core": "file:../ds-evidence-core"
+    "@gol-smiles/anemoi-core": "*"
   }
 }

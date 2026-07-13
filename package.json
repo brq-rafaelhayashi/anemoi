@@ -1,0 +1,17 @@
+{
+  "name": "@gol-smiles/anemoi",
+  "version": "0.1.0",
+  "private": true,
+  "engines": { "node": ">=24" },
+  "workspaces": [
+    "anemoi-core",
+    "anemoi-web",
+    "anemoi-cross",
+    "anemoi-preset"
+  ],
+  "scripts": {
+    "cross": "node anemoi-cross/bin/anemoi-cross.js",
+    "web": "node anemoi-web/bin/anemoi-web.js",
+    "test": "npm test --workspaces --if-present"
+  }
+}
