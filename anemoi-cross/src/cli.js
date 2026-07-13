@@ -1,6 +1,6 @@
 'use strict';
-// CLI orquestrador do ds-evidence-cross — estado atual (WC/React/Angular).
-// Uso: ds-evidence-cross --component tgr-button [opções]
+// CLI orquestrador do anemoi-cross — estado atual (WC/React/Angular).
+// Uso: anemoi-cross --component tgr-button [opções]
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -101,7 +101,7 @@ async function runCurrentState(argv, cwd) {
 
   // Timestamp do run
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const runDir = path.join(repo, 'outputs', 'ds-evidence-cross', card, component, ts);
+  const runDir = path.join(repo, 'outputs', 'anemoi-cross', card, component, ts);
   fs.mkdirSync(runDir, {recursive: true});
 
   console.log(`\nAnemoi Cross — estado atual`);

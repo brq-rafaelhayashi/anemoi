@@ -1,5 +1,5 @@
 'use strict';
-// Doctor — checks de pre-flight para ds-evidence-cross.
+// Doctor — checks de pre-flight para anemoi-cross.
 // Verifica que o repo tangerina-web-core está configurado e buildado corretamente.
 
 const fs = require('node:fs');
@@ -86,7 +86,7 @@ function playwrightChromiumInstalled() {
 
 function runDoctor(repoPath) {
   const checks = collectChecks(repoPath);
-  console.log('Doctor — ds-evidence-cross\n');
+  console.log('Doctor — anemoi-cross\n');
   for (const c of checks) {
     console.log(`${c.ok ? '✅' : '⚠️ '} ${c.label}\n   ${c.detail}`);
   }
