@@ -48,6 +48,9 @@ function readJsonBody(req) {
 
 // Retorna a mensagem do 422, ou null se o payload e valido.
 function validatePayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return 'corpo da requisicao deve ser um objeto JSON.';
+  }
   if (payload.mode !== 'state') {
     return `mode nao suportado: ${JSON.stringify(payload.mode)}. Unico valor na v1: "state".`;
   }

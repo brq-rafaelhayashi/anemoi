@@ -45,6 +45,8 @@ test('validatePayload cobre os casos 422', () => {
   assert.match(validatePayload({mode: 'state'}), /componentKey/);
   assert.match(validatePayload({...VALID_BODY, axes: {viewports: ['xxl']}}), /viewports/);
   assert.match(validatePayload({...VALID_BODY, axes: {themes: ['dark']}}), /themes/);
+  assert.match(validatePayload(null), /objeto/);
+  assert.match(validatePayload([]), /objeto/);
 });
 
 test('POST /runs valido responde 202 e enfileira o run', async () => {
