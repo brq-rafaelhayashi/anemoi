@@ -19,10 +19,10 @@ function assertSafePathSegment(value, label = 'segment') {
 function cellRelPath(cell) {
   const framework = assertSafePathSegment(cell.framework, 'framework');
   const brand = assertSafePathSegment(cell.brand, 'brand');
-  const storyName = assertSafePathSegment(cell.storyName, 'storyName');
+  const storyId = assertSafePathSegment(cell.storyId, 'storyId');
   const viewport = assertSafePathSegment(cell.viewport, 'viewport');
   const theme = assertSafePathSegment(cell.theme, 'theme');
-  return path.join(framework, brand, storyName, viewport, `${theme}.png`);
+  return path.join(framework, brand, storyId, viewport, `${theme}.png`);
 }
 
 // host: { urlFor(cell, baseUrl), selectorFor(cell), verify?(page, cell) }

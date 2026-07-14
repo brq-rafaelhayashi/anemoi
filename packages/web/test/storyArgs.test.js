@@ -31,7 +31,9 @@ test('mescla meta.args + story.args para cada storyId', { skip: supportsTs ? fal
     {id: 'action-button--primary', name: 'Primary', importPath: './test/fixtures/sample.stories.ts'},
     {id: 'action-button--disabled', name: 'Disabled', importPath: './test/fixtures/sample.stories.ts'},
   ];
-  const got = await resolveStoryArgs(PACKAGE_DIR, stories);
+  const got = await resolveStoryArgs(PACKAGE_DIR, stories, {
+    storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
+  });
 
   assert.deepEqual(got['action-button--primary'], {label: 'Salvar', variant: 'primary', disabled: false});
   assert.deepEqual(got['action-button--disabled'], {label: 'Salvar', variant: 'primary', disabled: true});
@@ -41,7 +43,20 @@ test('retorna objeto vazio para storyId nao encontrado na story', { skip: suppor
   const stories = [
     {id: 'action-button--nope', name: 'Nope', importPath: './test/fixtures/sample.stories.ts'},
   ];
-  const got = await resolveStoryArgs(PACKAGE_DIR, stories);
+  const got = await resolveStoryArgs(PACKAGE_DIR, stories, {
+    storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
+  });
   // Usa somente meta.args (story nao encontrada = storyArgs vazio)
   assert.deepEqual(got['action-button--nope'], {label: 'Salvar', variant: 'primary', disabled: false});
+});
+
+test('rejeita importPath fora da raiz de stories permitida', async () => {
+  await assert.rejects(
+    resolveStoryArgs(PACKAGE_DIR, [{
+      id: 'outside--story',
+      name: 'Outside',
+      importPath: '../package.json',
+    }], {storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures')}),
+    /fora da raiz de stories permitida/,
+  );
 });

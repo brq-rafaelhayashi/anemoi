@@ -3,6 +3,7 @@
 // stories: [{id,name,importPath}] (importPath relativo ao repo, ex.: ./packages/.../tgr-button.stories.ts)
 
 const path = require('node:path');
+const fs = require('node:fs');
 const {pathToFileURL} = require('node:url');
 const {toId} = require('@storybook/csf');
 
@@ -38,12 +39,31 @@ function assertSerializableArgs(value, {storyName, sourcePath}) {
   return value;
 }
 
-async function resolveStoryArgs(repo, stories) {
+function resolveStorySource(repo, importPath, storiesRoot) {
+  const root = path.resolve(storiesRoot);
+  const candidate = path.resolve(repo, importPath);
+  const lexicalRelative = path.relative(root, candidate);
+  if (lexicalRelative.startsWith('..') || path.isAbsolute(lexicalRelative)) {
+    throw new Error(`Story importPath fora da raiz de stories permitida: ${importPath}.`);
+  }
+
+  const realRoot = fs.realpathSync(root);
+  const realCandidate = fs.realpathSync(candidate);
+  const realRelative = path.relative(realRoot, realCandidate);
+  if (realRelative.startsWith('..') || path.isAbsolute(realRelative)) {
+    throw new Error(`Story importPath fora da raiz de stories permitida: ${importPath}.`);
+  }
+  return realCandidate;
+}
+
+async function resolveStoryArgs(repo, stories, {
+  storiesRoot = path.join(repo, 'packages', 'components'),
+} = {}) {
   const byPath = new Map(); // abs path -> módulo
   const out = {};
 
   for (const s of stories) {
-    const abs = path.resolve(repo, s.importPath);
+    const abs = resolveStorySource(repo, s.importPath, storiesRoot);
     if (!byPath.has(abs)) byPath.set(abs, await import(pathToFileURL(abs).href));
     const mod = byPath.get(abs);
     const meta = mod.default || {};
@@ -64,4 +84,4 @@ async function resolveStoryArgs(repo, stories) {
   return out;
 }
 
-module.exports = {resolveStoryArgs, assertSerializableArgs};
+module.exports = {resolveStoryArgs, assertSerializableArgs, resolveStorySource};

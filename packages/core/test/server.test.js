@@ -30,3 +30,14 @@ test('serveStatic: 404 para arquivo ausente', async () => {
     await server.close();
   }
 });
+
+test('serveStatic: 400 para URL percent-encoded malformada', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'srv-'));
+  const server = await serveStatic(dir);
+  try {
+    const res = await fetch(`${server.url}/%E0%A4%A`);
+    assert.equal(res.status, 400);
+  } finally {
+    await server.close();
+  }
+});
