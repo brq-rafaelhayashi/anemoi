@@ -1015,11 +1015,12 @@ Remove before/after and single-layout assertions from `packages/core/test/output
 - [ ] **Step 5: Prove the deleted exports have no active consumer**
 
 ```bash
-rg -n "ensureWorkingTreeDiff|assertNoOrphanStash|pushStash|popStash|collectChecks|runDoctor|renderCapture" \
+rg -n "ensureWorkingTreeDiff|assertNoOrphanStash|pushStash|popStash|renderCapture" \
   packages package.json -g '*.js' -g 'package.json'
+node -e "const core=require('./packages/core'); for (const key of ['ensureWorkingTreeDiff','assertNoOrphanStash','pushStash','popStash','collectChecks','runDoctor','parseArgs']) if (key in core) throw new Error('export morto no core: '+key)"
 ```
 
-Expected: no references to the deleted core APIs. Web's own `runDoctor` remains in `packages/web/src/doctor.js` and is not a core import.
+Expected: the search and API check produce no output. Web's own `collectChecks` and `runDoctor` remain in `packages/web/src/doctor.js`; they are intentionally not part of the core API.
 
 - [ ] **Step 6: Run tests and commit**
 
