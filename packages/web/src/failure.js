@@ -5,6 +5,7 @@ const path = require('node:path');
 
 function writeFailureManifest(runDir, context, error) {
   const runRoot = path.resolve(runDir);
+  fs.rmSync(path.join(runRoot, 'index.html'), {force: true});
   const logPath = path.join(runRoot, 'logs', `${String(context.stage || 'unknown').replace(/[^a-zA-Z0-9._-]/g, '-')}.log`);
   const sourceLogPath = error?.logPath && path.resolve(error.logPath);
 

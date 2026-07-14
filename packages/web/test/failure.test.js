@@ -16,6 +16,17 @@ test('falha grava manifesto e nao publica index.html', () => {
   assert.equal(fs.existsSync(path.join(runDir, 'index.html')), false);
 });
 
+test('falha remove index.html pre-existente antes de gravar o manifesto', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-failure-'));
+  const indexPath = path.join(runDir, 'index.html');
+  fs.writeFileSync(indexPath, '<html>galeria parcial</html>');
+
+  writeFailureManifest(runDir, {stage: 'capture', card: 'CDCOM-1', component: 'tgr-button'}, new Error('boom'));
+
+  assert.equal(fs.existsSync(indexPath), false);
+  assert.equal(fs.existsSync(path.join(runDir, 'manifest.json')), true);
+});
+
 test('falha copia log externo para dentro do runDir', () => {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-failure-'));
   const externalDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-external-log-'));

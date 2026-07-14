@@ -152,6 +152,7 @@ async function runCurrentState(args, cwd) {
     console.log(`Stories encontradas: ${stories.map(s => s.name).join(', ')}`);
 
     // Resolve args de cada story via CSF (fonte única = type-stripping Node 24)
+    stage = 'story-args';
     const argsById = await resolveStoryArgs(repo, stories);
 
     // Captura por framework
