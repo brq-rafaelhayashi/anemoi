@@ -32,13 +32,14 @@ test('validateTangerinaRepo aceita packageManager ausente no contrato estrutural
   assert.doesNotThrow(() => validateTangerinaRepo(fixture({packageManager: undefined})));
 });
 
-test('checkPnpmRequirement sinaliza validacao runtime quando packageManager esta ausente', () => {
+test('checkPnpmRequirement aceita packageManager ausente e delega runtime ao Doctor', () => {
   const repo = fixture({packageManager: undefined});
   const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
   const check = checkPnpmRequirement(pkg);
 
+  assert.equal(check.id, 'pnpm-declaration');
   assert.equal(check.ok, true);
-  assert.match(check.label, /pnpm.*runtime/i);
+  assert.match(check.label, /pnpm.*declaration/i);
   assert.match(check.detail, /ausente.*pnpm --version/i);
 });
 

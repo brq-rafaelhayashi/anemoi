@@ -43,7 +43,8 @@ test('collectChecks retorna checks com os ids esperados', () => {
   assert.ok(ids.includes('react-pkg'), `esperava id "react-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('angular-pkg'), `esperava id "angular-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('components'), `esperava id "components", encontrei: ${ids.join(',')}`);
-  assert.ok(ids.includes('pnpm'), `esperava id "pnpm", encontrei: ${ids.join(',')}`);
+  assert.ok(ids.includes('pnpm-declaration'), `esperava id "pnpm-declaration", encontrei: ${ids.join(',')}`);
+  assert.ok(ids.includes('pnpm-runtime'), `esperava id "pnpm-runtime", encontrei: ${ids.join(',')}`);
 });
 
 test('collectChecks reporta ok=false para repo inexistente', () => {
@@ -64,39 +65,51 @@ test('collectChecks reporta ok=true para tangerina-web-core real (se presente)',
   assert.equal(repo.ok, true, 'esperava repo ok=true para repo real');
 });
 
-test('Doctor decide o check pnpm pelo runtime, inclusive sem packageManager', () => {
+test('Doctor separa declaração estrutural e runtime efetivo do pnpm', () => {
   const scenarios = [
     {
-      name: 'runtime pnpm 8',
-      packageManager: 'pnpm@9.15.0',
-      result: {status: 0, stdout: '8.15.0\n', stderr: ''},
-      expected: false,
+      name: 'declara npm@10 com runtime pnpm 9',
+      packageManager: 'npm@10.0.0',
+      result: {status: 0, stdout: '9.15.0\n', stderr: ''},
+      declarationExpected: false,
+      runtimeExpected: true,
     },
     {
-      name: 'runtime ausente',
-      packageManager: 'pnpm@9.15.0',
-      result: {status: null, stdout: '', stderr: '', error: new Error('spawn pnpm ENOENT')},
-      expected: false,
+      name: 'declara pnpm@8 com runtime pnpm 9',
+      packageManager: 'pnpm@8.15.0',
+      result: {status: 0, stdout: '9.15.0\n', stderr: ''},
+      declarationExpected: false,
+      runtimeExpected: true,
     },
     {
       name: 'runtime pnpm 9 sem packageManager',
       packageManager: undefined,
       result: {status: 0, stdout: '9.15.0\n', stderr: ''},
-      expected: true,
+      declarationExpected: true,
+      runtimeExpected: true,
     },
     {
-      name: 'runtime pnpm 10 sem packageManager',
-      packageManager: undefined,
-      result: {status: 0, stdout: '10.2.0\n', stderr: ''},
-      expected: true,
+      name: 'declara pnpm@9 com runtime pnpm 8',
+      packageManager: 'pnpm@9.15.0',
+      result: {status: 0, stdout: '8.15.0\n', stderr: ''},
+      declarationExpected: true,
+      runtimeExpected: false,
     },
   ];
 
   for (const scenario of scenarios) {
     const repo = makeConsumerRepo(scenario.packageManager);
     const checks = collectWithPnpmResult(repo, scenario.result);
-    const pnpm = checks.find(check => check.id === 'pnpm');
-    assert.equal(pnpm.ok, scenario.expected, scenario.name);
+    assert.equal(
+      checks.find(check => check.id === 'pnpm-declaration').ok,
+      scenario.declarationExpected,
+      `${scenario.name}: declaração`,
+    );
+    assert.equal(
+      checks.find(check => check.id === 'pnpm-runtime').ok,
+      scenario.runtimeExpected,
+      `${scenario.name}: runtime`,
+    );
   }
 });
 
@@ -109,7 +122,7 @@ test('Doctor injeta spawnSync no consumidor sem shell e executa somente pnpm --v
     calls,
   );
 
-  assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
+  assert.equal(checks.find(check => check.id === 'pnpm-runtime').ok, true);
   assert.deepEqual(calls, [{
     command: 'pnpm',
     args: ['--version'],
@@ -135,7 +148,7 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   const checks = collectChecks(repo, {
     playwrightInstalled: () => false,
     pnpmRuntime: () => ({
-      id: 'pnpm',
+      id: 'pnpm-runtime',
       label: 'pnpm runtime >=9 (`pnpm --version`)',
       ok: true,
       detail: 'pnpm --version retornou 9.15.0',
@@ -143,9 +156,11 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   });
   const repoCheck = checks.find(check => check.id === 'repo');
   assert.equal(repoCheck.ok, true);
-  assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
-  assert.match(checks.find(check => check.id === 'pnpm').label, /pnpm.*runtime/i);
-  assert.match(checks.find(check => check.id === 'pnpm').detail, /pnpm --version/);
+  assert.equal(checks.find(check => check.id === 'pnpm-declaration').ok, true);
+  assert.equal(checks.find(check => check.id === 'pnpm-runtime').ok, true);
+  assert.match(checks.find(check => check.id === 'pnpm-declaration').label, /pnpm.*declara/i);
+  assert.match(checks.find(check => check.id === 'pnpm-runtime').label, /pnpm.*runtime/i);
+  assert.match(checks.find(check => check.id === 'pnpm-runtime').detail, /pnpm --version/);
   for (const script of BUILD_SCRIPTS) {
     const check = checks.find(item => item.id === `script-${script.replace(':', '-')}`);
     assert.equal(check.ok, true, `esperava check ok para ${script}`);
@@ -154,7 +169,7 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'outro-repo', scripts: {}}));
   const invalidChecks = collectChecks(repo, {
     playwrightInstalled: () => false,
-    pnpmRuntime: () => ({id: 'pnpm', label: 'pnpm runtime >=9', ok: true, detail: 'injetado'}),
+    pnpmRuntime: () => ({id: 'pnpm-runtime', label: 'pnpm runtime >=9', ok: true, detail: 'injetado'}),
   });
   assert.equal(invalidChecks.find(check => check.id === 'repo').ok, false);
   assert.equal(invalidChecks.find(check => check.id === 'script-build-tokens').ok, false);

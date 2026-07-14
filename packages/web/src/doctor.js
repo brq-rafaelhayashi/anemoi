@@ -5,13 +5,13 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
-const {BUILD_SCRIPTS} = require('./tangerina');
+const {BUILD_SCRIPTS, checkPnpmRequirement} = require('./tangerina');
 
 const PNPM_ACTION = 'Instale/ative pnpm >=9 e confirme com `pnpm --version` antes de executar os builds';
 
 function pnpmCheck(detail, ok = false) {
   return {
-    id: 'pnpm',
+    id: 'pnpm-runtime',
     label: 'pnpm runtime >=9 (`pnpm --version`)',
     ok,
     detail,
@@ -94,6 +94,7 @@ function collectChecks(
     });
   }
 
+  checks.push(checkPnpmRequirement(pkg));
   checks.push(pnpmRuntime(repoPath));
 
   checks.push({
