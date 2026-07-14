@@ -4,16 +4,14 @@
   "private": true,
   "engines": { "node": ">=24" },
   "workspaces": [
-    "anemoi-core",
-    "anemoi-web",
-    "anemoi-cross",
+    "packages/core",
+    "packages/web",
     "anemoi-preset"
   ],
   "scripts": {
-    "cross": "node anemoi-cross/bin/anemoi-cross.js",
-    "web": "node anemoi-web/bin/anemoi-web.js",
-    "test": "npm test --workspaces --if-present",
-    "setup:harnesses": "npm --prefix anemoi-cross/harness/react install && npm --prefix anemoi-cross/harness/angular install",
+    "web": "node packages/web/bin/anemoi-web.js",
+    "test": "node --test test/*.test.js && npm test --workspaces --if-present",
+    "setup:harnesses": "npm --prefix packages/web/harness/react install && npm --prefix packages/web/harness/angular install",
     "postinstall": "npm run setup:harnesses"
   }
 }

@@ -1,5 +1,5 @@
 'use strict';
-// Doctor — checks de pre-flight para anemoi-cross.
+// Doctor — checks de pre-flight para anemoi-web.
 // Verifica que o repo tangerina-web-core está configurado e buildado corretamente.
 
 const fs = require('node:fs');
@@ -69,7 +69,7 @@ function hasBuildStorybookScript(repoPath) {
 
 function playwrightChromiumInstalled() {
   // playwright é dependência do @gol-smiles/anemoi-core (usado por captureCells),
-  // não do cross — resolve a partir do dir do core para detectar o chromium do mesmo jeito.
+  // não do Web — resolve a partir do dir do core para detectar o chromium do mesmo jeito.
   let cwd = __dirname;
   try {
     cwd = path.dirname(require.resolve('@gol-smiles/anemoi-core/package.json'));
@@ -86,7 +86,7 @@ function playwrightChromiumInstalled() {
 
 function runDoctor(repoPath) {
   const checks = collectChecks(repoPath);
-  console.log('Doctor — anemoi-cross\n');
+  console.log('Doctor — anemoi-web\n');
   for (const c of checks) {
     console.log(`${c.ok ? '✅' : '⚠️ '} ${c.label}\n   ${c.detail}`);
   }
