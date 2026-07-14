@@ -2,7 +2,6 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const childProcess = require('node:child_process');
 const {runLogged} = require('./process');
 
 const BUILD_SCRIPTS = [
@@ -16,13 +15,20 @@ const BUILD_SCRIPTS = [
 
 const PNPM_ACTION = 'Instale/ative pnpm >=9 e confirme com `pnpm --version` antes de executar os builds';
 
-function probePnpmVersion({cwd, spawnSync = childProcess.spawnSync} = {}) {
-  const result = spawnSync('pnpm', ['--version'], {
-    cwd,
-    encoding: 'utf8',
-    stdio: 'pipe',
-    shell: false,
-  });
+function probePnpmVersion({cwd, logPath, run = runLogged} = {}) {
+  let result;
+  try {
+    result = run('pnpm', ['--version'], {
+      cwd,
+      logPath,
+      echo: true,
+    });
+  } catch (error) {
+    throw new Error(
+      `Nao foi possivel consultar a versao runtime do pnpm com \`pnpm --version\`: ${error.message}. ${PNPM_ACTION}.`,
+      {cause: error},
+    );
+  }
 
   if (result.error || result.signal || result.status !== 0) {
     const detail = result.error
@@ -44,10 +50,16 @@ function probePnpmVersion({cwd, spawnSync = childProcess.spawnSync} = {}) {
   return version;
 }
 
-function validatePnpmRuntime({cwd, declared, probe = probePnpmVersion} = {}) {
+function validatePnpmRuntime({
+  cwd,
+  declared,
+  logPath,
+  run = runLogged,
+  probe = probePnpmVersion,
+} = {}) {
   let version;
   try {
-    version = probe({cwd});
+    version = probe({cwd, logPath, run});
   } catch (error) {
     if (error.message.includes(PNPM_ACTION)) throw error;
     throw new Error(
@@ -112,11 +124,15 @@ function runTangerinaBuilds(repoPath, {
   skipBuild = false,
   logDir,
   run = runLogged,
-  probeRuntime = probePnpmVersion,
 } = {}) {
   const pkg = validateTangerinaRepo(repoPath);
+  validatePnpmRuntime({
+    cwd: repoPath,
+    declared: pkg.packageManager,
+    logPath: path.join(logDir, 'pnpm-version.log'),
+    run,
+  });
   if (skipBuild) return;
-  validatePnpmRuntime({cwd: repoPath, declared: pkg.packageManager, probe: probeRuntime});
   for (const script of BUILD_SCRIPTS) {
     run('pnpm', [script], {
       cwd: repoPath,

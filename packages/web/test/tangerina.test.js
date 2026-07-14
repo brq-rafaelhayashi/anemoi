@@ -45,19 +45,25 @@ test('runTangerinaBuilds bloqueia runtime pnpm 8 mesmo com packageManager pnpm@9
   assert.throws(
     () => runTangerinaBuilds(repo, {
       logDir: path.join(repo, 'logs'),
-      probeRuntime: () => '8.15.0',
-      run: (_command, args) => calls.push(args[0]),
+      run: (command, args) => {
+        calls.push(args[0]);
+        return command === 'pnpm' && args[0] === '--version'
+          ? {status: 0, stdout: '8.15.0\n', stderr: ''}
+          : {status: 0, stdout: '', stderr: ''};
+      },
     }),
     /pnpm.*8\.15\.0.*9/i,
   );
-  assert.deepEqual(calls, []);
+  assert.deepEqual(calls, ['--version']);
 });
 
 test('probePnpmVersion consulta exatamente pnpm --version por uma injeção', () => {
   const calls = [];
+  const logPath = '/tmp/anemoi-pnpm-version.log';
   const version = probePnpmVersion({
     cwd: '/consumer/tangerina-web-core',
-    spawnSync: (command, args, options) => {
+    logPath,
+    run: (command, args, options) => {
       calls.push({command, args, options});
       return {status: 0, stdout: '9.15.0\n', stderr: ''};
     },
@@ -69,9 +75,8 @@ test('probePnpmVersion consulta exatamente pnpm --version por uma injeção', ()
     args: ['--version'],
     options: {
       cwd: '/consumer/tangerina-web-core',
-      encoding: 'utf8',
-      stdio: 'pipe',
-      shell: false,
+      logPath,
+      echo: true,
     },
   }]);
 });
@@ -81,8 +86,11 @@ test('runTangerinaBuilds aceita runtime pnpm 9 ou superior', () => {
     const repo = fixture({packageManager: 'pnpm@9.15.0'});
     assert.doesNotThrow(() => runTangerinaBuilds(repo, {
       logDir: path.join(repo, 'logs'),
-      probeRuntime: () => version,
-      run: () => {},
+      run: (_command, args) => ({
+        status: 0,
+        stdout: args[0] === '--version' ? `${version}\n` : '',
+        stderr: '',
+      }),
     }));
   }
 });
@@ -92,10 +100,25 @@ test('probePnpmVersion produz diagnostico acionavel quando nao consegue consulta
 
   assert.throws(
     () => probePnpmVersion({
-      spawnSync: () => ({status: null, error: spawnError, stdout: '', stderr: ''}),
+      cwd: '/consumer/tangerina-web-core',
+      logPath: '/tmp/anemoi-pnpm-version.log',
+      run: () => { throw spawnError; },
     }),
     error => /pnpm --version/.test(error.message)
       && /instale|ative/i.test(error.message)
+      && /pnpm.*9/i.test(error.message),
+  );
+});
+
+test('probePnpmVersion produz diagnostico acionavel para stdout invalido', () => {
+  assert.throws(
+    () => probePnpmVersion({
+      cwd: '/consumer/tangerina-web-core',
+      logPath: '/tmp/anemoi-pnpm-version.log',
+      run: () => ({status: 0, stdout: 'pnpm nove\n', stderr: ''}),
+    }),
+    error => /interpretar/.test(error.message)
+      && /pnpm --version/.test(error.message)
       && /pnpm.*9/i.test(error.message),
   );
 });
@@ -107,13 +130,14 @@ test('runTangerinaBuilds executa a ordem aprovada', () => {
   const logDir = path.join(repo, 'logs');
   runTangerinaBuilds(repo, {
     logDir,
-    probeRuntime: () => {
-      events.push('probe');
-      return '9.15.0';
-    },
     run: (command, args, options) => {
+      if (args[0] === '--version') {
+        events.push('probe');
+        return {status: 0, stdout: '9.15.0\n', stderr: ''};
+      }
       events.push('build');
       calls.push({command, args, options});
+      return {status: 0, stdout: '', stderr: ''};
     },
   });
   assert.equal(events[0], 'probe');
@@ -129,21 +153,27 @@ test('runTangerinaBuilds executa a ordem aprovada', () => {
   })));
 });
 
-test('runTangerinaBuilds respeita skipBuild', () => {
+test('runTangerinaBuilds valida runtime pnpm mesmo com skipBuild', () => {
   const repo = fixture();
-  let called = false;
-  let probed = false;
+  const logDir = path.join(repo, 'logs');
+  const calls = [];
   runTangerinaBuilds(repo, {
     skipBuild: true,
-    logDir: path.join(repo, 'logs'),
-    probeRuntime: () => {
-      probed = true;
-      throw new Error('nao deveria consultar pnpm');
+    logDir,
+    run: (command, args, options) => {
+      calls.push({command, args, options});
+      return {status: 0, stdout: '9.15.0\n', stderr: ''};
     },
-    run: () => { called = true; },
   });
-  assert.equal(called, false);
-  assert.equal(probed, false);
+  assert.deepEqual(calls, [{
+    command: 'pnpm',
+    args: ['--version'],
+    options: {
+      cwd: repo,
+      logPath: path.join(logDir, 'pnpm-version.log'),
+      echo: true,
+    },
+  }]);
 });
 
 test('runTangerinaBuilds interrompe a cadeia no primeiro build que falhar', () => {
@@ -152,10 +182,11 @@ test('runTangerinaBuilds interrompe a cadeia no primeiro build que falhar', () =
   assert.throws(
     () => runTangerinaBuilds(repo, {
       logDir: path.join(repo, 'logs'),
-      probeRuntime: () => '9.15.0',
       run: (_command, args) => {
+        if (args[0] === '--version') return {status: 0, stdout: '9.15.0\n', stderr: ''};
         calls.push(args[0]);
         if (args[0] === 'build:assets') throw new Error('build quebrado');
+        return {status: 0, stdout: '', stderr: ''};
       },
     }),
     /build quebrado/,
