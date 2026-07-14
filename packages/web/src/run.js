@@ -18,7 +18,7 @@ const {VIEWPORT_WIDTHS} = require('./brands');
 const {readIndexJson, filterStoriesForComponent} = require('./stories');
 const {groupByCell, computeParity} = require('./parity');
 const {resolveStoryArgs} = require('./storyArgs');
-const {runDoctor} = require('./doctor');
+const {runDoctor, assertCaptureReady} = require('./doctor');
 const {runTangerinaBuilds} = require('./tangerina');
 const {makeWcHost} = require('./hosts/wc');
 const {makeReactHost} = require('./hosts/react');
@@ -62,6 +62,16 @@ async function captureFramework(host, repo, cells, runDir) {
   }
 }
 
+function prepareCapture(repo, {
+  skipBuild = false,
+  logDir,
+  runBuilds = runTangerinaBuilds,
+  assertReady = assertCaptureReady,
+} = {}) {
+  runBuilds(repo, {skipBuild, logDir});
+  return assertReady(repo);
+}
+
 async function runCurrentState(args, cwd) {
 
   // --doctor
@@ -103,7 +113,7 @@ async function runCurrentState(args, cwd) {
   const runDir = path.join(repo, 'outputs', 'anemoi-web', card, component, ts);
   fs.mkdirSync(runDir, {recursive: true});
 
-  runTangerinaBuilds(repo, {
+  prepareCapture(repo, {
     skipBuild: Boolean(args['skip-build']),
     logDir: path.join(runDir, 'logs', 'tangerina'),
   });
@@ -224,4 +234,4 @@ async function runCurrentState(args, cwd) {
   console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
 }
 
-module.exports = {runCurrentState};
+module.exports = {prepareCapture, runCurrentState};

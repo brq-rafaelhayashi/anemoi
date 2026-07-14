@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
-const {collectChecks} = require('../src/doctor');
+const {collectChecks, assertCaptureReady, runDoctor} = require('../src/doctor');
 const {BUILD_SCRIPTS} = require('../src/tangerina');
 
 // Usa um path que nao existe — testa apenas que os ids certos sao retornados
@@ -15,6 +15,7 @@ test('collectChecks retorna checks com os ids esperados', () => {
   assert.ok(ids.includes('react-pkg'), `esperava id "react-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('angular-pkg'), `esperava id "angular-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('components'), `esperava id "components", encontrei: ${ids.join(',')}`);
+  assert.ok(ids.includes('pnpm'), `esperava id "pnpm", encontrei: ${ids.join(',')}`);
 });
 
 test('collectChecks reporta ok=false para repo inexistente', () => {
@@ -40,11 +41,16 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   const os = require('node:os');
   const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-doctor-'));
   const scripts = Object.fromEntries(BUILD_SCRIPTS.map(name => [name, 'true']));
-  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'tangerina-web-core', scripts}));
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
+    name: 'tangerina-web-core',
+    packageManager: 'pnpm@9.15.0',
+    scripts,
+  }));
 
   const checks = collectChecks(repo);
   const repoCheck = checks.find(check => check.id === 'repo');
   assert.equal(repoCheck.ok, true);
+  assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
   for (const script of BUILD_SCRIPTS) {
     const check = checks.find(item => item.id === `script-${script.replace(':', '-')}`);
     assert.equal(check.ok, true, `esperava check ok para ${script}`);
@@ -54,4 +60,31 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   const invalidChecks = collectChecks(repo);
   assert.equal(invalidChecks.find(check => check.id === 'repo').ok, false);
   assert.equal(invalidChecks.find(check => check.id === 'script-build-tokens').ok, false);
+});
+
+test('assertCaptureReady bloqueia a captura com os checks do Doctor e instrucao acionavel', () => {
+  const failed = [{
+    id: 'components',
+    label: 'Web Components buildados',
+    ok: false,
+    detail: 'rode pnpm build:components',
+  }];
+
+  assert.throws(
+    () => assertCaptureReady(FAKE_REPO, {collect: () => failed}),
+    error => /Pre-flight bloqueou a captura/.test(error.message)
+      && /Web Components buildados/.test(error.message)
+      && /rode pnpm build:components/.test(error.message)
+      && /--doctor/.test(error.message),
+  );
+});
+
+test('runDoctor continua somente reportando checks falhos', () => {
+  const checks = [{id: 'components', label: 'Web Components buildados', ok: false, detail: 'rode pnpm build:components'}];
+  const lines = [];
+  assert.deepEqual(
+    runDoctor(FAKE_REPO, {collect: () => checks, write: line => lines.push(line)}),
+    checks,
+  );
+  assert.ok(lines.some(line => line.includes('item(ns) a resolver')));
 });

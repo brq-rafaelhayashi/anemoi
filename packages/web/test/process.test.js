@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {runLogged} = require('../src/process');
+const {prepareCapture} = require('../src/run');
 
 test('runLogged persiste stdout e stderr', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-process-'));
@@ -57,4 +58,28 @@ test('runLogged diagnostica um processo encerrado por sinal', () => {
       return true;
     },
   );
+});
+
+test('prepareCapture valida o Doctor mesmo com --skip-build antes de liberar Storybook ou captura', () => {
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-preflight-'));
+  const events = [];
+
+  assert.throws(
+    () => prepareCapture(repo, {
+      skipBuild: true,
+      logDir: path.join(repo, 'logs'),
+      runBuilds: (_repo, options) => {
+        events.push({step: 'builds', options});
+      },
+      assertReady: () => {
+        events.push({step: 'doctor'});
+        throw new Error('artefato ausente');
+      },
+    }),
+    /artefato ausente/,
+  );
+  assert.deepEqual(events, [
+    {step: 'builds', options: {skipBuild: true, logDir: path.join(repo, 'logs')}},
+    {step: 'doctor'},
+  ]);
 });

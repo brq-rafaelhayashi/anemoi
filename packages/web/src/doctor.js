@@ -5,10 +5,10 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
-const {BUILD_SCRIPTS} = require('./tangerina');
+const {BUILD_SCRIPTS, checkPnpmRequirement} = require('./tangerina');
 
 // Coleta checks puros (sem efeitos — seguro para testar).
-function collectChecks(repoPath) {
+function collectChecks(repoPath, {playwrightInstalled = playwrightChromiumInstalled} = {}) {
   const checks = [];
   const exists = rel => fs.existsSync(path.join(repoPath, rel));
   const pkg = readPackage(repoPath);
@@ -28,6 +28,8 @@ function collectChecks(repoPath) {
       detail: `package.json#scripts["${script}"]`,
     });
   }
+
+  checks.push(checkPnpmRequirement(pkg));
 
   checks.push({
     id: 'storybook',
@@ -60,11 +62,26 @@ function collectChecks(repoPath) {
   checks.push({
     id: 'playwright',
     label: 'Browser Chromium do Playwright instalado',
-    ok: playwrightChromiumInstalled(),
+    ok: playwrightInstalled(),
     detail: 'rode `npx playwright install chromium` no motor se faltar',
   });
 
   return checks;
+}
+
+function assertCaptureReady(repoPath, {collect = collectChecks} = {}) {
+  const checks = collect(repoPath);
+  const failed = checks.filter(check => !check.ok);
+  if (failed.length === 0) return checks;
+
+  const details = failed.map(check => `- ${check.label}: ${check.detail}`).join('\n');
+  const error = new Error(
+    `Pre-flight bloqueou a captura. Corrija os itens abaixo antes de Storybook/captura:\n${details}\n\n` +
+    'Execute anemoi-web --doctor para ver o diagnostico completo.'
+  );
+  error.checks = checks;
+  error.failedChecks = failed;
+  throw error;
 }
 
 function readPackage(repoPath) {
@@ -92,14 +109,14 @@ function playwrightChromiumInstalled() {
   return result.stdout === '1';
 }
 
-function runDoctor(repoPath) {
-  const checks = collectChecks(repoPath);
-  console.log('Doctor — anemoi-web\n');
+function runDoctor(repoPath, {collect = collectChecks, write = console.log} = {}) {
+  const checks = collect(repoPath);
+  write('Doctor — anemoi-web\n');
   for (const c of checks) {
-    console.log(`${c.ok ? '✅' : '⚠️ '} ${c.label}\n   ${c.detail}`);
+    write(`${c.ok ? '✅' : '⚠️ '} ${c.label}\n   ${c.detail}`);
   }
   const failed = checks.filter(c => !c.ok);
-  console.log(
+  write(
     failed.length === 0
       ? '\nTudo certo para capturar.'
       : `\n${failed.length} item(ns) a resolver antes de capturar.`
@@ -107,4 +124,4 @@ function runDoctor(repoPath) {
   return checks;
 }
 
-module.exports = {collectChecks, runDoctor};
+module.exports = {collectChecks, assertCaptureReady, runDoctor};
