@@ -51,7 +51,7 @@ test('renderHtml: gera galeria com img das capturas (modo current)', () => {
 
 test('renderHtml layout parity monta grade wc|react|angular', () => {
   const html = renderHtml({
-    tool: 'Anemoi Cross', component: 'tgr-button', card: 'NO-CARD',
+    tool: 'Anemoi Web', component: 'tgr-button', card: 'NO-CARD',
     mode: 'current', layout: 'parity', cellCount: 1,
     generatedAt: '2026-06-29T00:00:00Z',
     axes: {frameworks: ['wc','react','angular'], stories: ['Primary'], themes: ['light'], viewports: ['sm'], brands: ['gol']},
