@@ -106,6 +106,7 @@ runners/evidence -> config, registry, runtime/metro, runtime/detox,
 runners/interactive -> runtime/metro, runtime/device
 runtime/metro -> config
 runtime/detox -> runtime/device
+runtime/device -> runtime/metro
 runtime/source-toggle -> config, runtime/device
 reporting/manifest -> config, registry
 reporting/summary -> config
@@ -136,6 +137,71 @@ For each signature, the GREEN edit consists only of replacing the direct depende
 the named parameter and adding its default. No branch, command, message, timeout, path, env key, or
 return value may change. The pre-existing characterization tests run before and after every seam;
 the focused tests invoke the seam with fakes.
+
+Define the defaults exactly in their owning modules:
+
+```js
+// registry.js, after askQuestion is declared
+const defaultAskQuestion = askQuestion;
+
+// runners/evidence.js, after all imports and local helpers are declared
+const productionDependencies = {
+  ensureDir,
+  slug,
+  assertHtmlOutput,
+  makeRunManifest,
+  writeOutputs,
+  sourcePathsFor,
+  assertNoOrphanStash,
+  ensureSourceDiff,
+  detoxCommand,
+  detoxCommandAsync,
+  assertMetroPortIsFree,
+  startMetro,
+  waitForMetro,
+  runDetoxPhase,
+  pushSourceStash,
+  popSourceStash,
+  stopProcess,
+  wait,
+  now: () => new Date(),
+  write: console.log,
+};
+
+// runners/interactive.js
+const waitForSignal = () => new Promise(resolve => {
+  process.once('SIGINT', resolve);
+  process.once('SIGTERM', resolve);
+});
+const productionDependencies = {
+  startDeviceCommand,
+  runCommand,
+  assertMetroPortIsFree,
+  startMetro,
+  waitForMetro,
+  interactiveRunCommand,
+  relaunchAppBeforeDeepLink,
+  openInteractiveUrl,
+  stopProcess,
+  now: Date.now,
+  waitForSignal,
+  write: console.log,
+};
+
+// doctor.js
+const productionDependencies = {
+  loadRegistry,
+  flowsForEntry,
+  doctorEnvironment,
+  write: console.log,
+  warn: console.warn,
+};
+```
+
+Within a runner, destructure the listed object at function entry and replace only same-named direct
+references. `runReference` and `runEvidence` share the evidence defaults. Tests pass a shallow object
+`{...productionDependencies, dependencyToFake}`; export `productionDependencies` only from the
+owning internal module for focused tests, never from package `src/index.js`.
 
 No module may import `cli.js` or a runner; runtime and reporting modules may not import each other
 except for the edges listed above. Add this complete `packages/mobile/test/boundaries.test.js` file
