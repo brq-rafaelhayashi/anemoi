@@ -22,3 +22,39 @@ test('runLogged inclui comando e log no erro', () => {
     error => error.message.includes('pnpm build:react') && error.logPath === logPath,
   );
 });
+
+test('runLogged preserva o erro de spawn e o log no diagnóstico', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-process-'));
+  const logPath = path.join(dir, 'spawn.log');
+  const spawnError = new Error('spawn ENOENT');
+  const spawnSync = () => ({status: null, error: spawnError, stdout: '', stderr: ''});
+
+  assert.throws(
+    () => runLogged('pnpm', ['build:react'], {cwd: dir, logPath, spawnSync}),
+    error => {
+      assert.match(error.message, /pnpm build:react/);
+      assert.match(error.message, /spawn ENOENT/);
+      assert.equal(error.logPath, logPath);
+      assert.equal(error.cause, spawnError);
+      assert.match(fs.readFileSync(logPath, 'utf8'), /pnpm build:react/);
+      return true;
+    },
+  );
+});
+
+test('runLogged diagnostica um processo encerrado por sinal', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-process-'));
+  const logPath = path.join(dir, 'signal.log');
+  const spawnSync = () => ({status: null, signal: 'SIGTERM', stdout: '', stderr: ''});
+
+  assert.throws(
+    () => runLogged('pnpm', ['build:components'], {cwd: dir, logPath, spawnSync}),
+    error => {
+      assert.match(error.message, /pnpm build:components/);
+      assert.match(error.message, /SIGTERM/);
+      assert.equal(error.logPath, logPath);
+      assert.match(fs.readFileSync(logPath, 'utf8'), /pnpm build:components/);
+      return true;
+    },
+  );
+});
