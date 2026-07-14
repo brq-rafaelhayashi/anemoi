@@ -51,6 +51,25 @@ test('alias desconhecido lista aliases configurados', () => {
   );
 });
 
+test('alias constructor desconhecido produz Alias desconhecido', () => {
+  const rootDir = tempRoot();
+
+  assert.throws(
+    () => resolveRepository({rootDir, cwd: rootDir, repoArg: 'constructor'}),
+    /Alias desconhecido.*constructor/s,
+  );
+});
+
+test('alias constructor configurado resolve para seu proprio path', () => {
+  const rootDir = tempRoot();
+  const repoPath = path.join(rootDir, 'repo-constructor');
+  fs.mkdirSync(repoPath);
+
+  configureRepository({rootDir, cwd: rootDir, alias: 'constructor', repoPath});
+
+  assert.equal(resolveRepository({rootDir, cwd: rootDir, repoArg: 'constructor'}), repoPath);
+});
+
 test('validateAlias rejeita maiusculas e hifens consecutivos', () => {
   assert.throws(() => validateAlias('Tangerina'), /Alias invalido/);
   assert.throws(() => validateAlias('tangerina--main'), /Alias invalido/);

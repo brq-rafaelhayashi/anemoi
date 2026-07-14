@@ -40,7 +40,9 @@ function isPathLike(value) {
 
 function resolveRepository({rootDir, cwd, repoArg}) {
   const config = readLocalConfig(rootDir);
-  if (repoArg && config.repositories[repoArg]) return path.resolve(config.repositories[repoArg].path);
+  if (repoArg && Object.hasOwn(config.repositories, repoArg)) {
+    return path.resolve(config.repositories[repoArg].path);
+  }
   if (repoArg && (isPathLike(repoArg) || fs.existsSync(path.resolve(cwd, repoArg)))) {
     return path.resolve(cwd, repoArg);
   }
