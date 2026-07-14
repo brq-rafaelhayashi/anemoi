@@ -46,8 +46,8 @@ build, falhas e interpretação da paridade. A visão estrutural está em
 | --- | --- |
 | `packages/core` | Captura Playwright, matriz, diff, servidor estático e geração do bundle. |
 | `packages/web` | Configuração, integração Tangerina, stories, hosts WC/React/Angular, doctor e paridade. |
-| `anemoi-preset` | Runtime React Native/Detox preservado e separado; a modularização Mobile ainda está pendente. |
-| `gol-adapter-detox` | Integração atual do GOL_APP_Mobile, fora do workspace npm. |
+| `anemoi-preset` | Runtime React Native/Detox preservado e separado; será movido para `packages/mobile`. |
+| `gol-adapter-detox` | Integração atual do GOL_APP_Mobile; será movida para `integrations/gol-app-mobile`. |
 
 ## Testes
 
@@ -55,4 +55,5 @@ build, falhas e interpretação da paridade. A visão estrutural está em
 npm test
 ```
 
-O plano Mobile será produzido somente após a aceitação completa e a revisão da implementação Web.
+O Web concluiu sua aceitação real. A modularização Mobile permanece pendente e está especificada no
+[plano de implementação Mobile](docs/superpowers/plans/2026-07-13-anemoi-mobile-modularization.md).
