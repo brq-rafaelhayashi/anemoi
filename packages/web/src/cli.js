@@ -1,6 +1,6 @@
 'use strict';
-// CLI orquestrador do anemoi-cross — estado atual (WC/React/Angular).
-// Uso: anemoi-cross --component tgr-button [opções]
+// CLI orquestrador do Anemoi Web (WC/React/Angular).
+// Uso: anemoi-web --component tgr-button [opções]
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -101,10 +101,10 @@ async function runCurrentState(argv, cwd) {
 
   // Timestamp do run
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const runDir = path.join(repo, 'outputs', 'anemoi-cross', card, component, ts);
+  const runDir = path.join(repo, 'outputs', 'anemoi-web', card, component, ts);
   fs.mkdirSync(runDir, {recursive: true});
 
-  console.log(`\nAnemoi Cross — estado atual`);
+  console.log(`\nAnemoi Web — estado atual`);
   console.log(`Componente: ${component} | Card: ${card}`);
   console.log(`Frameworks: ${frameworks.join(', ')} | Brands: ${brands.join(', ')} | Themes: ${themes.join(', ')} | Viewports: ${viewports.join(', ')}`);
   console.log(`RunDir: ${runDir}\n`);
@@ -194,7 +194,7 @@ async function runCurrentState(argv, cwd) {
 
   // Manifesto
   const manifest = {
-    tool: 'Anemoi Cross',
+    tool: 'Anemoi Web',
     card,
     component,
     mode: 'current',

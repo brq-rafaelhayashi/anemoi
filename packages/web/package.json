@@ -1,10 +1,10 @@
 {
-  "name": "@gol-smiles/anemoi-cross",
+  "name": "@gol-smiles/anemoi-web",
   "version": "0.1.0",
   "private": true,
-  "description": "Anemoi cross-framework: evidencia de componentes Stencil em WC/React/Angular.",
+  "description": "Anemoi Web: evidencias WC, React e Angular do Tangerina Web Core.",
   "main": "src/cli.js",
-  "bin": {"anemoi-cross": "bin/anemoi-cross.js"},
+  "bin": {"anemoi-web": "bin/anemoi-web.js"},
   "files": ["bin", "src", "harness"],
   "scripts": {"test": "node --test"},
   "engines": { "node": ">=24" },

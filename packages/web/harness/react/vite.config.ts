@@ -2,9 +2,11 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import path from 'node:path';
 
-const repo =
-  process.env.DS_REPO ||
-  path.resolve('../../../../tangerina-ds/tangerina-web-core');
+const repo = process.env.DS_REPO;
+
+if (!repo) {
+  throw new Error('DS_REPO must point to the configured tangerina-web-core checkout.');
+}
 
 export default defineConfig({
   plugins: [react()],
