@@ -1,0 +1,53 @@
+<style>
+  .flow { display:grid; grid-template-columns:repeat(5,minmax(130px,1fr)); gap:10px; align-items:stretch; margin:28px 0; }
+  .step { border:1px solid var(--border); border-radius:7px; background:var(--surface); padding:14px; position:relative; }
+  .step:not(:last-child)::after { content:'>'; position:absolute; right:-10px; top:50%; transform:translate(50%,-50%); color:var(--text-secondary); font-weight:800; z-index:2; }
+  .step strong { display:block; margin-bottom:6px; }
+  .step small { color:var(--text-secondary); line-height:1.4; }
+  .primary { border-color:#2f7d65; box-shadow:inset 0 3px 0 #2f7d65; }
+  .consumer { border-color:#8d526f; box-shadow:inset 0 3px 0 #8d526f; }
+  .layout { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
+  .panel { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:18px; }
+  .tree { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; line-height:1.75; font-size:14px; }
+  .indent1 { padding-left:18px; } .indent2 { padding-left:40px; color:var(--text-secondary); }
+  .decision { border-left:4px solid #2f7d65; padding:9px 12px; margin:10px 0; background:var(--background); }
+  .decision strong { display:block; margin-bottom:4px; }
+  .retired { opacity:.68; text-decoration:line-through; }
+  @media(max-width:950px){.flow{grid-template-columns:1fr}.step:not(:last-child)::after{content:'v';right:50%;top:auto;bottom:-13px}.layout{grid-template-columns:1fr}}
+</style>
+
+<h2>Arquitetura revisada: Anemoi Web como produto principal</h2>
+<p class="subtitle">O antigo cross e promovido a web. O web Storybook/Lit anterior e removido apos a verificacao de consumidores.</p>
+
+<div class="flow">
+  <div class="step"><strong>CLI no Anemoi</strong><small>npm run web -- --component tgr-button</small></div>
+  <div class="step"><strong>Config local</strong><small>.anemoi.local.json resolve o checkout; --repo pode sobrescrever</small></div>
+  <div class="step consumer"><strong>tangerina-web-core</strong><small>stories CSF, Storybook, WC e wrappers gerados</small></div>
+  <div class="step primary"><strong>Hosts web</strong><small>WC baseline, React e Angular com os mesmos args</small></div>
+  <div class="step"><strong>Bundle</strong><small>prints, diffs de paridade, manifest, summary e HTML</small></div>
+</div>
+
+<div class="layout">
+  <section class="panel">
+    <h3>Estrutura-alvo</h3>
+    <div class="tree">
+      <div>anemoi/</div>
+      <div class="indent1">packages/</div>
+      <div class="indent2">core/ <small>captura e diff web</small></div>
+      <div class="indent2">web/ <small class="primary">antigo cross, fluxo principal</small></div>
+      <div class="indent2">mobile/ <small>preset Detox</small></div>
+      <div class="indent1">integrations/</div>
+      <div class="indent2">gol-app-mobile/</div>
+      <div class="indent1">docs/</div>
+      <div class="indent1">.anemoi.local.json <small>gitignored</small></div>
+      <div class="indent1 retired">anemoi-web antigo</div>
+    </div>
+  </section>
+  <section class="panel">
+    <h3>Contrato do Tangerina Web Core</h3>
+    <div class="decision"><strong>Fonte das variacoes</strong>Stories CSF em packages/components; sem registry paralelo.</div>
+    <div class="decision"><strong>Artefatos consumidos</strong>Storybook estatico, dist/components, @gol-smiles/tangerina-react e @gol-smiles/tangerina-angular.</div>
+    <div class="decision"><strong>Validacao previa</strong>Doctor verifica scripts, builds, wrappers, stories serializaveis e Chromium.</div>
+    <div class="decision"><strong>Compatibilidade de nome</strong>anemoi-cross permanece como alias temporario do novo Anemoi Web.</div>
+  </section>
+</div>

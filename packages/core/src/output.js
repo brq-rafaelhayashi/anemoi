@@ -45,60 +45,231 @@ function writeSummary(runDir, manifest) {
   return summaryPath;
 }
 
-function imageFigure(src, caption) {
-  return `
-      <figure>
-        <figcaption>${escapeHtml(caption)}</figcaption>
-        <img src="${escapeHtml(src)}" alt="${escapeHtml(caption)}"
-             onerror="this.style.display='none';this.nextElementSibling.style.display='block';" />
-        <div class="missing" style="display:none;">Imagem ausente:<br><code>${escapeHtml(src)}</code></div>
-      </figure>`;
+// Serializa dados para embutir com seguranca dentro de <script> (evita fechar a tag).
+function embedJson(value) {
+  return JSON.stringify(value).replaceAll('<', '\\u003c');
 }
 
-function renderParityGroup(group) {
-  const badges = (group.parity || []).map(p =>
-    `<span class="parity ${p.mismatch === 0 ? 'ok' : 'diff'}">${escapeHtml(p.against)}: ${p.mismatch === 0 ? 'paridade OK' : p.mismatch + 'px'}</span>`
-  ).join(' ');
-  return `
-    <section class="cell">
-      <h3>${escapeHtml(group.label)} ${badges}</h3>
-      <div class="threeup">
-        ${imageFigure(group.wc, 'web component')}
-        ${imageFigure(group.react, 'react')}
-        ${imageFigure(group.angular, 'angular')}
-      </div>
-    </section>`;
-}
-
+// Layout "matriz": uma linha por celula visual, uma coluna por framework, com
+// filtros (story/tema/viewport), badges de paridade e lightbox navegavel por teclado.
 function renderHtml(manifest) {
   const tool = manifest.tool || 'Anemoi';
-  const body = (manifest.groups || []).map(renderParityGroup).join('\n');
+  const axes = manifest.axes || {};
+  const frameworks = (axes.frameworks && axes.frameworks.length)
+    ? axes.frameworks
+    : ['wc', 'react', 'angular'];
+  const groups = manifest.groups || [];
+
+  // Cada grupo expoe label ("brand · story · viewport · theme") + relPaths por framework + parity[].
+  const cells = groups.map((g) => {
+    const cell = {label: g.label, parity: g.parity || []};
+    for (const fw of frameworks) cell[fw] = g[fw] || null;
+    return cell;
+  });
+
+  const data = {
+    tool,
+    component: manifest.component,
+    card: manifest.card,
+    mode: manifest.mode,
+    status: manifest.status || 'passed',
+    generatedAt: manifest.generatedAt,
+    cellCount: manifest.cellCount,
+    frameworks,
+    cells,
+  };
+
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${escapeHtml(tool)} — ${escapeHtml(manifest.component)} (${escapeHtml(manifest.card)})</title>
 <style>
-  body { font-family: system-ui, sans-serif; margin: 24px; background: #fafafa; color: #211e1c; }
-  .badge { display:inline-block; background:#211e1c; color:#fff; padding:2px 8px; border-radius:4px; font-size:12px; }
-  .cell { background:#fff; border:1px solid #eee; border-radius:8px; padding:16px; margin-bottom:16px; }
-  .threeup { display:grid; grid-template-columns: repeat(3, 1fr); gap:12px; }
-  .single img, .threeup img { max-width:100%; border:1px solid #eee; background:#fff; }
-  figcaption { font-size:12px; color:#666; margin-bottom:4px; }
-  .parity { font-size:12px; font-weight:normal; padding:1px 6px; border-radius:4px; }
-  .parity.ok { background:#e6f4ea; color:#137333; }
-  .parity.diff { background:#fce8e6; color:#b00; }
-  .mismatch { font-size:12px; color:#b00; font-weight:normal; }
-  .missing { font-size:12px; color:#b00; }
+  :root { --ink:#1a1a1a; --sub:#6b6b6b; --line:#e3e5e8; --bg:#fff; --soft:#f4f5f7; --accent:#e85d04; --ok:#177245; --okbg:#e7f4ed; --bad:#b02a1e; --badbg:#fbeae8; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,system-ui,'Segoe UI',sans-serif; background:var(--bg); color:var(--ink); }
+  .masthead { padding:32px 28px 20px; border-bottom:1px solid var(--line); }
+  .masthead .crumb { font-size:12px; color:var(--sub); letter-spacing:.08em; text-transform:uppercase; font-weight:600; }
+  .masthead h1 { font-size:32px; margin:6px 0 0; font-weight:700; letter-spacing:-.02em; line-height:1.15; }
+  .masthead h1 code { font-family:ui-monospace,'SF Mono','SFMono-Regular',Menlo,monospace; font-size:.92em; }
+  .masthead h1 .sub { color:var(--sub); font-weight:600; }
+  .masthead .summary { display:inline-block; margin-top:16px; font-size:12px; padding:5px 12px; border-radius:99px; font-weight:600; background:var(--soft); color:var(--sub); }
+  .masthead .summary.ok { background:var(--okbg); color:var(--ok); }
+  .masthead .summary.bad { background:var(--badbg); color:var(--bad); }
+  .filters { background:var(--bg); border-bottom:1px solid var(--line); padding:14px 28px; display:flex; flex-direction:column; gap:8px; }
+  .frow { display:grid; grid-template-columns:78px 1fr; align-items:start; gap:12px; }
+  .frow .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); font-weight:600; padding-top:7px; }
+  .frow .chips { display:flex; flex-wrap:wrap; gap:6px; }
+  .chip { font-size:12px; font-weight:600; padding:5px 12px; border-radius:99px; border:1px solid var(--line); background:var(--bg); cursor:pointer; font-family:inherit; color:var(--ink); }
+  .chip.on { background:var(--ink); color:#fff; border-color:var(--ink); }
+  table { width:100%; border-collapse:collapse; }
+  thead th { position:sticky; top:0; background:var(--soft); z-index:5; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--sub); text-align:left; padding:10px 16px; border-bottom:1px solid var(--line); }
+  tbody td { padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tbody tr:hover { background:var(--soft); }
+  .id .story { font-weight:650; font-size:14px; }
+  .id .dims { font-size:12px; color:var(--sub); margin-top:2px; }
+  .shot { width:150px; cursor:zoom-in; border:1px solid var(--line); border-radius:6px; background:#fff; display:block; transition:transform .12s; }
+  .shot:hover { transform:scale(1.04); border-color:var(--accent); }
+  td.dark-bg .shot { background:#1c1c22; }
+  .missing { width:150px; font-size:11px; color:var(--bad); border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; }
+  .pcell { white-space:nowrap; }
+  .pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; margin:1px 0; }
+  .pill.ok { background:var(--okbg); color:var(--ok); }
+  .pill.bad { background:var(--badbg); color:var(--bad); }
+  .pill.na { background:var(--soft); color:var(--sub); }
+  tr.hidden { display:none; }
+  #lb { position:fixed; inset:0; background:rgba(12,12,16,.88); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column; gap:14px; }
+  #lb.open { display:flex; }
+  #lb img { max-width:86vw; max-height:74vh; border-radius:8px; background:#fff; }
+  #lb .cap { color:#fff; font-size:14px; }
+  #lb .hint { color:#9aa; font-size:12px; }
+  #lb .fwnav { display:flex; gap:8px; }
+  #lb .fwnav button { background:#2a2d36; color:#dde; border:1px solid #444a58; border-radius:8px; padding:6px 16px; font-size:13px; cursor:pointer; font-family:inherit; }
+  #lb .fwnav button.on { background:var(--accent); border-color:var(--accent); color:#fff; }
 </style>
 </head>
 <body>
-<header>
-  <span class="badge">${escapeHtml(tool)} · ${escapeHtml(manifest.card)}</span>
-  <h1>${escapeHtml(manifest.component)}</h1>
-  <p>Modo: ${escapeHtml(manifest.mode)} · Prints: ${manifest.cellCount} · Gerado em ${escapeHtml(manifest.generatedAt)}</p>
+<header class="masthead">
+  <div class="crumb" id="crumb"></div>
+  <h1 id="title"></h1>
+  <span class="summary" id="paritySummary"></span>
 </header>
-${body}
+<section class="filters" id="filters"></section>
+<table>
+  <thead><tr id="head"></tr></thead>
+  <tbody id="rows"></tbody>
+</table>
+<div id="lb">
+  <div class="fwnav" id="lbNav"></div>
+  <img id="lbImg" src="" alt="" />
+  <div class="cap" id="lbCap"></div>
+  <div class="hint">← → troca framework · ↑ ↓ troca célula · esc fecha</div>
+</div>
+<script>
+  const DATA = ${embedJson(data)};
+  const FWS = DATA.frameworks;
+  const FW_LABEL = { wc: 'Web Component', react: 'React', angular: 'Angular' };
+  const fwLabel = (fw) => FW_LABEL[fw] || fw;
+
+  // label = "brand · story · viewport · theme" (story pode conter espacos).
+  function parse(label) {
+    const parts = String(label).split(' · ');
+    if (parts.length < 4) return { brand: '', story: label, viewport: '', theme: '' };
+    return {
+      brand: parts[0],
+      theme: parts[parts.length - 1],
+      viewport: parts[parts.length - 2],
+      story: parts.slice(1, parts.length - 2).join(' · '),
+    };
+  }
+  const CELLS = DATA.cells.map((c) => ({ ...c, ...parse(c.label) }));
+  const hasParity = CELLS.some((c) => (c.parity || []).length);
+
+  const uniq = (key) => [...new Set(CELLS.map((c) => c[key]))].filter(Boolean);
+  const AXES = { story: uniq('story'), theme: uniq('theme'), viewport: uniq('viewport') };
+  const state = { story: new Set(AXES.story), theme: new Set(AXES.theme), viewport: new Set(AXES.viewport) };
+
+  function esc(v) {
+    return String(v).replace(/&/g, '&amp;').replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  // Header
+  document.getElementById('crumb').textContent = DATA.tool + ' · ' + DATA.card;
+  document.getElementById('title').innerHTML =
+    '<code>' + esc(DATA.component) + '</code> <span class="sub">— evidência visual</span>';
+
+  const totalDiff = CELLS.reduce((a, c) => a + (c.parity || []).reduce((s, p) => s + p.mismatch, 0), 0);
+  const allOk = hasParity && totalDiff === 0;
+  const ps = document.getElementById('paritySummary');
+  if (!hasParity) {
+    ps.className = 'summary'; ps.textContent = DATA.cellCount + ' prints · sem paridade (framework único)';
+  } else if (allOk) {
+    ps.className = 'summary ok'; ps.textContent = '✓ paridade total (' + DATA.cellCount + ' prints)';
+  } else {
+    ps.className = 'summary bad'; ps.textContent = '✗ ' + totalDiff + 'px de divergência';
+  }
+
+  // Filtros — linhas alinhadas (label + chips)
+  document.getElementById('filters').innerHTML = ['story', 'theme', 'viewport']
+    .filter((f) => AXES[f].length)
+    .map((f) => '<div class="frow"><span class="lbl">' +
+      { story: 'Story', theme: 'Tema', viewport: 'Viewport' }[f] + '</span>' +
+      '<div class="chips">' +
+      AXES[f].map((v) => '<button class="chip on" data-f="' + f + '" data-v="' + esc(v) + '">' + esc(v) + '</button>').join('') +
+      '</div></div>').join('');
+
+  // Cabecalho da tabela
+  document.getElementById('head').innerHTML =
+    '<th style="width:180px">Célula</th>' +
+    FWS.map((fw) => '<th>' + fwLabel(fw) + '</th>').join('') +
+    (hasParity ? '<th style="width:160px">Paridade vs wc</th>' : '');
+
+  function render() {
+    document.getElementById('rows').innerHTML = CELLS.map((c, i) => {
+      const hide = !state.story.has(c.story) || !state.theme.has(c.theme) || !state.viewport.has(c.viewport);
+      const tds = FWS.map((fw) => {
+        const cls = c.theme === 'dark' ? ' class="dark-bg"' : '';
+        if (!c[fw]) return '<td' + cls + '><div class="missing">ausente</div></td>';
+        return '<td' + cls + '><img class="shot" loading="lazy" src="' + esc(c[fw]) +
+          '" data-i="' + i + '" data-fw="' + fw + '" alt="' + esc(c.label + ' ' + fw) + '"/></td>';
+      }).join('');
+      let pcell = '';
+      if (hasParity) {
+        const pills = (c.parity || []).length
+          ? c.parity.map((p) => '<span class="pill ' + (p.mismatch === 0 ? 'ok' : 'bad') + '">' +
+              esc(p.against) + ' ' + (p.mismatch === 0 ? '✓' : p.mismatch + 'px') + '</span>').join('<br>')
+          : '<span class="pill na">—</span>';
+        pcell = '<td class="pcell">' + pills + '</td>';
+      }
+      return '<tr class="' + (hide ? 'hidden' : '') + '">' +
+        '<td class="id"><div class="story">' + esc(c.story) + '</div><div class="dims">' +
+        esc([c.viewport, c.theme].filter(Boolean).join(' · ')) + '</div></td>' +
+        tds + pcell + '</tr>';
+    }).join('');
+  }
+
+  document.getElementById('filters').addEventListener('click', (e) => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    const set = state[chip.dataset.f];
+    set.has(chip.dataset.v) ? set.delete(chip.dataset.v) : set.add(chip.dataset.v);
+    chip.classList.toggle('on');
+    render();
+  });
+
+  // Lightbox
+  const lb = document.getElementById('lb');
+  let lbCell = 0, lbFw = 0;
+  function openLb(i, fw) { lbCell = i; lbFw = Math.max(0, FWS.indexOf(fw)); paintLb(); lb.classList.add('open'); }
+  function paintLb() {
+    const c = CELLS[lbCell], fw = FWS[lbFw];
+    document.getElementById('lbImg').src = c[fw] || '';
+    document.getElementById('lbCap').textContent = c.label + ' — ' + fwLabel(fw) + (c[fw] ? '' : ' (ausente)');
+    document.getElementById('lbNav').innerHTML = FWS.map((f, j) =>
+      '<button class="' + (j === lbFw ? 'on' : '') + '" data-j="' + j + '">' + fwLabel(f) + '</button>').join('');
+  }
+  document.getElementById('rows').addEventListener('click', (e) => {
+    const img = e.target.closest('.shot');
+    if (img) openLb(Number(img.dataset.i), img.dataset.fw);
+  });
+  document.getElementById('lbNav').addEventListener('click', (e) => {
+    const b = e.target.closest('button');
+    if (b) { lbFw = Number(b.dataset.j); paintLb(); }
+  });
+  lb.addEventListener('click', (e) => { if (e.target === lb) lb.classList.remove('open'); });
+  document.addEventListener('keydown', (e) => {
+    if (!lb.classList.contains('open')) return;
+    if (e.key === 'Escape') lb.classList.remove('open');
+    if (e.key === 'ArrowRight') { lbFw = (lbFw + 1) % FWS.length; paintLb(); }
+    if (e.key === 'ArrowLeft') { lbFw = (lbFw + FWS.length - 1) % FWS.length; paintLb(); }
+    if (e.key === 'ArrowDown') { lbCell = Math.min(lbCell + 1, CELLS.length - 1); paintLb(); }
+    if (e.key === 'ArrowUp') { lbCell = Math.max(lbCell - 1, 0); paintLb(); }
+  });
+
+  render();
+</script>
 </body>
 </html>
 `;

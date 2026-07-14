@@ -1,0 +1,65 @@
+<style>
+  .arch-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-top: 28px; }
+  .lane { border: 1px solid var(--border); background: var(--surface); border-radius: 8px; padding: 18px; min-height: 275px; }
+  .lane h3 { margin: 0 0 4px; }
+  .lane-kicker { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; font-weight: 700; }
+  .node { border: 1px solid var(--border); border-radius: 6px; padding: 12px; margin-top: 12px; background: var(--background); }
+  .node strong { display: block; margin-bottom: 4px; }
+  .node small { color: var(--text-secondary); line-height: 1.4; }
+  .arrow { color: var(--text-secondary); text-align: center; padding-top: 10px; font-weight: 700; }
+  .shared { border-color: #2f7d65; box-shadow: inset 4px 0 0 #2f7d65; }
+  .isolated { border-color: #b8860b; box-shadow: inset 4px 0 0 #b8860b; }
+  .contract { border-color: #8d526f; box-shadow: inset 4px 0 0 #8d526f; }
+  .pressure-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 22px; }
+  .pressure { border-top: 3px solid #9c4c3f; padding: 10px 8px; background: var(--surface); font-size: 13px; line-height: 1.35; }
+  .pressure strong { display: block; margin-bottom: 5px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 16px; font-size: 13px; color: var(--text-secondary); }
+  .swatch { display: inline-block; width: 12px; height: 12px; margin-right: 6px; vertical-align: -1px; border-radius: 2px; }
+  @media (max-width: 850px) { .arch-grid { grid-template-columns: 1fr; } .pressure-grid { grid-template-columns: 1fr 1fr; } }
+</style>
+
+<h2>Anemoi hoje: uma bancada, tres motores operacionais</h2>
+<p class="subtitle">O produto e um sistema de evidencias visuais do Tangerina DS. A estrutura cresceu por extracoes sucessivas e hoje combina um nucleo compartilhado com um motor mobile paralelo.</p>
+
+<div class="arch-grid">
+  <section class="lane">
+    <div class="lane-kicker">Web components</div>
+    <h3>Storybook / Lit</h3>
+    <div class="node"><strong>anemoi-web</strong><small>CLI, stories, URLs e host Storybook</small></div>
+    <div class="arrow">&darr;</div>
+    <div class="node shared"><strong>anemoi-core</strong><small>matrix, Playwright, diff, stash, output e servidor</small></div>
+  </section>
+
+  <section class="lane">
+    <div class="lane-kicker">Cross-framework</div>
+    <h3>WC / React / Angular</h3>
+    <div class="node"><strong>anemoi-cross</strong><small>CLI, paridade, stories e tres hosts</small></div>
+    <div class="node isolated"><strong>harness/react + harness/angular</strong><small>apps de render isoladas, cada uma com dependencias proprias</small></div>
+    <div class="arrow">&darr;</div>
+    <div class="node shared"><strong>anemoi-core</strong><small>captura e bundle compartilhados com web</small></div>
+  </section>
+
+  <section class="lane">
+    <div class="lane-kicker">Mobile</div>
+    <h3>React Native / Detox</h3>
+    <div class="node isolated"><strong>anemoi-preset</strong><small>CLI de 2.013 linhas, config Detox, Metro e teste comum</small></div>
+    <div class="arrow">&darr;</div>
+    <div class="node contract"><strong>gol-adapter-detox</strong><small>registry, config e contratos especificos do GOL_APP_Mobile</small></div>
+    <div class="arrow">&darr; symlink</div>
+    <div class="node contract"><strong>GOL_APP_Mobile</strong><small>ainda usa nomes legados ds-evidence em pontos publicos</small></div>
+  </section>
+</div>
+
+<div class="legend">
+  <span><i class="swatch" style="background:#2f7d65"></i>infraestrutura compartilhada</span>
+  <span><i class="swatch" style="background:#b8860b"></i>runtime isolado por necessidade tecnica</span>
+  <span><i class="swatch" style="background:#8d526f"></i>contrato externo que exige compatibilidade</span>
+</div>
+
+<div class="pressure-grid">
+  <div class="pressure"><strong>1. Monolito mobile</strong>Mais de 50 funcoes em uma CLI sem testes no workspace.</div>
+  <div class="pressure"><strong>2. Core parcial</strong>Web e cross compartilham infraestrutura; mobile reimplementa args, git e output.</div>
+  <div class="pressure"><strong>3. Tres CLIs</strong>anemoi-web, anemoi-cross e anemoi expõem modelos operacionais diferentes.</div>
+  <div class="pressure"><strong>4. Setup acoplado</strong>postinstall da raiz instala dois harnesses isolados.</div>
+  <div class="pressure"><strong>5. Docs dispersas</strong>README raiz, ADRs no preset e contexto no adaptador GOL.</div>
+</div>

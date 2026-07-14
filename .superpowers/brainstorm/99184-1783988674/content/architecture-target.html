@@ -1,0 +1,65 @@
+<style>
+  .target { display:grid; grid-template-columns: 0.9fr 1.4fr; gap:24px; margin-top:24px; }
+  .tree, .flow-panel { border:1px solid var(--border); border-radius:8px; background:var(--surface); padding:20px; }
+  .tree-line { font-family:ui-monospace,SFMono-Regular,Menlo,monospace; padding:5px 8px; border-radius:4px; }
+  .tree-line.root { font-weight:800; }
+  .tree-line.level1 { margin-left:18px; }
+  .tree-line.level2 { margin-left:42px; color:var(--text-secondary); }
+  .tree-line.highlight { background:rgba(47,125,101,.12); color:var(--text); }
+  .engine { display:grid; grid-template-columns:1fr 42px 1fr; align-items:center; margin:14px 0; }
+  .engine-box { border:1px solid var(--border); background:var(--background); border-radius:6px; padding:14px; min-height:84px; }
+  .engine-box strong { display:block; margin-bottom:5px; }
+  .engine-box small { color:var(--text-secondary); line-height:1.4; }
+  .flow-arrow { text-align:center; color:var(--text-secondary); font-weight:800; }
+  .boundary { border-top:1px dashed var(--border); margin:22px 0; position:relative; }
+  .boundary span { position:absolute; top:-10px; left:50%; transform:translateX(-50%); background:var(--surface); padding:0 10px; color:var(--text-secondary); font-size:12px; }
+  .rules { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-top:20px; }
+  .rule { border-top:3px solid #2f7d65; padding:12px; background:var(--surface); font-size:13px; line-height:1.45; }
+  .rule strong { display:block; margin-bottom:4px; }
+  @media(max-width:850px){.target{grid-template-columns:1fr}.rules{grid-template-columns:1fr}.engine{grid-template-columns:1fr}.flow-arrow{padding:8px}.flow-arrow::after{content:' down'}.engine-box{min-height:auto}}
+</style>
+
+<h2>Arquitetura-alvo: workspace modular</h2>
+<p class="subtitle">Os nomes de pacote e os contratos externos permanecem. A estrutura fisica passa a explicar o dominio sem exigir leitura do historico.</p>
+
+<div class="target">
+  <section class="tree">
+    <h3>Estrutura de pastas</h3>
+    <div class="tree-line root">anemoi/</div>
+    <div class="tree-line level1 highlight">packages/</div>
+    <div class="tree-line level2">core/ <small>@gol-smiles/anemoi-core</small></div>
+    <div class="tree-line level2">web/ <small>@gol-smiles/anemoi-web</small></div>
+    <div class="tree-line level2">cross/ <small>@gol-smiles/anemoi-cross</small></div>
+    <div class="tree-line level2">mobile/ <small>@gol-smiles/anemoi-preset</small></div>
+    <div class="tree-line level1 highlight">integrations/</div>
+    <div class="tree-line level2">gol-app-mobile/</div>
+    <div class="tree-line level1 highlight">docs/</div>
+    <div class="tree-line level2">architecture.md</div>
+    <div class="tree-line level2">adr/</div>
+    <div class="tree-line level2">guides/</div>
+    <div class="tree-line level1">README.md</div>
+    <div class="tree-line level1">package.json</div>
+  </section>
+
+  <section class="flow-panel">
+    <h3>Dependencias permitidas</h3>
+    <div class="engine">
+      <div class="engine-box"><strong>web + cross</strong><small>Conhecem Storybook, Stencil, brands e wrappers.</small></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="engine-box"><strong>core de navegador</strong><small>Matrix, Playwright, pixel diff, servidor, git e bundle web.</small></div>
+    </div>
+    <div class="engine">
+      <div class="engine-box"><strong>integracao GOL</strong><small>Registry, paths, scheme e comandos do aplicativo.</small></div>
+      <div class="flow-arrow">&rarr;</div>
+      <div class="engine-box"><strong>motor mobile</strong><small>Fluxos, Metro, Detox, dispositivos, toggle e bundle mobile.</small></div>
+    </div>
+    <div class="boundary"><span>fronteira do produto</span></div>
+    <p style="color:var(--text-secondary);line-height:1.5;margin:0">O motor mobile nao passa a depender do core de navegador apenas para eliminar funcoes pequenas duplicadas. Compartilhamento so sera criado quando houver um contrato realmente igual nos dois runtimes.</p>
+  </section>
+</div>
+
+<div class="rules">
+  <div class="rule"><strong>Pacotes continuam separados</strong>Dependencias pesadas e ciclos de vida de browser e Detox permanecem isolados.</div>
+  <div class="rule"><strong>CLI mobile deixa de ser monolito</strong>Comandos, dominio, runtimes e reporting viram modulos internos coesos.</div>
+  <div class="rule"><strong>GOL nao vaza para o motor</strong>Todo detalhe do aplicativo permanece em integrations/gol-app-mobile.</div>
+</div>
