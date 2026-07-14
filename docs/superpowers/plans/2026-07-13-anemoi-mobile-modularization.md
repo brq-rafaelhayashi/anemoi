@@ -52,8 +52,10 @@ test "$(wc -l < /tmp/anemoi-mobile-cli-baseline.js)" -eq 2013
 Expected: the assertion exits `0`. “Move function X” below always means: copy the complete top-level
 declaration named X byte-for-byte from that baseline into the named target, remove it from the active
 `packages/mobile/src/cli.js`, then add exactly the imports and `module.exports` shown in the task. Do
-not rewrite a function body during an extraction task. This makes every mechanical transformation
-fully specified while avoiding a second, drifting 2,013-line source listing in this plan.
+not rewrite a function body during the mechanical extraction step. A later RED/GREEN step in the
+same task may introduce the explicitly described dependency seam; commit only after both the
+byte-preserving characterization suite and the new focused test pass. This separates relocation
+from testability changes while avoiding a second, drifting 2,013-line source listing in this plan.
 
 After each extraction, prove that every named declaration exists exactly once:
 
@@ -74,8 +76,15 @@ visit(root);
 const declarations = process.env.NAMES.split(/\s+/).filter(Boolean);
 for (const name of declarations) {
   const pattern = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`, 'g');
-  const owners = files.filter(file => (fs.readFileSync(file, 'utf8').match(pattern) || []).length);
-  if (owners.length !== 1) throw new Error(`${name}: expected one owner, found ${owners.join(', ')}`);
+  const matches = files.map(file => ({
+    file,
+    count: (fs.readFileSync(file, 'utf8').match(pattern) || []).length,
+  })).filter(item => item.count > 0);
+  const total = matches.reduce((sum, item) => sum + item.count, 0);
+  if (total !== 1) {
+    throw new Error(`${name}: expected one declaration, found ${total} in ${matches.map(item => `${item.file}:${item.count}`).join(', ')}`);
+  }
+  const owners = matches.map(item => item.file);
   console.log(`${name}: ${owners[0]}`);
 }
 NODE
@@ -103,6 +112,31 @@ reporting/summary -> config
 reporting/html -> config, registry, reporting/manifest, reporting/summary
 ```
 
+The only permitted semantic changes are test seams with these exact signatures; default calls must
+execute the byte-preserved production behavior:
+
+```js
+async function chooseFlows(args, input, {askQuestion = defaultAskQuestion} = {})
+async function runAddFlow(args, config, {askQuestion = defaultAskQuestion} = {})
+function runCommand(command, args, options = {}, {spawnSync = childProcess.spawnSync} = {})
+function checkMetro(port, {get = http.get} = {})
+async function assertMetroPortIsFree(port, {probe = checkMetro} = {})
+async function waitForMetro(port, metro, {probe = checkMetro, pause = wait} = {})
+function startMetro(config, mode, port, options = {}, {spawn = childProcess.spawn} = {})
+async function openInteractiveUrl(config, platform, url, {run = runCommand, pause = wait} = {})
+async function runEvidence(args, config, input, deps = productionDependencies)
+async function runReference(args, config, input, deps = productionDependencies)
+async function runInteractive(args, config, input, deps = productionDependencies)
+function doctorEnvironment(config, issues, warnings, {spawnSync = childProcess.spawnSync} = {})
+function runDoctor(config, deps = productionDependencies)
+async function runCli(argv, cwd = process.cwd(), deps = productionDependencies)
+```
+
+For each signature, the GREEN edit consists only of replacing the direct dependency reference with
+the named parameter and adding its default. No branch, command, message, timeout, path, env key, or
+return value may change. The pre-existing characterization tests run before and after every seam;
+the focused tests invoke the seam with fakes.
+
 No module may import `cli.js` or a runner; runtime and reporting modules may not import each other
 except for the edges listed above. Add this complete `packages/mobile/test/boundaries.test.js` file
 in Task 7:
@@ -116,20 +150,26 @@ const path = require('node:path');
 const MOBILE_ROOT = path.resolve(__dirname, '..');
 
 test('mobile module dependency direction stays acyclic', () => {
-  const forbidden = [
-    ['src/config.js', /require\(['"].*(?:cli|runners)\/?.*['"]\)/],
-    ['src/registry.js', /require\(['"].*(?:cli|runners)\/?.*['"]\)/],
-    ['src/runtime', /require\(['"].*(?:cli|runners|reporting)\/?.*['"]\)/],
-    ['src/reporting', /require\(['"].*(?:cli|runners|runtime)\/?.*['"]\)/],
-  ];
-  for (const [relative, pattern] of forbidden) {
-    const target = path.join(MOBILE_ROOT, relative);
-    const files = fs.statSync(target).isDirectory()
-      ? fs.readdirSync(target).filter(name => name.endsWith('.js')).map(name => path.join(target, name))
-      : [target];
-    for (const file of files) {
-      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), pattern, file);
-    }
+  const allowed = {
+    'src/cli.js': ['./config', './registry', './doctor', './runners/evidence', './runners/interactive', './reporting/html'],
+    'src/config.js': [],
+    'src/registry.js': ['./config'],
+    'src/doctor.js': ['./config', './registry', './lib/detoxConfig'],
+    'src/runners/evidence.js': ['../config', '../registry', '../runtime/metro', '../runtime/detox', '../runtime/source-toggle', '../reporting/manifest', '../reporting/summary', '../reporting/html'],
+    'src/runners/interactive.js': ['../runtime/metro', '../runtime/device'],
+    'src/runtime/metro.js': ['../config'],
+    'src/runtime/detox.js': ['./device'],
+    'src/runtime/device.js': ['./metro'],
+    'src/runtime/source-toggle.js': ['../config', './device'],
+    'src/reporting/manifest.js': ['../config', '../registry'],
+    'src/reporting/summary.js': ['../config'],
+    'src/reporting/html.js': ['../config', '../registry', './manifest', './summary'],
+  };
+  const requirePattern = /require\(['"](\.[^'"]+)['"]\)/g;
+  for (const [relative, expected] of Object.entries(allowed)) {
+    const source = fs.readFileSync(path.join(MOBILE_ROOT, relative), 'utf8');
+    const actual = [...source.matchAll(requirePattern)].map(match => match[1]).sort();
+    assert.deepEqual([...new Set(actual)], [...expected].sort(), relative);
   }
 });
 ```
@@ -496,11 +536,18 @@ Expected: FAIL because runtime modules do not exist.
 
 - [ ] **Step 3: Extract generic command and device operations**
 
-Move `wait`, `stopProcess`, `runCommand`, `openUrlCommand`, `terminateAppCommand`, `startDeviceCommand`, `interactiveRunCommand`, `relaunchAppBeforeDeepLink`, and `openInteractiveUrl` to `runtime/device.js`. Accept optional dependency objects in exported executors while defaulting to real Node dependencies.
+Move `runCommand`, `openUrlCommand`, `terminateAppCommand`, `startDeviceCommand`,
+`interactiveRunCommand`, `relaunchAppBeforeDeepLink`, and `openInteractiveUrl` to
+`runtime/device.js`. Import `wait` from `./metro`. In the following GREEN seam, add the optional
+`spawnSync` parameter to `runCommand` and optional command/wait dependencies to
+`openInteractiveUrl`, defaulting each to its production implementation; keep all command arrays,
+cwd/env values, retry count, and error text unchanged.
 
 - [ ] **Step 4: Extract Metro lifecycle**
 
-Move `checkMetro`, `assertMetroPortIsFree`, `waitForMetro`, and `startMetro` to `runtime/metro.js`. Preserve 60 attempts, one-second probe timeout, 200-line memory tail, 60-line failure tail, file logging, verbose echo, and `RCT_METRO_PORT`/`TANGERINA_MODE` env values.
+Move `wait`, `stopProcess`, `checkMetro`, `assertMetroPortIsFree`, `waitForMetro`, and `startMetro`
+to `runtime/metro.js`. Preserve 60 attempts, one-second probe timeout, 200-line memory tail, 60-line
+failure tail, file logging, verbose echo, `SIGTERM`, and `RCT_METRO_PORT`/`TANGERINA_MODE` env values.
 
 - [ ] **Step 5: Extract Detox and source-toggle behavior**
 
