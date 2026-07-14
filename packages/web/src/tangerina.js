@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const childProcess = require('node:child_process');
 const {runLogged} = require('./process');
 
 const BUILD_SCRIPTS = [
@@ -12,6 +13,58 @@ const BUILD_SCRIPTS = [
   'build:react',
   'build:angular',
 ];
+
+const PNPM_ACTION = 'Instale/ative pnpm >=9 e confirme com `pnpm --version` antes de executar os builds';
+
+function probePnpmVersion({cwd, spawnSync = childProcess.spawnSync} = {}) {
+  const result = spawnSync('pnpm', ['--version'], {
+    cwd,
+    encoding: 'utf8',
+    stdio: 'pipe',
+    shell: false,
+  });
+
+  if (result.error || result.signal || result.status !== 0) {
+    const detail = result.error
+      ? result.error.message
+      : result.signal
+        ? `processo encerrado por ${result.signal}`
+        : `exit ${result.status}`;
+    throw new Error(
+      `Nao foi possivel consultar a versao runtime do pnpm com \`pnpm --version\`: ${detail}. ${PNPM_ACTION}.`
+    );
+  }
+
+  const version = String(result.stdout || '').trim();
+  if (!/^\d+(?:\.\d+){1,2}(?:[-+][0-9A-Za-z.-]+)?$/.test(version)) {
+    throw new Error(
+      `Nao foi possivel interpretar a versao runtime retornada por \`pnpm --version\`: ${version || '(vazia)'}. ${PNPM_ACTION}.`
+    );
+  }
+  return version;
+}
+
+function validatePnpmRuntime({cwd, declared, probe = probePnpmVersion} = {}) {
+  let version;
+  try {
+    version = probe({cwd});
+  } catch (error) {
+    if (error.message.includes(PNPM_ACTION)) throw error;
+    throw new Error(
+      `Falha ao validar a versao runtime do pnpm: ${error.message}. ${PNPM_ACTION}.`,
+      {cause: error},
+    );
+  }
+
+  const major = Number(version.split('.')[0]);
+  if (major < 9) {
+    throw new Error(
+      `Versao runtime do pnpm incompatível: ${version}; package.json#packageManager = ${declared || '(ausente)'}. ` +
+      `O processo efetivo precisa ser pnpm >=9. ${PNPM_ACTION}.`,
+    );
+  }
+  return {version, major};
+}
 
 function checkPnpmRequirement(pkg) {
   const declared = pkg?.packageManager;
@@ -55,9 +108,15 @@ function validateTangerinaRepo(repoPath) {
   return pkg;
 }
 
-function runTangerinaBuilds(repoPath, {skipBuild = false, logDir, run = runLogged} = {}) {
-  validateTangerinaRepo(repoPath);
+function runTangerinaBuilds(repoPath, {
+  skipBuild = false,
+  logDir,
+  run = runLogged,
+  probeRuntime = probePnpmVersion,
+} = {}) {
+  const pkg = validateTangerinaRepo(repoPath);
   if (skipBuild) return;
+  validatePnpmRuntime({cwd: repoPath, declared: pkg.packageManager, probe: probeRuntime});
   for (const script of BUILD_SCRIPTS) {
     run('pnpm', [script], {
       cwd: repoPath,
@@ -67,4 +126,11 @@ function runTangerinaBuilds(repoPath, {skipBuild = false, logDir, run = runLogge
   }
 }
 
-module.exports = {BUILD_SCRIPTS, checkPnpmRequirement, validateTangerinaRepo, runTangerinaBuilds};
+module.exports = {
+  BUILD_SCRIPTS,
+  checkPnpmRequirement,
+  probePnpmVersion,
+  validatePnpmRuntime,
+  validateTangerinaRepo,
+  runTangerinaBuilds,
+};
