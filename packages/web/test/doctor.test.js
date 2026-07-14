@@ -2,6 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
 const {collectChecks} = require('../src/doctor');
+const {BUILD_SCRIPTS} = require('../src/tangerina');
 
 // Usa um path que nao existe — testa apenas que os ids certos sao retornados
 const FAKE_REPO = path.join(__dirname, 'nonexistent-repo-xyz');
@@ -32,4 +33,25 @@ test('collectChecks reporta ok=true para tangerina-web-core real (se presente)',
   const checks = collectChecks(REAL_REPO);
   const repo = checks.find(c => c.id === 'repo');
   assert.equal(repo.ok, true, 'esperava repo ok=true para repo real');
+});
+
+test('collectChecks exige package.json#name e todos os scripts da cadeia Tangerina', () => {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-doctor-'));
+  const scripts = Object.fromEntries(BUILD_SCRIPTS.map(name => [name, 'true']));
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'tangerina-web-core', scripts}));
+
+  const checks = collectChecks(repo);
+  const repoCheck = checks.find(check => check.id === 'repo');
+  assert.equal(repoCheck.ok, true);
+  for (const script of BUILD_SCRIPTS) {
+    const check = checks.find(item => item.id === `script-${script.replace(':', '-')}`);
+    assert.equal(check.ok, true, `esperava check ok para ${script}`);
+  }
+
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'outro-repo', scripts: {}}));
+  const invalidChecks = collectChecks(repo);
+  assert.equal(invalidChecks.find(check => check.id === 'repo').ok, false);
+  assert.equal(invalidChecks.find(check => check.id === 'script-build-tokens').ok, false);
 });

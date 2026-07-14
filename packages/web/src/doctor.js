@@ -5,23 +5,34 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
+const {BUILD_SCRIPTS} = require('./tangerina');
 
 // Coleta checks puros (sem efeitos — seguro para testar).
 function collectChecks(repoPath) {
   const checks = [];
   const exists = rel => fs.existsSync(path.join(repoPath, rel));
+  const pkg = readPackage(repoPath);
 
   checks.push({
     id: 'repo',
-    label: 'Repo web resolvível',
-    ok: exists('package.json'),
-    detail: repoPath,
+    label: 'Repositorio Tangerina identificado (package.json#name)',
+    ok: pkg?.name === 'tangerina-web-core',
+    detail: `${repoPath}/package.json#name = tangerina-web-core`,
   });
+
+  for (const script of BUILD_SCRIPTS) {
+    checks.push({
+      id: `script-${script.replace(':', '-')}`,
+      label: `Script Tangerina configurado (${script})`,
+      ok: Boolean(pkg?.scripts?.[script]),
+      detail: `package.json#scripts["${script}"]`,
+    });
+  }
 
   checks.push({
     id: 'storybook',
     label: 'Storybook configurado (.storybook + script build-storybook)',
-    ok: exists('.storybook') && hasBuildStorybookScript(repoPath),
+    ok: exists('.storybook') && Boolean(pkg?.scripts?.['build-storybook']),
     detail: '.storybook/ e package.json#scripts["build-storybook"]',
   });
 
@@ -56,14 +67,11 @@ function collectChecks(repoPath) {
   return checks;
 }
 
-function hasBuildStorybookScript(repoPath) {
+function readPackage(repoPath) {
   try {
-    const pkg = JSON.parse(
-      fs.readFileSync(path.join(repoPath, 'package.json'), 'utf8')
-    );
-    return Boolean(pkg.scripts && pkg.scripts['build-storybook']);
+    return JSON.parse(fs.readFileSync(path.join(repoPath, 'package.json'), 'utf8'));
   } catch (e) {
-    return false;
+    return null;
   }
 }
 

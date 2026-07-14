@@ -19,6 +19,7 @@ const {readIndexJson, filterStoriesForComponent} = require('./stories');
 const {groupByCell, computeParity} = require('./parity');
 const {resolveStoryArgs} = require('./storyArgs');
 const {runDoctor} = require('./doctor');
+const {runTangerinaBuilds} = require('./tangerina');
 const {makeWcHost} = require('./hosts/wc');
 const {makeReactHost} = require('./hosts/react');
 const {makeAngularHost} = require('./hosts/angular');
@@ -101,6 +102,11 @@ async function runCurrentState(args, cwd) {
   const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   const runDir = path.join(repo, 'outputs', 'anemoi-web', card, component, ts);
   fs.mkdirSync(runDir, {recursive: true});
+
+  runTangerinaBuilds(repo, {
+    skipBuild: Boolean(args['skip-build']),
+    logDir: path.join(runDir, 'logs', 'tangerina'),
+  });
 
   console.log(`\nAnemoi Web — estado atual`);
   console.log(`Componente: ${component} | Card: ${card}`);
