@@ -5,6 +5,8 @@
 // a evidencia de um estado ad-hoc.
 
 const {createHash} = require('node:crypto');
+const {buildMatrix} = require('@gol-smiles/anemoi-core');
+const {VIEWPORT_WIDTHS} = require('@gol-smiles/anemoi-web/src/brands');
 
 function stableStringify(value) {
   if (Array.isArray(value)) {
@@ -40,4 +42,20 @@ function normalizeCompareState(compareState, catalog) {
   };
 }
 
-module.exports = {stableStringify, stateHash, normalizeCompareState};
+const SERVICE_FRAMEWORKS = ['react', 'angular'];
+
+function compareStateToCells(state, {viewports = ['sm', 'lg']} = {}) {
+  const hash = stateHash(state);
+  const story = {id: `koba-state-${hash}`, name: `estado ${hash}`};
+  const cells = buildMatrix({
+    frameworks: SERVICE_FRAMEWORKS,
+    stories: [story],
+    brands: ['gol'],
+    themes: ['light'],
+    viewports,
+    viewportWidths: VIEWPORT_WIDTHS,
+  });
+  return cells.map(cell => ({...cell, component: state.componentKey, state}));
+}
+
+module.exports = {stableStringify, stateHash, normalizeCompareState, compareStateToCells};
