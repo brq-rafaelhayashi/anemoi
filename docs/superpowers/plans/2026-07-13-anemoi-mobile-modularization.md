@@ -39,6 +39,101 @@
 | `docs/guides/mobile.md` | Canonical operational Mobile guide. |
 | `docs/adr/mobile-*.md` | Canonical Mobile architectural decisions. |
 
+## Mechanical Extraction Protocol
+
+The baseline for every extraction is immutable commit `9a451d0`. Before Task 2, save the source used
+by all later tasks:
+
+```bash
+git show 9a451d0:anemoi-preset/src/cli.js > /tmp/anemoi-mobile-cli-baseline.js
+test "$(wc -l < /tmp/anemoi-mobile-cli-baseline.js)" -eq 2013
+```
+
+Expected: the assertion exits `0`. “Move function X” below always means: copy the complete top-level
+declaration named X byte-for-byte from that baseline into the named target, remove it from the active
+`packages/mobile/src/cli.js`, then add exactly the imports and `module.exports` shown in the task. Do
+not rewrite a function body during an extraction task. This makes every mechanical transformation
+fully specified while avoiding a second, drifting 2,013-line source listing in this plan.
+
+After each extraction, prove that every named declaration exists exactly once:
+
+```bash
+NAMES='loadConfig runInit' node - <<'NODE'
+const fs = require('node:fs');
+const path = require('node:path');
+const root = 'packages/mobile/src';
+const files = [];
+const visit = dir => {
+  for (const entry of fs.readdirSync(dir, {withFileTypes: true})) {
+    const target = path.join(dir, entry.name);
+    if (entry.isDirectory()) visit(target);
+    else if (entry.name.endsWith('.js')) files.push(target);
+  }
+};
+visit(root);
+const declarations = process.env.NAMES.split(/\s+/).filter(Boolean);
+for (const name of declarations) {
+  const pattern = new RegExp(`(?:async\\s+)?function\\s+${name}\\s*\\(`, 'g');
+  const owners = files.filter(file => (fs.readFileSync(file, 'utf8').match(pattern) || []).length);
+  if (owners.length !== 1) throw new Error(`${name}: expected one owner, found ${owners.join(', ')}`);
+  console.log(`${name}: ${owners[0]}`);
+}
+NODE
+```
+
+Replace the example `NAMES` value with the function names from the current task. Constants use
+an equivalent `rg -n '^const NAME =' packages/mobile/src` assertion. The package root export remains
+exactly `createDetoxConfig` and `getTangerinaMetroConfig`; internal exports below are not re-exported
+from `src/index.js`.
+
+The allowed dependency graph is exact:
+
+```text
+cli -> config, registry, doctor, runners/evidence, runners/interactive, reporting/html
+registry -> config
+doctor -> config, registry, lib/detoxConfig
+runners/evidence -> config, registry, runtime/metro, runtime/detox,
+                    runtime/source-toggle, reporting/manifest, reporting/summary, reporting/html
+runners/interactive -> runtime/metro, runtime/device
+runtime/metro -> config
+runtime/detox -> runtime/device
+runtime/source-toggle -> config, runtime/device
+reporting/manifest -> config, registry
+reporting/summary -> config
+reporting/html -> config, registry, reporting/manifest, reporting/summary
+```
+
+No module may import `cli.js` or a runner; runtime and reporting modules may not import each other
+except for the edges listed above. Add this complete `packages/mobile/test/boundaries.test.js` file
+in Task 7:
+
+```js
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+
+const MOBILE_ROOT = path.resolve(__dirname, '..');
+
+test('mobile module dependency direction stays acyclic', () => {
+  const forbidden = [
+    ['src/config.js', /require\(['"].*(?:cli|runners)\/?.*['"]\)/],
+    ['src/registry.js', /require\(['"].*(?:cli|runners)\/?.*['"]\)/],
+    ['src/runtime', /require\(['"].*(?:cli|runners|reporting)\/?.*['"]\)/],
+    ['src/reporting', /require\(['"].*(?:cli|runners|runtime)\/?.*['"]\)/],
+  ];
+  for (const [relative, pattern] of forbidden) {
+    const target = path.join(MOBILE_ROOT, relative);
+    const files = fs.statSync(target).isDirectory()
+      ? fs.readdirSync(target).filter(name => name.endsWith('.js')).map(name => path.join(target, name))
+      : [target];
+    for (const file of files) {
+      assert.doesNotMatch(fs.readFileSync(file, 'utf8'), pattern, file);
+    }
+  }
+});
+```
+
 ---
 
 ### Task 1: Lock the Existing Mobile Contracts with Characterization Tests
@@ -252,6 +347,24 @@ git commit -m "refactor(mobile): move engine and GOL integration"
 - Consumes: Node filesystem/path, `ds-evidence.config.js`, and registry JSON.
 - Produces: `config.js` exports `readJson`, `ensureDir`, `slug`, `relative`, `resolveConfigPath`, `loadConfig`, `resolveHostPath`, `runInit`; `registry.js` exports `FLOW_CATEGORIES`, `loadRegistry`, `flowsForEntry`, `referencesForEntry`, `formatFlowList`, `normalizePlatforms`, `collectInputs`, `chooseFlows`, `runAddFlow`.
 
+```js
+// config.js
+module.exports = {readJson, ensureDir, slug, relative, resolveConfigPath, loadConfig, resolveHostPath, runInit};
+
+// registry.js
+module.exports = {
+  FLOW_CATEGORIES,
+  loadRegistry,
+  flowsForEntry,
+  referencesForEntry,
+  formatFlowList,
+  normalizePlatforms,
+  collectInputs,
+  chooseFlows,
+  runAddFlow,
+};
+```
+
 - [ ] **Step 1: Write focused failing tests**
 
 In `config.test.js`, assert that `loadConfig({}, nestedCwd)` resolves `configPath`, resolves `repoRoot` relative to the config file, and leaves function-valued config fields callable. Assert `runInit(root)` is idempotent and does not overwrite existing files.
@@ -324,6 +437,42 @@ git commit -m "refactor(mobile): extract config and registry modules"
 - Consumes: normalized host config and child-process/http/filesystem dependencies.
 - Produces: deterministic command builders plus runtime executors used by runners and doctor.
 
+```js
+// runtime/metro.js
+module.exports = {wait, checkMetro, assertMetroPortIsFree, waitForMetro, startMetro, stopProcess};
+
+// runtime/detox.js
+module.exports = {
+  detoxConfiguration,
+  detoxCommandArgs,
+  detoxCommandEnv,
+  detoxCommand,
+  detoxCommandAsync,
+};
+
+// runtime/device.js
+module.exports = {
+  runCommand,
+  openUrlCommand,
+  terminateAppCommand,
+  startDeviceCommand,
+  interactiveRunCommand,
+  relaunchAppBeforeDeepLink,
+  openInteractiveUrl,
+};
+
+// runtime/source-toggle.js
+module.exports = {
+  STASH_MESSAGE_PREFIX,
+  sourceRepoRoot,
+  sourcePathsFor,
+  ensureSourceDiff,
+  assertNoOrphanStash,
+  pushSourceStash,
+  popSourceStash,
+};
+```
+
 - [ ] **Step 1: Write RED tests for command construction and cleanup**
 
 Assert:
@@ -391,6 +540,17 @@ git commit -m "refactor(mobile): extract runtime boundaries"
 - Consumes: normalized input and capture metadata.
 - Produces: `manifest.json`, `summary.md`, and optional single/per-flow HTML with unchanged filenames and content semantics.
 
+```js
+// reporting/manifest.js
+module.exports = {writeManifest, makeRunManifest, collectCaptureMetadata};
+
+// reporting/summary.js
+module.exports = {writeSummary};
+
+// reporting/html.js
+module.exports = {assertHtmlOutput, assertHtmlImagesExist, renderHtml, writeHtml, runHtmlOnly};
+```
+
 - [ ] **Step 1: Characterize report outputs before extraction**
 
 Create one fixture manifest with iOS, component `Button`, card `CDCOM-1`, flow `primary`, before/after captures, one reference, and `htmlOutput: 'single'`. Assert `writeManifest` ends with a newline, summary includes `outputs/anemoi`, and HTML contains the before/after captions, escaped text, flow label, and relative image paths. Add a per-flow case asserting both the named flow HTML and index links.
@@ -438,6 +598,10 @@ git commit -m "refactor(mobile): extract evidence reporting"
 **Interfaces:**
 - Consumes: runtime modules from Task 4 and reporting modules from Task 5.
 - Produces: `runEvidence(args, config, input, deps?)` and `runReference(args, config, input, deps?)`.
+
+```js
+module.exports = {runDetoxPhase, writeOutputs, runEvidence, runReference};
+```
 
 - [ ] **Step 1: Write orchestration tests with injected dependencies**
 
@@ -493,11 +657,23 @@ git commit -m "refactor(mobile): extract evidence runners"
 - Create: `packages/mobile/test/runner-interactive.test.js`
 - Create: `packages/mobile/test/doctor.test.js`
 - Create: `packages/mobile/test/cli-dispatch.test.js`
+- Create: `packages/mobile/test/boundaries.test.js`
 - Modify: `packages/mobile/src/cli.js`
 
 **Interfaces:**
 - Consumes: config, registry, runtime, report, and evidence-runner APIs from Tasks 3–6.
 - Produces: thin `runCli(argv, cwd, deps?)` dispatcher with unchanged external behavior.
+
+```js
+// runners/interactive.js
+module.exports = {runInteractive};
+
+// doctor.js
+module.exports = {doctorEnvironment, runDoctor};
+
+// cli.js
+module.exports = {parseArgs, runCli};
+```
 
 - [ ] **Step 1: Write interactive cleanup and Doctor tests**
 
@@ -512,7 +688,7 @@ Inject spies into `runCli` and verify each branch dispatches once and returns: `
 Run:
 
 ```bash
-node --test packages/mobile/test/runner-interactive.test.js packages/mobile/test/doctor.test.js packages/mobile/test/cli-dispatch.test.js
+node --test packages/mobile/test/runner-interactive.test.js packages/mobile/test/doctor.test.js packages/mobile/test/cli-dispatch.test.js packages/mobile/test/boundaries.test.js
 ```
 
 Expected: FAIL because modules/dependency injection are absent.
@@ -526,7 +702,55 @@ Move `runInteractive` to `runners/interactive.js` and `doctorEnvironment`/`runDo
 Keep `parseArgs` and `runCli` in `cli.js`. Use this dependency surface:
 
 ```js
-async function runCli(argv, cwd = process.cwd(), deps = productionDependencies)
+const {loadConfig, runInit} = require('./config');
+const {
+  collectInputs,
+  chooseFlows,
+  formatFlowList,
+  runAddFlow,
+} = require('./registry');
+const {runDoctor} = require('./doctor');
+const {runEvidence, runReference} = require('./runners/evidence');
+const {runInteractive} = require('./runners/interactive');
+const {runHtmlOnly} = require('./reporting/html');
+
+const productionDependencies = {
+  loadConfig,
+  runInit,
+  collectInputs,
+  chooseFlows,
+  formatFlowList,
+  runAddFlow,
+  runDoctor,
+  runEvidence,
+  runReference,
+  runInteractive,
+  runHtmlOnly,
+  write: console.log,
+};
+
+async function runCli(argv, cwd = process.cwd(), deps = productionDependencies) {
+  const args = parseArgs(argv);
+  if (args.init) return deps.runInit(cwd);
+
+  const config = deps.loadConfig(args, cwd);
+  if (args.doctor) return deps.runDoctor(config);
+  if (args['html-only']) return deps.runHtmlOnly(args, config);
+  if (args['add-flow']) return deps.runAddFlow(args, config);
+
+  const input = deps.collectInputs(args, config);
+  if (args['list-flows']) {
+    deps.write(deps.formatFlowList(input.availableFlows, input.references));
+    return;
+  }
+
+  const selectedInput = await deps.chooseFlows(args, input);
+  if (args.interactive) return deps.runInteractive(args, config, selectedInput);
+  if (args.reference) return deps.runReference(args, config, selectedInput);
+  return deps.runEvidence(args, config, selectedInput);
+}
+
+module.exports = {parseArgs, runCli};
 ```
 
 The body must preserve the current branch order exactly: init, config load, doctor, html-only, add-flow, collect input, list-flows, choose flows, interactive, reference, evidence. Export `{parseArgs, runCli}` for direct tests while keeping the bin unchanged.
@@ -540,7 +764,7 @@ Add assertions that `packages/mobile/src/cli.js` is under 150 lines, contains no
 Run:
 
 ```bash
-node --test packages/mobile/test/runner-interactive.test.js packages/mobile/test/doctor.test.js packages/mobile/test/cli-dispatch.test.js
+node --test packages/mobile/test/runner-interactive.test.js packages/mobile/test/doctor.test.js packages/mobile/test/cli-dispatch.test.js packages/mobile/test/boundaries.test.js
 npm test --workspace @gol-smiles/anemoi-preset
 npm test
 ```
@@ -584,7 +808,39 @@ Expected: FAIL because canonical Mobile docs have not been consolidated.
 
 - [ ] **Step 3: Consolidate operational and integration documentation**
 
-Move the operational content of `integrations/gol-app-mobile/docs/anemoi.md` to `docs/guides/mobile.md`, updating repository-relative links to `packages/mobile`, `integrations/gol-app-mobile`, and `docs/adr`. Create `integrations/gol-app-mobile/README.md` with only GOL-specific responsibilities, symlink targets, registry/native/Jest files, and a link to the canonical Mobile guide. Keep `CONTEXT.md` as the integration vocabulary source and keep the HTML-report guide under the integration because it documents the GOL evidence presentation contract.
+Move the existing complete guide and preserve the HTML-report guide:
+
+```bash
+mkdir -p docs/guides integrations/gol-app-mobile/docs
+git mv integrations/gol-app-mobile/docs/anemoi.md docs/guides/mobile.md
+```
+
+In the moved guide replace every `../../anemoi-preset/docs/adr/0004-recorte-no-componente-por-padrao.md`
+link with `../adr/mobile-0004-recorte-no-componente-por-padrao.md`, and replace the final local ADR links
+with the canonical `../adr/mobile-gol-*` paths from Step 4. Create
+`integrations/gol-app-mobile/README.md` with this complete content:
+
+```markdown
+# Integração GOL_APP_Mobile
+
+Esta pasta contém somente o adaptador do Anemoi Mobile para o GOL_APP_Mobile: configuração
+Detox/Jest, wrapper do bin, teste de evidência, registry, entrypoint Android e documentação do
+relatório HTML. O motor reutilizável vive em `packages/mobile` como
+`@gol-smiles/anemoi-preset`.
+
+O app consome esta integração pelos contratos legados preservados `detox/` e
+`packages/ds-evidence-preset`; `ds-evidence.config.js` continua pertencendo ao app host. Não
+renomeie `yarn ds:evidence`, `automation/ds`, `DsEvidenceScreen` ou os test IDs
+`ds-evidence-*` durante a modularização.
+
+- Guia operacional: [Anemoi Mobile](../../docs/guides/mobile.md)
+- Vocabulário e limites GOL: [CONTEXT.md](CONTEXT.md)
+- Relatório HTML: [docs/anemoi-relatorio-html.md](docs/anemoi-relatorio-html.md)
+- Registry: [anemoi/registry.json](anemoi/registry.json)
+```
+
+Keep `CONTEXT.md` as the integration vocabulary source and keep the HTML-report guide under the
+integration because it documents the GOL evidence presentation contract.
 
 - [ ] **Step 4: Move ADRs with collision-free Mobile titles**
 
@@ -598,6 +854,19 @@ docs/adr/mobile-0004-recorte-no-componente-por-padrao.md
 docs/adr/mobile-gol-0001-detox-for-anemoi.md
 docs/adr/mobile-gol-0002-toggle-antes-depois-source-stash.md
 docs/adr/mobile-gol-0003-escada-evidencia-a11y-vs-pixel.md
+```
+
+Execute these exact moves:
+
+```bash
+mkdir -p docs/adr
+git mv packages/mobile/docs/adr/0001-preset-com-adaptador-local.md docs/adr/mobile-0001-preset-com-adaptador-local.md
+git mv packages/mobile/docs/adr/0002-fluxos-de-evidencia-no-registry.md docs/adr/mobile-0002-fluxos-de-evidencia-no-registry.md
+git mv packages/mobile/docs/adr/0003-fonte-canonica-brq-ai-symlink.md docs/adr/mobile-0003-fonte-canonica-brq-ai-symlink.md
+git mv packages/mobile/docs/adr/0004-recorte-no-componente-por-padrao.md docs/adr/mobile-0004-recorte-no-componente-por-padrao.md
+git mv integrations/gol-app-mobile/docs/adr/0001-detox-for-anemoi.md docs/adr/mobile-gol-0001-detox-for-anemoi.md
+git mv integrations/gol-app-mobile/docs/adr/0002-toggle-antes-depois-source-stash.md docs/adr/mobile-gol-0002-toggle-antes-depois-source-stash.md
+git mv integrations/gol-app-mobile/docs/adr/0003-escada-evidencia-a11y-vs-pixel.md docs/adr/mobile-gol-0003-escada-evidencia-a11y-vs-pixel.md
 ```
 
 Repair every relative link and historical path statement without changing the decisions themselves.
