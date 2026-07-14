@@ -153,8 +153,7 @@ function handleGallery(res, run, rawPath) {
   try {
     urlPath = decodeURIComponent(rawPath);
   } catch {
-    res.writeHead(400);
-    res.end('Bad request');
+    sendJson(res, 400, {error: 'Caminho invalido na galeria.'});
     return;
   }
   let filePath = path.join(run.runDir, urlPath);
@@ -163,14 +162,12 @@ function handleGallery(res, run, rawPath) {
   }
   const rel = path.relative(run.runDir, filePath);
   if (rel.startsWith('..') || path.isAbsolute(rel)) {
-    res.writeHead(403);
-    res.end('Forbidden');
+    sendJson(res, 403, {error: 'Acesso negado: caminho fora do bundle.'});
     return;
   }
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404);
-      res.end('Not found');
+      sendJson(res, 404, {error: 'Arquivo nao encontrado no bundle.'});
       return;
     }
     res.writeHead(200, {'Content-Type': MIME[path.extname(filePath)] || 'application/octet-stream'});

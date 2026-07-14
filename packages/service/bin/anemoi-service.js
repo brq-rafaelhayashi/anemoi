@@ -23,6 +23,12 @@ async function main() {
   const store = createRunStore();
   const queue = createQueue();
   const service = createService({config, store, queue, deps: {executeRun, fetchCatalog: fetchKobaCatalog}});
+  service.on('error', (error) => {
+    console.error(error.code === 'EADDRINUSE'
+      ? `Erro: porta ${config.port} em uso — o servico ja esta rodando? Rode: npm run service -- --doctor.`
+      : `Erro: ${error.message}`);
+    process.exitCode = 1;
+  });
   service.listen(config.port, '127.0.0.1', () => {
     console.log(`Anemoi Service ouvindo em http://127.0.0.1:${config.port}`);
     console.log(`Koba esperado em ${config.kobaBaseUrl} · bundles em ${config.dsRepo}/outputs/anemoi-web/`);
