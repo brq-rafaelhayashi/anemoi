@@ -1,0 +1,8 @@
+{
+  "defaultRepository": "tangerina",
+  "repositories": {
+    "tangerina": {
+      "path": "/absolute/path/to/tangerina-web-core"
+    }
+  }
+}

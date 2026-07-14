@@ -16,7 +16,8 @@
 //
 // Seletor de recorte: #storybook-root  (contém o custom element hidratado)
 
-const { spawnSync } = require('node:child_process');
+const path = require('node:path');
+const {runLogged} = require('../process');
 const { VIEWPORT_WIDTHS, THEME_ATTR, brandGlobal } = require('../brands');
 
 // Cor de background dark (sem '#') usada pelo Storybook para acionar data-theme=dark.
@@ -78,23 +79,20 @@ async function verify(page, _cell) {
 // Roda o build estático do Storybook do tangerina-web-core.
 // repo    : path do repositório do DS (onde tem o package.json com "build-storybook")
 // outDir  : diretório de saída (criado pelo Storybook)
-function build(repo, outDir) {
-  const result = spawnSync(
+function build(repo, outDir, {
+  logPath = path.join(path.dirname(outDir), 'storybook-build.log'),
+  run = runLogged,
+} = {}) {
+  run(
     'pnpm',
     ['build-storybook', '-o', outDir],
     {
       cwd: repo,
-      stdio: 'inherit',
       env: { ...process.env },
-      shell: false,
+      logPath,
+      echo: true,
     }
   );
-  if (result.status !== 0) {
-    throw new Error(
-      `build-storybook falhou (exit ${result.status}). ` +
-      `Verifique o repo "${repo}" e tente: pnpm build-storybook -o ${outDir}`
-    );
-  }
 }
 
 // O Storybook emite index.json na raiz do output — indexDir retorna outDir.
@@ -103,14 +101,14 @@ function indexDir(outDir) {
 }
 
 // Factory que retorna o objeto host compatível com captureCells do core.
-function makeWcHost() {
+function makeWcHost(_repo, options = {}) {
   return {
     framework: 'wc',
     viewportWidths: VIEWPORT_WIDTHS,
     urlFor,
     selectorFor,
     verify,
-    build,
+    build: (repo, outDir, buildOptions = {}) => build(repo, outDir, {...options, ...buildOptions}),
     indexDir,
   };
 }

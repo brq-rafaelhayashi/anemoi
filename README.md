@@ -1,100 +1,59 @@
 # Anemoi
 
-Bancada de evidência visual do Tangerina DS: captura, diffa e empacota screenshots de componentes
-para provar visualmente um fix ou uma feature, antes de abrir PR. Cobre três frentes — web
-(Storybook/Lit), paridade cross-framework (Web Component × React × Angular) e mobile (React
-Native/Detox) — sobre um núcleo comum de captura, diff e output.
-
-## Pacotes
-
-| Pacote | O que é |
-| --- | --- |
-| `anemoi-core` | Núcleo agnóstico de framework: matrix de captura, captura via Playwright, diff via pixelmatch, git-stash (before/after) e output (manifest + HTML) + doctor. |
-| `anemoi-web` | Adaptador fino sobre o core para Storybook/Lit — evidência de web components. |
-| `anemoi-cross` | Adaptador Stencil cross-framework: renderiza um componente como Web Component puro, React e Angular e faz diff de paridade de pixels (react×wc, angular×wc). Roda contra um repo consumidor via `--repo`. |
-| `anemoi-preset` | Preset React Native + Detox (mobile), autocontido; consumido por um app via symlink. |
-| `gol-adapter-detox` | Adaptador Detox específico do GOL_APP_Mobile — **não é membro do npm workspace**; consumido via symlink pelo app. |
-
-## Requisitos
-
-- Node **24.13.1** (`nvm use` — não há `.nvmrc` neste repo ainda; use essa versão, alinhada ao
-  restante do ecossistema Tangerina).
-- npm **>= 7** (suporte a workspaces).
-- Chromium do Playwright instalado (dependência do `anemoi-core`, usada para captura). Instale com:
-
-  ```bash
-  npx playwright install chromium
-  ```
-
-  Para checar se já está instalado, rode o doctor (ver abaixo) — ele reporta o Chromium junto com
-  os outros pré-requisitos.
-
-## Setup
-
-Uma vez, na raiz deste repo:
+O Anemoi gera evidências visuais e valida a paridade de componentes do Tangerina DS entre Web
+Components, React e Angular. O fluxo é sempre executado na raiz deste repositório e aponta para um
+checkout local do `tangerina-web-core` por alias.
 
 ```bash
 npm install
+npm run web:configure -- --alias tangerina --repo /absolute/path/to/tangerina-web-core
+npm run web -- --repo tangerina --doctor
+npm run web -- --repo tangerina --component tgr-button --card CDCOM-123
 ```
 
-Isso resolve as dependências de todos os workspaces (`anemoi-core`, `anemoi-web`, `anemoi-cross`,
-`anemoi-preset`) e, via `postinstall`, instala também as deps dos harnesses do `anemoi-cross`
-(`harness/react` e `harness/angular`) — eles não são membros do workspace (o Angular precisa das
-suas próprias deps isoladas para evitar NG0203), mas o `npm install` já os prepara. Para reinstalar
-só os harnesses: `npm run setup:harnesses`.
+## Requisitos
 
-## Rodar (cross-framework, web)
+- Node.js 24.13.1.
+- npm 7 ou superior, com suporte a workspaces.
+- pnpm 9 ou superior disponível no `PATH`; ele executa os builds do checkout Tangerina.
+- Chromium do Playwright instalado. Se o doctor apontar sua ausência, execute
+  `npx playwright install chromium` na raiz do Anemoi.
 
-O `anemoi-cross` roda **a partir daqui** (raiz do anemoi) e mira um repo consumidor via `--repo`
-— tipicamente o `tangerina-web-core`. Pré-requisito: o repo consumidor precisa ter buildado a si
-mesmo primeiro (`pnpm build`, na raiz dele), para que os wrappers React/Angular e o Storybook
-estejam disponíveis para os harnesses.
+O `npm install` instala os workspaces e também prepara os harnesses isolados de React e Angular.
+Para reinstalar somente os harnesses, use `npm run setup:harnesses`.
 
-```bash
-cd ~/Developer/projects/anemoi
-npm install                      # uma vez
+## Uso Web
 
-# doctor — confere repo, Storybook, wrappers buildados e Chromium
-npm run cross -- --doctor --repo ~/Documents/projects/tangerina-ds/tangerina-web-core
+O comando de configuração grava o arquivo local e ignorado `.anemoi.local.json`. O exemplo
+versionado [.anemoi.local.example.json](.anemoi.local.example.json) documenta o formato. O primeiro
+alias configurado se torna o padrão; passe `--default` para tornar outro alias o padrão.
 
-# captura — paridade wc × react × angular
-npm run cross -- --repo ~/Documents/projects/tangerina-ds/tangerina-web-core \
-  --component tgr-button --frameworks wc,react,angular \
-  --themes light,dark --viewports sm,lg --brands gol
+O Anemoi valida o checkout consumidor, executa os builds necessários, lê as stories CSF, renderiza
+o mesmo estado nos três frameworks e grava o resultado no próprio checkout consumidor em:
+
+```text
+outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/
 ```
 
-Os outputs caem em `<repo>/outputs/anemoi-cross/<card>/<component>/<timestamp>/` (manifest.json,
-summary.md, prints e um `index.html` de galeria). `<card>` é opcional (`--card`); sem ele, usa
-`sem-card`.
+O bundle contém `manifest.json`, `summary.md`, screenshots, diffs e uma galeria offline
+`index.html`. Consulte o [guia completo do Anemoi Web](docs/guides/web.md) para flags, ordem de
+build, falhas e interpretação da paridade. A visão estrutural está em
+[Arquitetura](docs/architecture.md).
 
-## Rodar (web, Storybook/Lit)
+## Pacotes
 
-```bash
-npm run web -- <args>
-```
-
-Ver `anemoi-web/` para os flags específicos desse adaptador.
+| Caminho | Responsabilidade |
+| --- | --- |
+| `packages/core` | Captura Playwright, matriz, diff, servidor estático e geração do bundle. |
+| `packages/web` | Configuração, integração Tangerina, stories, hosts WC/React/Angular, doctor e paridade. |
+| `anemoi-preset` | Runtime React Native/Detox preservado e separado; será movido para `packages/mobile`. |
+| `gol-adapter-detox` | Integração atual do GOL_APP_Mobile; será movida para `integrations/gol-app-mobile`. |
 
 ## Testes
 
 ```bash
-npm test --workspaces
+npm test
 ```
 
-## TODO — repontar mobile
-
-O lado `GOL_APP_Mobile` (app) ainda não foi migrado para consumir este repo. Hoje o app continua
-apontando para a fonte antiga (BRQ-AI). Falta:
-
-- Repontar os symlinks do app (`detox/`, `packages/ds-evidence-preset`) para este repo.
-- Renomear o symlink do app de `packages/ds-evidence-preset` para `packages/anemoi-preset`.
-- Atualizar `metro.config.js` do app e `scripts/metro/tangerinaSourceConfig.js`.
-- Atualizar o script `ds:evidence` do app.
-- Atualizar o deep link `automation/ds`.
-- Atualizar a ADR 0003 (`anemoi-preset/docs/adr/0003-fonte-canonica-brq-ai-symlink.md`) para
-  refletir a nova fonte canônica.
-
-Esses artefatos (`ds:evidence`, `ds-evidence.config.js`, os symlinks, o deep link `automation/ds`,
-os testIDs `ds-evidence-*` da Gallery) são contrato do lado do app e foram **intencionalmente**
-deixados com o nome legado `ds-evidence` até esse repontamento acontecer — ver
-`gol-adapter-detox/CONTEXT.md`.
+O Web concluiu sua aceitação real. A modularização Mobile permanece pendente e está especificada no
+[plano de implementação Mobile](docs/superpowers/plans/2026-07-13-anemoi-mobile-modularization.md).

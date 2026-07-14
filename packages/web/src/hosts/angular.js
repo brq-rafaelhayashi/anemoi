@@ -14,7 +14,7 @@
 
 const path = require('node:path');
 const fs = require('node:fs');
-const { spawnSync } = require('node:child_process');
+const {runLogged} = require('../process');
 const { VIEWPORT_WIDTHS } = require('../brands');
 
 // Diretório do harness Angular (relativo a este arquivo)
@@ -85,30 +85,24 @@ function generateFiles(repo) {
  * @param {string} outDir - diretório de saída (deve conter index.html depois do build)
  * @returns {string}      - path do diretório que contém index.html
  */
-function build(repo, outDir) {
+function build(repo, outDir, {
+  logPath = path.join(path.dirname(outDir), 'angular-harness-build.log'),
+  run = runLogged,
+  generate = generateFiles,
+} = {}) {
   // Gera arquivos com caminhos absolutos antes do build
-  generateFiles(repo);
+  generate(repo);
 
-  const result = spawnSync(
+  run(
     'npx',
     ['ng', 'build', '--output-path', outDir],
     {
       cwd: HARNESS,
-      stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env },
-      shell: false,
+      logPath,
+      echo: true,
     }
   );
-
-  if (result.status !== 0) {
-    const stderr = result.stderr ? result.stderr.toString() : '';
-    const stdout = result.stdout ? result.stdout.toString() : '';
-    throw new Error(
-      `ng build do harness Angular falhou (exit ${result.status}).\n` +
-        `stdout:\n${stdout}\n` +
-        `stderr:\n${stderr}`
-    );
-  }
 
   // angular.json configura outputPath.browser: '' → index.html fica em outDir diretamente.
   // Verifica se index.html está em outDir (achatar) ou em outDir/browser/ (padrão Angular).
@@ -166,11 +160,11 @@ async function verify(page, _cell) {
  * Factory que retorna o objeto host compatível com captureCells do core.
  * @param {string} repo - path absoluto do repositório tangerina-web-core
  */
-function makeAngularHost(repo) {
+function makeAngularHost(repo, options = {}) {
   return {
     framework: 'angular',
     viewportWidths: VIEWPORT_WIDTHS,
-    build: (r, outDir) => build(r ?? repo, outDir),
+    build: (r, outDir, buildOptions = {}) => build(r ?? repo, outDir, {...options, ...buildOptions}),
     urlFor,
     selectorFor,
     verify,

@@ -21,7 +21,14 @@ const MIME = {
 function serveStatic(rootDir) {
   return new Promise((resolve, reject) => {
     const server = http.createServer((req, res) => {
-      const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+      let urlPath;
+      try {
+        urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+      } catch {
+        res.writeHead(400);
+        res.end('Bad request');
+        return;
+      }
       let filePath = path.join(rootDir, urlPath);
       if (urlPath.endsWith('/')) {
         filePath = path.join(filePath, 'index.html');

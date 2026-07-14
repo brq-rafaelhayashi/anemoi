@@ -2,17 +2,36 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {chromium} = require('playwright');
 
+function assertSafePathSegment(value, label = 'segment') {
+  const segment = String(value ?? '');
+  if (
+    segment.length === 0 ||
+    segment === '.' ||
+    segment === '..' ||
+    /[\\/\u0000-\u001f\u007f]/.test(segment)
+  ) {
+    throw new Error(`${label}: segmento de caminho invalido: ${JSON.stringify(segment)}.`);
+  }
+  return segment;
+}
+
 // <framework>/<brand>/<story>/<viewport>/<theme>.png
 function cellRelPath(cell) {
-  return path.join(cell.framework, cell.brand, cell.storyName, cell.viewport, `${cell.theme}.png`);
+  const framework = assertSafePathSegment(cell.framework, 'framework');
+  const brand = assertSafePathSegment(cell.brand, 'brand');
+  const storyId = assertSafePathSegment(cell.storyId, 'storyId');
+  const viewport = assertSafePathSegment(cell.viewport, 'viewport');
+  const theme = assertSafePathSegment(cell.theme, 'theme');
+  return path.join(framework, brand, storyId, viewport, `${theme}.png`);
 }
 
 // host: { urlFor(cell, baseUrl), selectorFor(cell), verify?(page, cell) }
-async function captureCells(cells, host, baseUrl, destDir, {onProgress} = {}) {
-  const browser = await chromium.launch();
-  const context = await browser.newContext({deviceScaleFactor: 2});
+async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserType = chromium} = {}) {
+  const browser = await browserType.launch();
+  let context;
   const results = [];
   try {
+    context = await browser.newContext({deviceScaleFactor: 2});
     for (let i = 0; i < cells.length; i += 1) {
       const cell = cells[i];
       const relPath = cellRelPath(cell);
@@ -32,10 +51,10 @@ async function captureCells(cells, host, baseUrl, destDir, {onProgress} = {}) {
       }
     }
   } finally {
-    await context.close();
+    if (context) await context.close();
     await browser.close();
   }
   return results;
 }
 
-module.exports = {captureCells, cellRelPath};
+module.exports = {captureCells, cellRelPath, assertSafePathSegment};
