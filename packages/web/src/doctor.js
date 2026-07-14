@@ -5,10 +5,75 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
-const {BUILD_SCRIPTS, checkPnpmRequirement} = require('./tangerina');
+const {BUILD_SCRIPTS} = require('./tangerina');
+
+const PNPM_ACTION = 'Instale/ative pnpm >=9 e confirme com `pnpm --version` antes de executar os builds';
+
+function pnpmCheck(detail, ok = false) {
+  return {
+    id: 'pnpm',
+    label: 'pnpm runtime >=9 (`pnpm --version`)',
+    ok,
+    detail,
+  };
+}
+
+function checkPnpmRuntime(repoPath, {spawnSync = childProcess.spawnSync} = {}) {
+  let result;
+  try {
+    result = spawnSync('pnpm', ['--version'], {
+      cwd: repoPath,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      shell: false,
+    });
+  } catch (error) {
+    return pnpmCheck(
+      `Não foi possível consultar a versão efetiva do pnpm no consumidor ${repoPath} com `
+      + `\`pnpm --version\`: ${error.message}. ${PNPM_ACTION}.`,
+    );
+  }
+
+  if (result.error || result.signal || result.status !== 0) {
+    const detail = result.error
+      ? result.error.message
+      : result.signal
+        ? `processo encerrado por ${result.signal}`
+        : `exit ${result.status}`;
+    return pnpmCheck(
+      `Não foi possível consultar a versão efetiva do pnpm no consumidor ${repoPath} com `
+      + `\`pnpm --version\`: ${detail}. ${PNPM_ACTION}.`,
+    );
+  }
+
+  const version = String(result.stdout || '').trim();
+  const match = version.match(/^(\d+)(?:\.\d+){1,2}(?:[-+][0-9A-Za-z.-]+)?$/);
+  if (!match) {
+    return pnpmCheck(
+      `Não foi possível interpretar a versão retornada por \`pnpm --version\` no consumidor `
+      + `${repoPath}: ${version || '(vazia)'}. ${PNPM_ACTION}.`,
+    );
+  }
+
+  const major = Number(match[1]);
+  if (major < 9) {
+    return pnpmCheck(
+      `A versão efetiva do pnpm no consumidor é ${version}; o processo precisa ser pnpm >=9. `
+      + `${PNPM_ACTION}.`,
+    );
+  }
+
+  return pnpmCheck(`A versão efetiva do pnpm no consumidor é ${version}; runtime pnpm >=9 confirmado.`, true);
+}
 
 // Coleta checks puros (sem efeitos — seguro para testar).
-function collectChecks(repoPath, {playwrightInstalled = playwrightChromiumInstalled} = {}) {
+function collectChecks(
+  repoPath,
+  {
+    playwrightInstalled = playwrightChromiumInstalled,
+    pnpmRuntime = checkPnpmRuntime,
+  } = {},
+) {
   const checks = [];
   const exists = rel => fs.existsSync(path.join(repoPath, rel));
   const pkg = readPackage(repoPath);
@@ -29,7 +94,7 @@ function collectChecks(repoPath, {playwrightInstalled = playwrightChromiumInstal
     });
   }
 
-  checks.push(checkPnpmRequirement(pkg));
+  checks.push(pnpmRuntime(repoPath));
 
   checks.push({
     id: 'storybook',
@@ -124,4 +189,4 @@ function runDoctor(repoPath, {collect = collectChecks, write = console.log} = {}
   return checks;
 }
 
-module.exports = {collectChecks, assertCaptureReady, runDoctor};
+module.exports = {collectChecks, assertCaptureReady, runDoctor, checkPnpmRuntime};

@@ -1,11 +1,39 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const path = require('node:path');
-const {collectChecks, assertCaptureReady, runDoctor} = require('../src/doctor');
+const {
+  collectChecks,
+  assertCaptureReady,
+  runDoctor,
+  checkPnpmRuntime,
+} = require('../src/doctor');
 const {BUILD_SCRIPTS} = require('../src/tangerina');
 
 // Usa um path que nao existe — testa apenas que os ids certos sao retornados
 const FAKE_REPO = path.join(__dirname, 'nonexistent-repo-xyz');
+
+function makeConsumerRepo(packageManager) {
+  const fs = require('node:fs');
+  const os = require('node:os');
+  const repo = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-doctor-'));
+  const scripts = Object.fromEntries(BUILD_SCRIPTS.map(name => [name, 'true']));
+  const pkg = {name: 'tangerina-web-core', scripts};
+  if (packageManager !== undefined) pkg.packageManager = packageManager;
+  fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify(pkg));
+  return repo;
+}
+
+function collectWithPnpmResult(repoPath, result, calls = []) {
+  return collectChecks(repoPath, {
+    playwrightInstalled: () => false,
+    pnpmRuntime: consumerPath => checkPnpmRuntime(consumerPath, {
+      spawnSync: (command, args, options) => {
+        calls.push({command, args, options});
+        return result;
+      },
+    }),
+  });
+}
 
 test('collectChecks retorna checks com os ids esperados', () => {
   const checks = collectChecks(FAKE_REPO);
@@ -36,6 +64,64 @@ test('collectChecks reporta ok=true para tangerina-web-core real (se presente)',
   assert.equal(repo.ok, true, 'esperava repo ok=true para repo real');
 });
 
+test('Doctor decide o check pnpm pelo runtime, inclusive sem packageManager', () => {
+  const scenarios = [
+    {
+      name: 'runtime pnpm 8',
+      packageManager: 'pnpm@9.15.0',
+      result: {status: 0, stdout: '8.15.0\n', stderr: ''},
+      expected: false,
+    },
+    {
+      name: 'runtime ausente',
+      packageManager: 'pnpm@9.15.0',
+      result: {status: null, stdout: '', stderr: '', error: new Error('spawn pnpm ENOENT')},
+      expected: false,
+    },
+    {
+      name: 'runtime pnpm 9 sem packageManager',
+      packageManager: undefined,
+      result: {status: 0, stdout: '9.15.0\n', stderr: ''},
+      expected: true,
+    },
+    {
+      name: 'runtime pnpm 10 sem packageManager',
+      packageManager: undefined,
+      result: {status: 0, stdout: '10.2.0\n', stderr: ''},
+      expected: true,
+    },
+  ];
+
+  for (const scenario of scenarios) {
+    const repo = makeConsumerRepo(scenario.packageManager);
+    const checks = collectWithPnpmResult(repo, scenario.result);
+    const pnpm = checks.find(check => check.id === 'pnpm');
+    assert.equal(pnpm.ok, scenario.expected, scenario.name);
+  }
+});
+
+test('Doctor injeta spawnSync no consumidor sem shell e executa somente pnpm --version', () => {
+  const repo = makeConsumerRepo();
+  const calls = [];
+  const checks = collectWithPnpmResult(
+    repo,
+    {status: 0, stdout: '9.15.0\n', stderr: ''},
+    calls,
+  );
+
+  assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
+  assert.deepEqual(calls, [{
+    command: 'pnpm',
+    args: ['--version'],
+    options: {
+      cwd: repo,
+      encoding: 'utf8',
+      stdio: 'pipe',
+      shell: false,
+    },
+  }]);
+});
+
 test('collectChecks exige package.json#name e todos os scripts da cadeia Tangerina', () => {
   const fs = require('node:fs');
   const os = require('node:os');
@@ -46,19 +132,30 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
     scripts,
   }));
 
-  const checks = collectChecks(repo);
+  const checks = collectChecks(repo, {
+    playwrightInstalled: () => false,
+    pnpmRuntime: () => ({
+      id: 'pnpm',
+      label: 'pnpm runtime >=9 (`pnpm --version`)',
+      ok: true,
+      detail: 'pnpm --version retornou 9.15.0',
+    }),
+  });
   const repoCheck = checks.find(check => check.id === 'repo');
   assert.equal(repoCheck.ok, true);
   assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
   assert.match(checks.find(check => check.id === 'pnpm').label, /pnpm.*runtime/i);
-  assert.match(checks.find(check => check.id === 'pnpm').detail, /ausente.*pnpm --version/i);
+  assert.match(checks.find(check => check.id === 'pnpm').detail, /pnpm --version/);
   for (const script of BUILD_SCRIPTS) {
     const check = checks.find(item => item.id === `script-${script.replace(':', '-')}`);
     assert.equal(check.ok, true, `esperava check ok para ${script}`);
   }
 
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'outro-repo', scripts: {}}));
-  const invalidChecks = collectChecks(repo);
+  const invalidChecks = collectChecks(repo, {
+    playwrightInstalled: () => false,
+    pnpmRuntime: () => ({id: 'pnpm', label: 'pnpm runtime >=9', ok: true, detail: 'injetado'}),
+  });
   assert.equal(invalidChecks.find(check => check.id === 'repo').ok, false);
   assert.equal(invalidChecks.find(check => check.id === 'script-build-tokens').ok, false);
 });
