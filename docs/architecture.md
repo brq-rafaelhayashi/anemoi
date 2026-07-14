@@ -72,7 +72,8 @@ compartilhado quando os contratos dos dois runtimes forem equivalentes.
 ## Outputs e falhas
 
 Cada execução grava um diretório próprio em
-`<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>/`. Um sucesso publica
+`<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/`. O identificador
+aleatório evita colisões entre execuções iniciadas no mesmo instante. Um sucesso publica
 `manifest.json` com `tool: "Anemoi Web"` e `status: "passed"`, screenshots, diffs, `summary.md` e
 `index.html` offline.
 

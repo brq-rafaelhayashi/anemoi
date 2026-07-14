@@ -4,6 +4,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {randomUUID} = require('node:crypto');
 
 const {
   buildMatrix,
@@ -12,6 +13,7 @@ const {
   writeManifest,
   writeSummary,
   renderHtml,
+  assertSafePathSegment,
 } = require('@gol-smiles/anemoi-core');
 
 const {VIEWPORT_WIDTHS} = require('./brands');
@@ -34,10 +36,10 @@ const HOST_FACTORIES = {
 
 // Garante que o storybook estático (wc) seja buildado para obter index.json,
 // mesmo que 'wc' não esteja nos frameworks solicitados.
-async function ensureStorybookIndex(wcHost, repo, sbDir) {
+async function ensureStorybookIndex(wcHost, repo, sbDir, {logPath} = {}) {
   if (!fs.existsSync(path.join(sbDir, 'index.json'))) {
     console.log('⬛ Buildando Storybook para obter index.json…');
-    const built = (await wcHost.build(repo, sbDir)) || sbDir;
+    const built = (await wcHost.build(repo, sbDir, {logPath})) || sbDir;
     return wcHost.indexDir ? wcHost.indexDir(built) : built;
   }
   return wcHost.indexDir(sbDir);
@@ -47,7 +49,9 @@ async function ensureStorybookIndex(wcHost, repo, sbDir) {
 async function captureFramework(host, repo, cells, runDir) {
   const buildDir = path.join(runDir, 'build', host.framework);
   console.log(`\n⬛ Buildando harness ${host.framework}…`);
-  const served = host.build(repo, buildDir) || buildDir;
+  const served = host.build(repo, buildDir, {
+    logPath: path.join(runDir, 'logs', `${host.framework}-harness-build.log`),
+  }) || buildDir;
   console.log(`⬛ Servindo ${host.framework} de: ${served}`);
   const server = await serveStatic(served);
   try {
@@ -61,6 +65,17 @@ async function captureFramework(host, repo, cells, runDir) {
   } finally {
     await server.close();
   }
+}
+
+function createRunDir(repo, card, component, {
+  now = new Date(),
+  nonce = randomUUID().slice(0, 8),
+} = {}) {
+  const safeCard = assertSafePathSegment(card, 'card');
+  const safeComponent = assertSafePathSegment(component, 'component');
+  const safeNonce = assertSafePathSegment(nonce, 'nonce');
+  const timestamp = now.toISOString().replace(/[:.]/g, '-');
+  return path.join(repo, 'outputs', 'anemoi-web', safeCard, safeComponent, `${timestamp}-${safeNonce}`);
 }
 
 function prepareCapture(repo, {
@@ -110,8 +125,7 @@ async function runCurrentState(args, cwd) {
   const storiesFilter = args.stories ? args.stories.split(',').map(s => s.trim()) : null;
 
   // Timestamp do run
-  const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-  const runDir = path.join(repo, 'outputs', 'anemoi-web', card, component, ts);
+  const runDir = createRunDir(repo, card, component);
   fs.mkdirSync(runDir, {recursive: true});
 
   let stage = 'tangerina-builds';
@@ -130,7 +144,9 @@ async function runCurrentState(args, cwd) {
     stage = 'storybook-build';
     const wcHost = makeWcHost();
     const sbDir = path.join(runDir, 'build', 'wc');
-    const indexDir = await ensureStorybookIndex(wcHost, repo, sbDir);
+    const indexDir = await ensureStorybookIndex(wcHost, repo, sbDir, {
+      logPath: path.join(runDir, 'logs', 'storybook-build.log'),
+    });
     const index = readIndexJson(indexDir);
 
     // Filtra stories do componente
@@ -140,6 +156,9 @@ async function runCurrentState(args, cwd) {
       if (stories.length === 0) {
         throw new Error(`Nenhuma story correspondente ao filtro --stories "${args.stories}".`);
       }
+    }
+    for (const story of stories) {
+      assertSafePathSegment(story.name, `story ${story.id}`);
     }
 
     // --list-stories
@@ -245,4 +264,4 @@ async function runCurrentState(args, cwd) {
   }
 }
 
-module.exports = {prepareCapture, runCurrentState};
+module.exports = {createRunDir, prepareCapture, runCurrentState};

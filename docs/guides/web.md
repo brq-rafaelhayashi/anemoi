@@ -93,7 +93,7 @@ executa operações Git no checkout consumidor.
 Cada run cria:
 
 ```text
-<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>/
+<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/
 ├── manifest.json
 ├── summary.md
 ├── index.html

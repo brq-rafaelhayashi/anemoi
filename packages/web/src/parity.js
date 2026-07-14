@@ -1,6 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const {writeDiff} = require('@gol-smiles/anemoi-core');
+const {writeDiff, assertSafePathSegment} = require('@gol-smiles/anemoi-core');
 
 function keyOf(c) {
   return [c.brand, c.storyName, c.viewport, c.theme].join('|');
@@ -25,7 +25,11 @@ function computeParity(groups, runDir) {
     const parity = [];
     for (const fw of ['react', 'angular']) {
       if (g.wc && g[fw]) {
-        const diffRel = path.join('diff', `${fw}-vs-wc`, `${g._cell.brand}-${g._cell.storyName}-${g._cell.viewport}-${g._cell.theme}.png`);
+        const brand = assertSafePathSegment(g._cell.brand, 'brand');
+        const storyName = assertSafePathSegment(g._cell.storyName, 'storyName');
+        const viewport = assertSafePathSegment(g._cell.viewport, 'viewport');
+        const theme = assertSafePathSegment(g._cell.theme, 'theme');
+        const diffRel = path.join('diff', `${fw}-vs-wc`, `${brand}-${storyName}-${viewport}-${theme}.png`);
         const {mismatch} = writeDiff(
           path.join(runDir, g.wc), path.join(runDir, g[fw]), ensureDir(path.join(runDir, diffRel)),
           {fit: 'intersection'},

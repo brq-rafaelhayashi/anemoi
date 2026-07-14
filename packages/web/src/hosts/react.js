@@ -8,7 +8,7 @@
 // dist do workspace tangerina-web-core, mesmo o harness vivendo fora do workspace.
 
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
+const {runLogged} = require('../process');
 const { VIEWPORT_WIDTHS } = require('../brands');
 
 // Diretório do harness React (relativo a este arquivo)
@@ -19,30 +19,23 @@ const HARNESS = path.join(__dirname, '..', '..', 'harness', 'react');
  * @param {string} repo  - path absoluto do repositório tangerina-web-core
  * @param {string} outDir - diretório de saída (criado pelo Vite)
  */
-function build(repo, outDir) {
-  const result = spawnSync(
+function build(repo, outDir, {
+  logPath = path.join(path.dirname(outDir), 'react-harness-build.log'),
+  run = runLogged,
+} = {}) {
+  run(
     'npx',
     ['vite', 'build', '--outDir', outDir],
     {
       cwd: HARNESS,
-      stdio: ['ignore', 'pipe', 'pipe'],
       env: {
         ...process.env,
         DS_REPO: repo,
       },
-      shell: false,
+      logPath,
+      echo: true,
     }
   );
-
-  if (result.status !== 0) {
-    const stderr = result.stderr ? result.stderr.toString() : '';
-    const stdout = result.stdout ? result.stdout.toString() : '';
-    throw new Error(
-      `vite build do harness React falhou (exit ${result.status}).\n` +
-      `stdout:\n${stdout}\n` +
-      `stderr:\n${stderr}`
-    );
-  }
 }
 
 /**
@@ -76,11 +69,11 @@ async function verify(page, _cell) {
  * Factory que retorna o objeto host compatível com captureCells do core.
  * @param {string} repo - path absoluto do repositório tangerina-web-core
  */
-function makeReactHost(repo) {
+function makeReactHost(repo, options = {}) {
   return {
     framework: 'react',
     viewportWidths: VIEWPORT_WIDTHS,
-    build: (r, outDir) => build(r ?? repo, outDir),
+    build: (r, outDir, buildOptions = {}) => build(r ?? repo, outDir, {...options, ...buildOptions}),
     urlFor,
     selectorFor,
     verify,

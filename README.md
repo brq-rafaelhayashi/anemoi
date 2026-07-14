@@ -32,7 +32,7 @@ O Anemoi valida o checkout consumidor, executa os builds necessários, lê as st
 o mesmo estado nos três frameworks e grava o resultado no próprio checkout consumidor em:
 
 ```text
-outputs/anemoi-web/<card>/<componente>/<timestamp>/
+outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/
 ```
 
 O bundle contém `manifest.json`, `summary.md`, screenshots, diffs e uma galeria offline

@@ -15,6 +15,7 @@ function runLogged(command, args, {
     encoding: 'utf8',
     stdio: 'pipe',
     shell: false,
+    maxBuffer: 50 * 1024 * 1024,
   });
   const stdout = result.stdout || '';
   const stderr = result.stderr || '';
