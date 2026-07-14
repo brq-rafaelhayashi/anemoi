@@ -81,7 +81,7 @@ remaining module set is small and cohesive.
 `packages/web` owns the active use case:
 
 - `cli.js`: argument parsing and command dispatch only.
-- `config.js`: local project configuration and `--repo` precedence.
+- `config.js`: repository-alias configuration and `--repo` resolution.
 - `tangerina.js`: the known `tangerina-web-core` layout, packages, build commands, brands, and themes.
 - `stories.js`: CSF discovery and `meta.args + story.args` resolution.
 - `parity.js`: React-versus-WC and Angular-versus-WC grouping and comparison.
@@ -92,34 +92,42 @@ remaining module set is small and cohesive.
 
 ### Local Configuration
 
-Developers run Anemoi from this repository. A one-time configuration records the local Tangerina
-checkout:
+Developers run Anemoi from this repository. A one-time configuration records each local checkout
+under a short alias:
 
 ```bash
-npm run web:configure -- --repo /absolute/path/to/tangerina-web-core
+npm run web:configure -- --alias tangerina --repo /absolute/path/to/tangerina-web-core
 ```
 
 The command writes the Git-ignored `.anemoi.local.json`:
 
 ```json
 {
-  "projects": {
-    "tangerinaWebCore": {
+  "defaultRepository": "tangerina",
+  "repositories": {
+    "tangerina": {
       "path": "/absolute/path/to/tangerina-web-core"
     }
   }
 }
 ```
 
-Repository resolution order is `--repo`, then `projects.tangerinaWebCore.path`, then an actionable
-error pointing to `npm run web:configure`. The committed `.anemoi.local.example.json` documents the
-schema without storing a developer-specific path.
+The first configured alias becomes `defaultRepository`. Configuring another alias preserves the
+current default unless `--default` is supplied. Alias names must contain only lowercase letters,
+digits, and single hyphens, and must start with a letter.
+
+When `--repo` is present, an exact alias match resolves to its configured path. An absolute or
+relative filesystem path remains accepted as a direct override. An unknown non-path value fails and
+lists the configured aliases. When `--repo` is omitted, Anemoi resolves `defaultRepository`; missing
+configuration fails with an actionable error pointing to `npm run web:configure`. The committed
+`.anemoi.local.example.json` documents the schema without storing a developer-specific path.
 
 ### Public Commands
 
 ```bash
 npm run web -- --doctor
 npm run web -- --component tgr-button --card CDCOM-123
+npm run web -- --repo tangerina --component tgr-button
 npm run web -- --repo /alternate/tangerina-web-core --component tgr-button
 ```
 
@@ -154,7 +162,7 @@ artifacts as they do during normal Tangerina development.
 
 ### Evidence Data Flow
 
-1. Resolve and validate the configured `tangerina-web-core` checkout.
+1. Resolve the repository alias or direct path and validate the `tangerina-web-core` checkout.
 2. Run the targeted builds unless `--skip-build` is present.
 3. Build Storybook and the React and Angular harnesses.
 4. Read component stories and merge serializable `meta.args` and `story.args`.
@@ -200,6 +208,7 @@ similar helpers alone do not justify coupling the packages.
 ## Failure Handling
 
 - Missing local configuration fails before builds and names the configure command.
+- An unknown repository alias fails before builds and lists every configured alias.
 - An invalid target must identify the missing Tangerina package, script, or artifact.
 - Consumer-build and harness-build failures stop capture and retain their logs.
 - A non-serializable story error identifies the story and source file.
@@ -238,8 +247,8 @@ shim for `cross` is introduced during any phase.
 ## Verification and Acceptance
 
 - Unit tests cover core capture-path construction, diff, matrix, output, and server behavior.
-- Web tests cover configuration precedence, Tangerina contract validation, CSF extraction, hosts,
-  parity, failure manifests, and process cleanup.
+- Web tests cover alias validation, alias/default/direct-path precedence, Tangerina contract
+  validation, CSF extraction, hosts, parity, failure manifests, and process cleanup.
 - A fixture repository reproduces the required Tangerina layout for contract tests without relying
   on a developer's real checkout.
 - React and Angular harness builds run as integration tests.
