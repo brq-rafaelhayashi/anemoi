@@ -5,6 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {
   BUILD_SCRIPTS,
+  checkPnpmRequirement,
   probePnpmVersion,
   validateTangerinaRepo,
   runTangerinaBuilds,
@@ -27,13 +28,27 @@ test('validateTangerinaRepo exige identidade e scripts', () => {
   assert.throws(() => validateTangerinaRepo(fixture({scripts: {}})), /build:tokens/);
 });
 
-test('validateTangerinaRepo exige pnpm 9 ou superior declarado pelo consumidor', () => {
-  assert.throws(
-    () => validateTangerinaRepo(fixture({packageManager: undefined})),
-    /packageManager.*pnpm@9/i,
-  );
+test('validateTangerinaRepo aceita packageManager ausente no contrato estrutural', () => {
+  assert.doesNotThrow(() => validateTangerinaRepo(fixture({packageManager: undefined})));
+});
+
+test('checkPnpmRequirement sinaliza validacao runtime quando packageManager esta ausente', () => {
+  const repo = fixture({packageManager: undefined});
+  const pkg = JSON.parse(fs.readFileSync(path.join(repo, 'package.json'), 'utf8'));
+  const check = checkPnpmRequirement(pkg);
+
+  assert.equal(check.ok, true);
+  assert.match(check.label, /pnpm.*runtime/i);
+  assert.match(check.detail, /ausente.*pnpm --version/i);
+});
+
+test('validateTangerinaRepo rejeita pnpm declarado abaixo de 9 ou invalido', () => {
   assert.throws(
     () => validateTangerinaRepo(fixture({packageManager: 'pnpm@8.15.0'})),
+    /pnpm.*>=?9/i,
+  );
+  assert.throws(
+    () => validateTangerinaRepo(fixture({packageManager: 'npm@10.0.0'})),
     /pnpm.*>=?9/i,
   );
 });

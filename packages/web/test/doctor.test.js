@@ -43,7 +43,6 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   const scripts = Object.fromEntries(BUILD_SCRIPTS.map(name => [name, 'true']));
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({
     name: 'tangerina-web-core',
-    packageManager: 'pnpm@9.15.0',
     scripts,
   }));
 
@@ -51,6 +50,8 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   const repoCheck = checks.find(check => check.id === 'repo');
   assert.equal(repoCheck.ok, true);
   assert.equal(checks.find(check => check.id === 'pnpm').ok, true);
+  assert.match(checks.find(check => check.id === 'pnpm').label, /pnpm.*runtime/i);
+  assert.match(checks.find(check => check.id === 'pnpm').detail, /ausente.*pnpm --version/i);
   for (const script of BUILD_SCRIPTS) {
     const check = checks.find(item => item.id === `script-${script.replace(':', '-')}`);
     assert.equal(check.ok, true, `esperava check ok para ${script}`);

@@ -82,23 +82,31 @@ function checkPnpmRequirement(pkg) {
   const declared = pkg?.packageManager;
   const match = typeof declared === 'string' && declared.match(/^pnpm@(\d+)(?:\.\d+){0,2}(?:\+.*)?$/);
   const major = match ? Number(match[1]) : null;
+  const label = 'pnpm >=9 runtime (package.json#packageManager opcional)';
+
+  if (declared === undefined) {
+    return {
+      id: 'pnpm',
+      label,
+      ok: true,
+      detail: 'package.json#packageManager ausente; confirme a versao efetiva com `pnpm --version` antes de build/Storybook',
+    };
+  }
 
   if (major !== null && major >= 9) {
     return {
       id: 'pnpm',
-      label: 'pnpm >=9 declarado (package.json#packageManager)',
+      label,
       ok: true,
-      detail: `package.json#packageManager = ${declared}`,
+      detail: `package.json#packageManager = ${declared}; confirme a versao efetiva com \`pnpm --version\` antes de build/Storybook`,
     };
   }
 
   return {
     id: 'pnpm',
-    label: 'pnpm >=9 declarado (package.json#packageManager)',
+    label,
     ok: false,
-    detail: declared
-      ? `package.json#packageManager = ${declared}; declare pnpm@9 ou superior`
-      : 'package.json#packageManager ausente; declare pnpm@9 ou superior',
+    detail: `package.json#packageManager = ${declared}; declare pnpm@9 ou superior`,
   };
 }
 
