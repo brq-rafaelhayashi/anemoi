@@ -20,6 +20,7 @@ const {groupByCell, computeParity} = require('./parity');
 const {resolveStoryArgs} = require('./storyArgs');
 const {runDoctor, assertCaptureReady} = require('./doctor');
 const {runTangerinaBuilds} = require('./tangerina');
+const {writeFailureManifest} = require('./failure');
 const {makeWcHost} = require('./hosts/wc');
 const {makeReactHost} = require('./hosts/react');
 const {makeAngularHost} = require('./hosts/angular');
@@ -113,125 +114,134 @@ async function runCurrentState(args, cwd) {
   const runDir = path.join(repo, 'outputs', 'anemoi-web', card, component, ts);
   fs.mkdirSync(runDir, {recursive: true});
 
-  prepareCapture(repo, {
-    skipBuild: Boolean(args['skip-build']),
-    logDir: path.join(runDir, 'logs', 'tangerina'),
-  });
-
-  console.log(`\nAnemoi Web — estado atual`);
-  console.log(`Componente: ${component} | Card: ${card}`);
-  console.log(`Frameworks: ${frameworks.join(', ')} | Brands: ${brands.join(', ')} | Themes: ${themes.join(', ')} | Viewports: ${viewports.join(', ')}`);
-  console.log(`RunDir: ${runDir}\n`);
-
-  // Builda Storybook WC para obter index.json (necessário para listar stories)
-  const wcHost = makeWcHost();
-  const sbDir = path.join(runDir, 'build', 'wc');
-  const indexDir = await ensureStorybookIndex(wcHost, repo, sbDir);
-  const index = readIndexJson(indexDir);
-
-  // Filtra stories do componente
-  let stories = filterStoriesForComponent(index, component, {throwIfEmpty: true});
-  if (storiesFilter) {
-    stories = stories.filter(s => storiesFilter.includes(s.name));
-    if (stories.length === 0) {
-      console.error(`Nenhuma story correspondente ao filtro --stories "${args.stories}".`);
-      process.exit(1);
-    }
-  }
-
-  // --list-stories
-  if (args['list-stories']) {
-    console.log(`Stories disponíveis para "${component}":`);
-    for (const s of stories) console.log(`  - ${s.name} (${s.id})`);
-    return;
-  }
-
-  console.log(`Stories encontradas: ${stories.map(s => s.name).join(', ')}`);
-
-  // Resolve args de cada story via CSF (fonte única = type-stripping Node 24)
-  const argsById = await resolveStoryArgs(repo, stories);
-
-  // Captura por framework
-  const allCaptures = [];
-
-  for (const framework of frameworks) {
-    const factory = HOST_FACTORIES[framework];
-    if (!factory) {
-      console.error(`Framework desconhecido: "${framework}". Use wc, react ou angular.`);
-      process.exit(1);
-    }
-    const host = factory(repo);
-
-    // Monta células injetando component e args por framework
-    let cells = buildMatrix({
-      frameworks: [framework],
-      stories,
-      brands,
-      themes,
-      viewports,
-      viewportWidths: VIEWPORT_WIDTHS,
+  let stage = 'tangerina-builds';
+  try {
+    prepareCapture(repo, {
+      skipBuild: Boolean(args['skip-build']),
+      logDir: path.join(runDir, 'logs', 'tangerina'),
     });
 
-    cells = cells.map(c => ({
-      ...c,
-      component,
-      // WC: sem args na URL (usa storyId nativo do Storybook, evita coerção de tipos)
-      // React: cell.args passado como JSON na URL (resolvido pelo CLI — mesma fonte do Angular)
-      // Angular: cell.args é passado como JSON na URL
-      args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
-    }));
+    console.log(`\nAnemoi Web — estado atual`);
+    console.log(`Componente: ${component} | Card: ${card}`);
+    console.log(`Frameworks: ${frameworks.join(', ')} | Brands: ${brands.join(', ')} | Themes: ${themes.join(', ')} | Viewports: ${viewports.join(', ')}`);
+    console.log(`RunDir: ${runDir}\n`);
 
-    // WC já foi buildado — reutiliza
-    if (framework === 'wc') {
-      const served = indexDir;
-      const server = await serveStatic(served);
-      try {
-        console.log(`\n⬛ Capturando ${cells.length} célula(s) para wc…`);
-        const caps = await captureCells(cells, host, server.url, runDir, {
-          onProgress: (i, total, relPath) => {
-            process.stdout.write(`  [${i}/${total}] ${relPath}\n`);
-          },
-        });
-        allCaptures.push(...caps);
-      } finally {
-        await server.close();
+    // Builda Storybook WC para obter index.json (necessário para listar stories)
+    stage = 'storybook-build';
+    const wcHost = makeWcHost();
+    const sbDir = path.join(runDir, 'build', 'wc');
+    const indexDir = await ensureStorybookIndex(wcHost, repo, sbDir);
+    const index = readIndexJson(indexDir);
+
+    // Filtra stories do componente
+    let stories = filterStoriesForComponent(index, component, {throwIfEmpty: true});
+    if (storiesFilter) {
+      stories = stories.filter(s => storiesFilter.includes(s.name));
+      if (stories.length === 0) {
+        throw new Error(`Nenhuma story correspondente ao filtro --stories "${args.stories}".`);
       }
-    } else {
-      const caps = await captureFramework(host, repo, cells, runDir);
-      allCaptures.push(...caps);
     }
+
+    // --list-stories
+    if (args['list-stories']) {
+      console.log(`Stories disponíveis para "${component}":`);
+      for (const s of stories) console.log(`  - ${s.name} (${s.id})`);
+      return;
+    }
+
+    console.log(`Stories encontradas: ${stories.map(s => s.name).join(', ')}`);
+
+    // Resolve args de cada story via CSF (fonte única = type-stripping Node 24)
+    const argsById = await resolveStoryArgs(repo, stories);
+
+    // Captura por framework
+    stage = 'capture';
+    const allCaptures = [];
+
+    for (const framework of frameworks) {
+      const factory = HOST_FACTORIES[framework];
+      if (!factory) {
+        throw new Error(`Framework desconhecido: "${framework}". Use wc, react ou angular.`);
+      }
+      const host = factory(repo);
+
+      // Monta células injetando component e args por framework
+      let cells = buildMatrix({
+        frameworks: [framework],
+        stories,
+        brands,
+        themes,
+        viewports,
+        viewportWidths: VIEWPORT_WIDTHS,
+      });
+
+      cells = cells.map(c => ({
+        ...c,
+        component,
+        // WC: sem args na URL (usa storyId nativo do Storybook, evita coerção de tipos)
+        // React: cell.args passado como JSON na URL (resolvido pelo CLI — mesma fonte do Angular)
+        // Angular: cell.args é passado como JSON na URL
+        args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
+      }));
+
+      // WC já foi buildado — reutiliza
+      if (framework === 'wc') {
+        const served = indexDir;
+        const server = await serveStatic(served);
+        try {
+          console.log(`\n⬛ Capturando ${cells.length} célula(s) para wc…`);
+          const caps = await captureCells(cells, host, server.url, runDir, {
+            onProgress: (i, total, relPath) => {
+              process.stdout.write(`  [${i}/${total}] ${relPath}\n`);
+            },
+          });
+          allCaptures.push(...caps);
+        } finally {
+          await server.close();
+        }
+      } else {
+        const caps = await captureFramework(host, repo, cells, runDir);
+        allCaptures.push(...caps);
+      }
+    }
+
+    // Paridade
+    stage = 'parity';
+    console.log('\n⬛ Computando paridade…');
+    const groups = computeParity(groupByCell(allCaptures), runDir);
+
+    // Manifesto
+    stage = 'output';
+    const manifest = {
+      tool: 'Anemoi Web',
+      status: 'passed',
+      card,
+      component,
+      mode: 'current',
+      layout: 'parity',
+      axes: {
+        frameworks,
+        stories: stories.map(s => s.name),
+        themes,
+        viewports,
+        brands,
+      },
+      cellCount: allCaptures.length,
+      groups,
+      generatedAt: new Date().toISOString(),
+      runDir,
+    };
+
+    writeManifest(runDir, manifest);
+    writeSummary(runDir, manifest);
+    fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');
+
+    console.log(`\n✅ Concluído! ${allCaptures.length} prints em: ${runDir}`);
+    console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
+  } catch (error) {
+    writeFailureManifest(runDir, {stage, card, component}, error);
+    throw error;
   }
-
-  // Paridade
-  console.log('\n⬛ Computando paridade…');
-  const groups = computeParity(groupByCell(allCaptures), runDir);
-
-  // Manifesto
-  const manifest = {
-    tool: 'Anemoi Web',
-    card,
-    component,
-    mode: 'current',
-    layout: 'parity',
-    axes: {
-      frameworks,
-      stories: stories.map(s => s.name),
-      themes,
-      viewports,
-      brands,
-    },
-    cellCount: allCaptures.length,
-    groups,
-    generatedAt: new Date().toISOString(),
-    runDir,
-  };
-
-  writeManifest(runDir, manifest);
-  writeSummary(runDir, manifest);
-  fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');
-
-  console.log(`\n✅ Concluído! ${allCaptures.length} prints em: ${runDir}`);
-  console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
 }
 
 module.exports = {prepareCapture, runCurrentState};

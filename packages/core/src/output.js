@@ -25,6 +25,7 @@ function writeSummary(runDir, manifest) {
     '',
     `- Card: ${manifest.card}`,
     `- Modo: ${manifest.mode}`,
+    `- Status: ${manifest.status || 'passed'}`,
     `- Gerado em: ${manifest.generatedAt}`,
     `- Brands: ${joinAxis(axes.brands)}`,
     `- Stories: ${joinAxis(axes.stories)}`,

@@ -39,6 +39,7 @@ test('writeSummary: grava summary.md legivel', () => {
   const md = fs.readFileSync(p, 'utf8');
   assert.match(md, /country_flag/);
   assert.match(md, /CDCOM-99/);
+  assert.match(md, /Status: passed/);
   assert.match(md, /Prints: 1/);
 });
 
