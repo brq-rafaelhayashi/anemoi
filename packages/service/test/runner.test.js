@@ -77,6 +77,24 @@ test('run failed: panes divergentes acusam mismatch', async () => {
   assert.equal(manifest.status, 'failed');
 });
 
+test('run ja terminal: executeRun nunca rejeita mesmo com transicao inicial invalida', async () => {
+  const state = {componentKey: 'tgr-fake', props: {}, slots: {}};
+  const {dsRepo, store, run, cells} = setup(state);
+
+  // Leva o run a um estado terminal antes de reexecutar, simulando uma
+  // reexecucao indevida (ou corrida) sobre um run que ja terminou.
+  store.transition(run.runId, 'running', {stage: 'run-dir'});
+  store.transition(run.runId, 'passed', {summary: {cells: 0, mismatches: 0, maxMismatchPx: 0}});
+  assert.equal(store.get(run.runId).status, 'passed');
+
+  await assert.doesNotReject(
+    executeRun({run, store, cells, state, config: {dsRepo, kobaBaseUrl: 'http://127.0.0.1:1'}})
+  );
+
+  const done = store.get(run.runId);
+  assert.equal(done.status, 'passed');
+});
+
 test('run error: Koba fora do ar termina em error com failure manifest', async () => {
   const state = {componentKey: 'tgr-fake', props: {}, slots: {}};
   const {dsRepo, store, run, cells} = setup(state);

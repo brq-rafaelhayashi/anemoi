@@ -14,10 +14,10 @@ const {makeKobaHost} = require('./kobaHost');
 
 async function executeRun({run, store, cells, state, config}) {
   let stage = 'run-dir';
-  store.transition(run.runId, 'running', {stage});
   let runDir = null;
 
   try {
+    store.transition(run.runId, 'running', {stage});
     runDir = createRunDir(config.dsRepo, run.card, run.component);
     fs.mkdirSync(runDir, {recursive: true});
     store.patch(run.runId, {runDir});
@@ -75,10 +75,21 @@ async function executeRun({run, store, cells, state, config}) {
       },
     });
   } catch (error) {
-    if (runDir) {
-      writeFailureManifest(runDir, {stage, card: run.card, component: run.component}, error);
+    // Assentar o erro nunca pode lancar: o run pode estar desconhecido ou
+    // ja terminal (ex.: reexecucao), e a transicao 'running' inicial pode
+    // ter sido a propria causa do erro. Todo caminho precisa resolver.
+    try {
+      if (runDir) {
+        writeFailureManifest(runDir, {stage, card: run.card, component: run.component}, error);
+      }
+    } catch (_manifestError) {
+      // Ignorado: nao deixar falha ao gravar o manifesto de erro rejeitar o run.
     }
-    store.transition(run.runId, 'error', {stage, error: error.message});
+    try {
+      store.transition(run.runId, 'error', {stage, error: error.message});
+    } catch (_storeError) {
+      // Ignorado: run desconhecido ou ja terminal — nao ha nada mais a fazer.
+    }
   }
 }
 
