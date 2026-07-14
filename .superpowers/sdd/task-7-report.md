@@ -79,4 +79,4 @@
 
 - `PATH="/Users/user/.nvm/versions/node/v24.13.1/bin:$PATH" npm test` outside the sandbox — 70 passed, 0 failed.
 - `git diff --check` — passed.
-- **Fix commit SHA:** to be filled after the final commit.
+- **Fix commit SHA:** `013302341bd791e621ecd9b3cd64192c1047c7e4`.
