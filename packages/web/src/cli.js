@@ -1,5 +1,5 @@
 const path = require('node:path');
-const {parseArgs} = require('@gol-smiles/anemoi-core');
+const {parseArgs} = require('./args');
 const {configureRepository, resolveRepository} = require('./config');
 const {runCurrentState} = require('./run');
 

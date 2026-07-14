@@ -55,28 +55,6 @@ function imageFigure(src, caption) {
       </figure>`;
 }
 
-function renderCapture(manifest, capture) {
-  const label = `${capture.brand} · ${capture.storyName} · ${capture.viewport}${capture.mode ? ' · ' + capture.mode : ''}`;
-  if (manifest.mode === 'before-after') {
-    return `
-    <section class="cell">
-      <h3>${escapeHtml(label)} <span class="mismatch">(${capture.mismatch} px diff)</span></h3>
-      <div class="threeup">
-        ${imageFigure(capture.beforePath, 'before')}
-        ${imageFigure(capture.afterPath, 'after')}
-        ${imageFigure(capture.diffPath, 'diff')}
-      </div>
-    </section>`;
-  }
-  return `
-    <section class="cell">
-      <h3>${escapeHtml(label)}</h3>
-      <div class="single">
-        ${imageFigure(capture.path, label)}
-      </div>
-    </section>`;
-}
-
 function renderParityGroup(group) {
   const badges = (group.parity || []).map(p =>
     `<span class="parity ${p.mismatch === 0 ? 'ok' : 'diff'}">${escapeHtml(p.against)}: ${p.mismatch === 0 ? 'paridade OK' : p.mismatch + 'px'}</span>`
@@ -94,12 +72,7 @@ function renderParityGroup(group) {
 
 function renderHtml(manifest) {
   const tool = manifest.tool || 'Anemoi';
-  let body;
-  if (manifest.layout === 'parity') {
-    body = (manifest.groups || []).map(renderParityGroup).join('\n');
-  } else {
-    body = (manifest.captures || []).map(c => renderCapture(manifest, c)).join('\n');
-  }
+  const body = (manifest.groups || []).map(renderParityGroup).join('\n');
   return `<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
