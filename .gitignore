@@ -1,3 +1,5 @@
 node_modules/
 outputs/
+# Configuração local por máquina; o exemplo permanece versionado.
 .anemoi.local.json
+!.anemoi.local.example.json
