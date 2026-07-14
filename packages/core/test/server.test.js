@@ -41,3 +41,9 @@ test('serveStatic: 400 para URL percent-encoded malformada', async () => {
     await server.close();
   }
 });
+
+test('exporta o mapa MIME', () => {
+  const {MIME} = require('../src/server');
+  assert.equal(MIME['.html'], 'text/html; charset=utf-8');
+  assert.equal(MIME['.png'], 'image/png');
+});

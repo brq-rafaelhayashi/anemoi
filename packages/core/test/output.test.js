@@ -61,3 +61,23 @@ test('renderHtml layout parity monta grade wc|react|angular', () => {
   assert.match(html, /angular\/gol\/Primary\/sm\/light\.png/);
   assert.match(html, /paridade/i);
 });
+
+test('renderHtml embute parityLabel customizado no payload da galeria', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'koba', mode: 'koba-state', cellCount: 2,
+    generatedAt: '2026-07-14T00:00:00.000Z',
+    axes: {frameworks: ['react', 'angular']},
+    groups: [{label: 'gol · estado abc · sm · light', react: 'a.png', angular: 'b.png', parity: [{against: 'angular', mismatch: 0, diffPath: 'd.png'}]}],
+    parityLabel: 'Paridade vs react',
+  });
+  assert.ok(html.includes('"parityLabel":"Paridade vs react"'));
+  assert.ok(!html.includes("'Paridade vs wc</th>'"));
+});
+
+test('renderHtml usa "Paridade vs wc" como parityLabel default', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'c', mode: 'current', cellCount: 1,
+    generatedAt: '2026-07-14T00:00:00.000Z', axes: {}, groups: [],
+  });
+  assert.ok(html.includes('"parityLabel":"Paridade vs wc"'));
+});

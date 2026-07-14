@@ -65,4 +65,4 @@ function serveStatic(rootDir) {
   });
 }
 
-module.exports = {serveStatic};
+module.exports = {serveStatic, MIME};
