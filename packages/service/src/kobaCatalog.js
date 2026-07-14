@@ -23,7 +23,14 @@ async function fetchKobaCatalog(kobaBaseUrl, {timeoutMs = 5000, fetchImpl = fetc
       + 'No repo koba, rode: pnpm ds:build.',
     );
   }
-  const catalog = await response.json();
+  let catalog;
+  try {
+    catalog = await response.json();
+  } catch (error) {
+    throw unavailable(
+      `Koba respondeu 200 mas o corpo de ${kobaBaseUrl}/catalog.json nao e JSON valido (${error.message}).`,
+    );
+  }
   if (!Array.isArray(catalog)) {
     throw unavailable(`GET ${kobaBaseUrl}/catalog.json nao retornou uma lista de componentes.`);
   }

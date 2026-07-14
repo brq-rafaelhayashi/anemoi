@@ -54,3 +54,15 @@ test('KOBA_UNAVAILABLE quando o corpo nao e uma lista', async () => {
   await assert.rejects(fetchKobaCatalog(server.url), (error) => error.code === 'KOBA_UNAVAILABLE');
   await server.close();
 });
+
+test('KOBA_UNAVAILABLE quando responde 200 mas o corpo nao e JSON valido', async () => {
+  const server = await serve((_req, res) => {
+    res.writeHead(200, {'Content-Type': 'application/json'});
+    res.end('nao e json');
+  });
+  await assert.rejects(
+    fetchKobaCatalog(server.url),
+    (error) => error.code === 'KOBA_UNAVAILABLE' && /nao e JSON valido/.test(error.message),
+  );
+  await server.close();
+});
