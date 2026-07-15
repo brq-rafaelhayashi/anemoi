@@ -75,6 +75,7 @@ function renderHtml(manifest) {
     status: manifest.status || 'passed',
     generatedAt: manifest.generatedAt,
     cellCount: manifest.cellCount,
+    parityLabel: manifest.parityLabel || 'Paridade vs wc',
     frameworks,
     cells,
   };
@@ -204,7 +205,7 @@ function renderHtml(manifest) {
   document.getElementById('head').innerHTML =
     '<th style="width:180px">Célula</th>' +
     FWS.map((fw) => '<th>' + fwLabel(fw) + '</th>').join('') +
-    (hasParity ? '<th style="width:160px">Paridade vs wc</th>' : '');
+    (hasParity ? '<th style="width:160px">' + esc(DATA.parityLabel) + '</th>' : '');
 
   function render() {
     document.getElementById('rows').innerHTML = CELLS.map((c, i) => {

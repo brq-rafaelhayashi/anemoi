@@ -11,7 +11,7 @@ test('workspace expõe somente o Anemoi Web ativo', () => {
   const lock = json('package-lock.json');
   const web = json('packages/web/package.json');
 
-  assert.deepEqual(root.workspaces, ['packages/core', 'packages/web', 'anemoi-preset']);
+  assert.deepEqual(root.workspaces, ['packages/core', 'packages/web', 'packages/service', 'anemoi-preset']);
   assert.equal(root.scripts.web, 'node packages/web/bin/anemoi-web.js');
   assert.equal(root.scripts.cross, undefined);
   assert.equal(web.name, '@gol-smiles/anemoi-web');

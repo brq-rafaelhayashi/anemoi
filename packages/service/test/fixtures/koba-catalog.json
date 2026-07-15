@@ -1,0 +1,17 @@
+[
+  {
+    "key": "button",
+    "tag": "tgr-button",
+    "name": "Button",
+    "description": "Botao do Tangerina",
+    "reactExport": "TgrButton",
+    "props": [
+      {"name": "label", "kind": "text", "default": "Comprar"},
+      {"name": "variant", "kind": "select", "default": "primary", "options": ["primary", "secondary"]},
+      {"name": "disabled", "kind": "toggle", "default": false}
+    ],
+    "events": [{"event": "tgrClick", "reactProp": "onTgrClick"}],
+    "slots": [{"name": "icon", "defaultContent": ""}],
+    "initialArgs": {"label": "Comprar", "variant": "primary", "disabled": false}
+  }
+]
