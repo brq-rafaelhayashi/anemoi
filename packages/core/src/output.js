@@ -107,16 +107,17 @@ function renderHtml(manifest) {
   .frow .chips { display:flex; flex-wrap:wrap; gap:6px; }
   .chip { font-size:12px; font-weight:600; padding:5px 12px; border-radius:99px; border:1px solid var(--line); background:var(--bg); cursor:pointer; font-family:inherit; color:var(--ink); }
   .chip.on { background:var(--ink); color:#fff; border-color:var(--ink); }
-  table { width:100%; border-collapse:collapse; }
+  table { width:100%; border-collapse:collapse; table-layout:fixed; }
   thead th { position:sticky; top:0; background:var(--soft); z-index:5; font-size:11px; text-transform:uppercase; letter-spacing:.07em; color:var(--sub); text-align:left; padding:10px 16px; border-bottom:1px solid var(--line); }
-  tbody td { padding:12px 16px; border-bottom:1px solid var(--line); vertical-align:middle; }
+  tbody td { padding:8px 12px; border-bottom:1px solid var(--line); vertical-align:middle; }
   tbody tr:hover { background:var(--soft); }
   .id .story { font-weight:650; font-size:14px; }
   .id .dims { font-size:12px; color:var(--sub); margin-top:2px; }
-  .shot { width:150px; cursor:zoom-in; border:1px solid var(--line); border-radius:6px; background:#fff; display:block; transition:transform .12s; }
-  .shot:hover { transform:scale(1.04); border-color:var(--accent); }
+  .shotwrap { overflow-x:auto; }
+  .shot { cursor:zoom-in; border:1px solid var(--line); border-radius:6px; background:#fff; display:block; max-width:none; }
+  .shot:hover { border-color:var(--accent); }
   td.dark-bg .shot { background:#1c1c22; }
-  .missing { width:150px; font-size:11px; color:var(--bad); border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; }
+  .missing { max-width: 150px; font-size:11px; color:var(--bad); border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; }
   .pcell { white-space:nowrap; }
   .pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; margin:1px 0; }
   .pill.ok { background:var(--okbg); color:var(--ok); }
@@ -242,8 +243,9 @@ function renderHtml(manifest) {
       const tds = FWS.map((fw) => {
         const cls = c.theme === 'dark' ? ' class="dark-bg"' : '';
         if (!c[fw]) return '<td' + cls + '><div class="missing">ausente</div></td>';
-        return '<td' + cls + '><img class="shot" loading="lazy" src="' + esc(c[fw]) +
-          '" data-i="' + i + '" data-fw="' + fw + '" alt="' + esc(c.label + ' ' + fw) + '"/></td>';
+        return '<td' + cls + '><div class="shotwrap"><img class="shot" loading="lazy" src="' + esc(c[fw]) +
+          '" data-i="' + i + '" data-fw="' + fw + '" alt="' + esc(c.label + ' ' + fw) +
+          '" onload="this.style.width=(this.naturalWidth/2)+\\'px\\'"/></div></td>';
       }).join('');
       let pcell = '';
       if (hasParity) {

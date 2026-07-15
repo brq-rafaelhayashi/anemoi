@@ -137,3 +137,16 @@ test('renderHtml: cabecalho lista stories divergentes como chips clicaveis', () 
   assert.ok(!html.includes("'px de divergência'"));
   assert.ok(!html.includes('totalDiff'));
 });
+
+test('renderHtml: prints em tamanho real com scroll por celula', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'c', mode: 'current', cellCount: 1,
+    generatedAt: '2026-07-15T00:00:00.000Z',
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{label: 'gol · Primary · sm · light', wc: 'a.png', react: 'b.png', parity: []}],
+  });
+  assert.ok(!html.includes('width:150px'));
+  assert.match(html, /table-layout:fixed/);
+  assert.match(html, /class="shotwrap"/);
+  assert.match(html, /naturalWidth\s*\/\s*2/);
+});
