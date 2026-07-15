@@ -102,3 +102,19 @@ test('renderHtml: badge de paridade usa percentual com fallback px', () => {
   assert.match(html, /<0,1%/);
   assert.match(html, /toFixed\(1\)\.replace\('\.', ','\)/);
 });
+
+test('renderHtml: badge divergente e clicavel e lightbox tem aba Diff', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'c', mode: 'current', cellCount: 1,
+    generatedAt: '2026-07-15T00:00:00.000Z',
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{
+      label: 'gol · Primary · sm · light',
+      wc: 'a.png', react: 'b.png',
+      parity: [{against: 'react', mismatch: 8, width: 40, height: 40, diffPath: 'diff/react-vs-wc/x.png'}],
+    }],
+  });
+  assert.match(html, /function viewsOf/);
+  assert.match(html, /'Diff ' \+ fwLabel/);
+  assert.match(html, /button class="pill bad diff"/);
+});

@@ -119,6 +119,8 @@ function renderHtml(manifest) {
   .pill.ok { background:var(--okbg); color:var(--ok); }
   .pill.bad { background:var(--badbg); color:var(--bad); }
   .pill.na { background:var(--soft); color:var(--sub); }
+  button.pill { border:0; cursor:pointer; font-family:inherit; }
+  button.pill:hover { text-decoration:underline; }
   tr.hidden { display:none; }
   #lb { position:fixed; inset:0; background:rgba(12,12,16,.88); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column; gap:14px; }
   #lb.open { display:flex; }
@@ -145,7 +147,7 @@ function renderHtml(manifest) {
   <div class="fwnav" id="lbNav"></div>
   <img id="lbImg" src="" alt="" />
   <div class="cap" id="lbCap"></div>
-  <div class="hint">← → troca framework · ↑ ↓ troca célula · esc fecha</div>
+  <div class="hint">← → troca visão · ↑ ↓ troca célula · esc fecha</div>
 </div>
 <script>
   const DATA = ${embedJson(data)};
@@ -227,8 +229,15 @@ function renderHtml(manifest) {
       let pcell = '';
       if (hasParity) {
         const pills = (c.parity || []).length
-          ? c.parity.map((p) => '<span class="pill ' + (p.mismatch === 0 ? 'ok' : 'bad') + '">' +
-              esc(p.against) + ' ' + esc(fmtParity(p)) + '</span>').join('<br>')
+          ? c.parity.map((p, k) => {
+              const ok = p.mismatch === 0;
+              const txt = esc(p.against) + ' ' + esc(fmtParity(p));
+              if (ok || !p.diffPath) {
+                return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + txt + '</span>';
+              }
+              return '<button class="pill bad diff" data-i="' + i + '" data-k="' + k +
+                '" title="ver diff">' + txt + '</button>';
+            }).join('<br>')
           : '<span class="pill na">—</span>';
         pcell = '<td class="pcell">' + pills + '</td>';
       }
@@ -248,31 +257,48 @@ function renderHtml(manifest) {
     render();
   });
 
-  // Lightbox
+  // Lightbox — navega por "views": frameworks + 'Diff <fw>' por parity divergente com diffPath.
   const lb = document.getElementById('lb');
-  let lbCell = 0, lbFw = 0;
-  function openLb(i, fw) { lbCell = i; lbFw = Math.max(0, FWS.indexOf(fw)); paintLb(); lb.classList.add('open'); }
+  let lbCell = 0, lbView = 0;
+  function viewsOf(c) {
+    const v = FWS.map((fw) => ({label: fwLabel(fw), src: c[fw]}));
+    for (const p of (c.parity || [])) {
+      if (p.diffPath && p.mismatch > 0) v.push({label: 'Diff ' + fwLabel(p.against), src: p.diffPath});
+    }
+    return v;
+  }
+  function openLb(i, view) { lbCell = i; lbView = view; paintLb(); lb.classList.add('open'); }
   function paintLb() {
-    const c = CELLS[lbCell], fw = FWS[lbFw];
-    document.getElementById('lbImg').src = c[fw] || '';
-    document.getElementById('lbCap').textContent = c.label + ' — ' + fwLabel(fw) + (c[fw] ? '' : ' (ausente)');
-    document.getElementById('lbNav').innerHTML = FWS.map((f, j) =>
-      '<button class="' + (j === lbFw ? 'on' : '') + '" data-j="' + j + '">' + fwLabel(f) + '</button>').join('');
+    const c = CELLS[lbCell], views = viewsOf(c);
+    if (lbView >= views.length) lbView = 0;
+    const v = views[lbView];
+    document.getElementById('lbImg').src = v.src || '';
+    document.getElementById('lbCap').textContent = c.label + ' — ' + v.label + (v.src ? '' : ' (ausente)');
+    document.getElementById('lbNav').innerHTML = views.map((vv, j) =>
+      '<button class="' + (j === lbView ? 'on' : '') + '" data-j="' + j + '">' + esc(vv.label) + '</button>').join('');
   }
   document.getElementById('rows').addEventListener('click', (e) => {
     const img = e.target.closest('.shot');
-    if (img) openLb(Number(img.dataset.i), img.dataset.fw);
+    if (img) return openLb(Number(img.dataset.i), Math.max(0, FWS.indexOf(img.dataset.fw)));
+    const b = e.target.closest('button.pill.diff');
+    if (b) {
+      const i = Number(b.dataset.i);
+      const p = CELLS[i].parity[Number(b.dataset.k)];
+      const idx = viewsOf(CELLS[i]).findIndex((v) => v.label === 'Diff ' + fwLabel(p.against));
+      openLb(i, Math.max(0, idx));
+    }
   });
   document.getElementById('lbNav').addEventListener('click', (e) => {
     const b = e.target.closest('button');
-    if (b) { lbFw = Number(b.dataset.j); paintLb(); }
+    if (b) { lbView = Number(b.dataset.j); paintLb(); }
   });
   lb.addEventListener('click', (e) => { if (e.target === lb) lb.classList.remove('open'); });
   document.addEventListener('keydown', (e) => {
     if (!lb.classList.contains('open')) return;
+    const n = viewsOf(CELLS[lbCell]).length;
     if (e.key === 'Escape') lb.classList.remove('open');
-    if (e.key === 'ArrowRight') { lbFw = (lbFw + 1) % FWS.length; paintLb(); }
-    if (e.key === 'ArrowLeft') { lbFw = (lbFw + FWS.length - 1) % FWS.length; paintLb(); }
+    if (e.key === 'ArrowRight') { lbView = (lbView + 1) % n; paintLb(); }
+    if (e.key === 'ArrowLeft') { lbView = (lbView + n - 1) % n; paintLb(); }
     if (e.key === 'ArrowDown') { lbCell = Math.min(lbCell + 1, CELLS.length - 1); paintLb(); }
     if (e.key === 'ArrowUp') { lbCell = Math.max(lbCell - 1, 0); paintLb(); }
   });
