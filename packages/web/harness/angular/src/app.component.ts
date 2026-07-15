@@ -1,6 +1,7 @@
 import {
   Component,
   OnInit,
+  AfterViewInit,
   CUSTOM_ELEMENTS_SCHEMA,
   Type,
   EnvironmentInjector,
@@ -22,17 +23,22 @@ import { DIRECTIVES } from '@gol-smiles/tangerina-angular';
     </div>
   `,
 })
-export class AppComponent implements OnInit {
+export class AppComponent implements OnInit, AfterViewInit {
   Cmp: Type<any> | null = null;
   args: Record<string, unknown> = {};
+  // slots: mapa nome→HTML. Chave '' = default slot (HTML direto, sem <span slot>).
+  slots: Record<string, string> = {};
+  component = '';
   envInjector = inject(EnvironmentInjector);
 
   ngOnInit() {
     const p = new URLSearchParams(location.search);
     const component = p.get('c')!;
+    this.component = component;
     const brand = p.get('brand') || 'gol';
     const theme = p.get('theme') || 'light';
     this.args = JSON.parse(decodeURIComponent(p.get('args') || '%7B%7D'));
+    this.slots = JSON.parse(decodeURIComponent(p.get('slots') || '%7B%7D'));
 
     const html = document.documentElement;
     brand !== 'gol'
@@ -58,5 +64,18 @@ export class AppComponent implements OnInit {
       document.getElementById('evidence-root')!.textContent =
         `Componente Angular nao encontrado: ${component}. Disponíveis: ${available}`;
     }
+  }
+
+  ngAfterViewInit() {
+    // Projeta os slots na light DOM do custom element ja renderizado pelo outlet.
+    // Espelha o applySlots do generic-stage.component.ts do mfe-angular do Koba.
+    if (!this.Cmp || Object.keys(this.slots).length === 0) return;
+    const host = document.querySelector(`#evidence-root ${this.component}`) as HTMLElement | null;
+    if (!host) return;
+    host.innerHTML = Object.entries(this.slots)
+      .map(([name, value]) =>
+        name ? `<span slot="${name}">${value ?? ''}</span>` : String(value ?? '')
+      )
+      .join('');
   }
 }

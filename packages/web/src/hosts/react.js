@@ -49,7 +49,8 @@ function urlFor(cell, baseUrl) {
   const theme = encodeURIComponent(cell.theme ?? 'light');
   const viewport = encodeURIComponent(cell.viewport ?? 'sm');
   const args = encodeURIComponent(JSON.stringify(cell.args || {}));
-  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}`;
+  const slots = encodeURIComponent(JSON.stringify(cell.slots || {}));
+  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}`;
 }
 
 /** Seletor da raiz montada pelo React. */

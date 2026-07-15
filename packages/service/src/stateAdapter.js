@@ -37,6 +37,9 @@ function normalizeCompareState(compareState, catalog) {
   const defaultSlots = Object.fromEntries((entry.slots || []).map(slot => [slot.name, slot.defaultContent]));
   return {
     componentKey: entry.key,
+    // tag do custom element (ex.: 'tgr-button'). A key do catalogo ('button') e o
+    // nome da rota do Koba; os harnesses do motor proprio precisam da TAG no ?c=.
+    tag: entry.tag || entry.key,
     props: {...(entry.initialArgs || {}), ...(compareState.props || {})},
     slots: {...defaultSlots, ...(compareState.slots || {})},
   };
@@ -55,7 +58,17 @@ function compareStateToCells(state, {viewports = ['sm', 'lg']} = {}) {
     viewports,
     viewportWidths: VIEWPORT_WIDTHS,
   });
-  return cells.map(cell => ({...cell, component: state.componentKey, state}));
+  // Os harnesses do motor proprio leem props (args) e slots da querystring —
+  // nao um `state` opaco. Mapeamos aqui: args = props, slots = slots.
+  // `state` fica na celula so para diagnostico/manifesto.
+  return cells.map(cell => ({
+    ...cell,
+    // harness usa a TAG no ?c= (fallback p/ componentKey em estados sem catalogo).
+    component: state.tag || state.componentKey,
+    args: state.props,
+    slots: state.slots,
+    state,
+  }));
 }
 
 module.exports = {stableStringify, stateHash, normalizeCompareState, compareStateToCells};

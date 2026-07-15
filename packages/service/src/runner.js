@@ -1,6 +1,11 @@
 'use strict';
-// Executa um run: captura os panes do Koba vivo, computa paridade
-// react x angular e publica o bundle padrao do Anemoi no checkout do DS.
+// Executa um run: renderiza o componente ISOLADO pelo motor proprio do Anemoi
+// (harnesses react/angular, um por framework), computa paridade react x angular
+// e publica o bundle padrao do Anemoi no checkout do DS.
+//
+// Nao fotografa a UI viva do Koba: os harnesses recebem props/slots do
+// compareState via querystring e renderizam so o componente (#evidence-root).
+// Os harnesses buildados vem do harnessPool (build 1x + cache + serve).
 // Nunca rejeita: todo caminho termina num status consultavel do run.
 
 const fs = require('node:fs');
@@ -10,9 +15,8 @@ const {groupByCell} = require('@gol-smiles/anemoi-web/src/parity');
 const {createRunDir} = require('@gol-smiles/anemoi-web/src/run');
 const {writeFailureManifest} = require('@gol-smiles/anemoi-web/src/failure');
 const {computeParityPair} = require('./parityPair');
-const {makeKobaHost} = require('./kobaHost');
 
-async function executeRun({run, store, cells, state, config}) {
+async function executeRun({run, store, cells, state, config, pool}) {
   let stage = 'run-dir';
   let runDir = null;
 
@@ -24,12 +28,22 @@ async function executeRun({run, store, cells, state, config}) {
 
     stage = 'capture';
     store.patch(run.runId, {stage});
-    const host = makeKobaHost();
     const diagnosticsDir = path.join(runDir, 'logs');
-    const cellsWithDiagnostics = cells.map(cell => ({...cell, diagnosticsDir}));
-    const captures = await captureCells(cellsWithDiagnostics, host, config.kobaBaseUrl, runDir, {
-      onProgress: (i, total) => store.patch(run.runId, {stage: `capturando ${i}/${total}`}),
-    });
+    // Frameworks presentes nas celulas (react, angular), em ordem estavel.
+    const frameworks = [...new Set(cells.map(cell => cell.framework))];
+    const captures = [];
+    for (const framework of frameworks) {
+      const cellsForFramework = cells.filter(cell => cell.framework === framework);
+      if (cellsForFramework.length === 0) continue;
+      // O 1o run por framework paga o build do harness (bloqueante); os seguintes reusam.
+      store.patch(run.runId, {stage: `preparando harness ${framework}`});
+      const {host, url} = await pool.acquire(framework, config.dsRepo);
+      const cellsWithDiagnostics = cellsForFramework.map(cell => ({...cell, diagnosticsDir}));
+      const captured = await captureCells(cellsWithDiagnostics, host, url, runDir, {
+        onProgress: (i, total) => store.patch(run.runId, {stage: `capturando ${framework} ${i}/${total}`}),
+      });
+      captures.push(...captured);
+    }
 
     stage = 'parity';
     store.patch(run.runId, {stage});
@@ -50,7 +64,7 @@ async function executeRun({run, store, cells, state, config}) {
       layout: 'parity',
       parityLabel: 'Paridade vs react',
       axes: {
-        frameworks: ['react', 'angular'],
+        frameworks,
         stories: [cells[0].storyName],
         themes: ['light'],
         viewports: [...new Set(cells.map(cell => cell.viewport))],

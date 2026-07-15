@@ -1,9 +1,10 @@
 'use strict';
 // Contrato implicito com o repo koba (matheusBrqRocha/koba):
-// 1. Shape do GET /catalog.json  (root-config/src/catalog/types.ts)
-// 2. Formato do ?state=          (root-config/src/compare/compareState.ts)
-// 3. Classes dos panes           (root-config/index.html)
-// Se algo mudar la, estes testes quebram primeiro.
+// GET /catalog.json  (root-config/src/catalog/types.ts) — key, initialArgs, slots.
+//
+// Desde que o servico passou a renderizar pelo motor proprio do Anemoi (harnesses
+// isolados) em vez de fotografar a UI viva do Koba, este e o UNICO acoplamento
+// com o Koba: o formato do catalogo. Se o shape mudar la, este teste quebra.
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
@@ -11,30 +12,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const {normalizeCompareState} = require('../src/stateAdapter');
-const {makeKobaHost} = require('../src/kobaHost');
 
 const CATALOG = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'koba-catalog.json'), 'utf8'));
-const FIXTURE_PAGE = fs.readFileSync(path.join(__dirname, 'fixtures', 'compare-page.html'), 'utf8');
 
-// Copia fiel do parseCompareState do Koba (compareState.ts) — usada para
-// provar o round-trip: o que o service serializa, o Koba aplica.
-function kobaParseCompareState(search, fallback) {
-  const params = new URLSearchParams(search);
-  const raw = params.get('state');
-  if (!raw) return fallback;
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed.componentKey !== fallback.componentKey) return fallback;
-    return {
-      componentKey: fallback.componentKey,
-      props: {...fallback.props, ...parsed.props},
-      slots: {...fallback.slots, ...parsed.slots},
-    };
-  } catch {
-    return fallback;
-  }
-}
-
+// Copia fiel do parseCompareState do Koba (compareState.ts) — o estado efetivo
+// que o Koba aplicaria dado um override sobre os defaults do catalogo.
 function kobaDefaultState(component) {
   return {
     componentKey: component.key,
@@ -43,33 +25,29 @@ function kobaDefaultState(component) {
   };
 }
 
-test('normalizeCompareState aceita o shape real do catalogo do Koba', () => {
+test('normalizeCompareState aceita o shape real do catalogo do Koba e resolve a tag', () => {
   const state = normalizeCompareState(
-    {componentKey: 'tgr-button', props: {label: 'Pagar'}, slots: {}},
+    {componentKey: 'button', props: {label: 'Pagar'}, slots: {}},
     CATALOG,
   );
+  // A key do catalogo ('button') != a tag do custom element ('tgr-button').
+  // Os harnesses do motor proprio renderizam pela TAG, entao ela precisa ser resolvida aqui.
+  assert.equal(state.componentKey, 'button');
+  assert.equal(state.tag, 'tgr-button');
   assert.deepEqual(state.props, {label: 'Pagar', variant: 'primary', disabled: false});
   assert.deepEqual(state.slots, {icon: ''});
 });
 
-test('round-trip: o state serializado pelo host e o que o Koba aplicaria', () => {
-  const state = normalizeCompareState(
-    {componentKey: 'tgr-button', props: {label: 'Pagar', disabled: true}, slots: {icon: '<b>!</b>'}},
-    CATALOG,
-  );
-  const host = makeKobaHost();
-  const url = new URL(host.urlFor({component: state.componentKey, framework: 'react', state}, 'http://localhost:9000'));
+test('normalizeCompareState = defaults do catalogo + overrides (mesma regra do Koba) + tag', () => {
+  const override = {componentKey: 'button', props: {label: 'Pagar', disabled: true}, slots: {icon: '<b>!</b>'}};
+  const state = normalizeCompareState(override, CATALOG);
 
-  const applied = kobaParseCompareState(url.search, kobaDefaultState(CATALOG[0]));
-  assert.deepEqual(applied, state);
-});
-
-test('fixture do /compare usa as classes reais dos panes do Koba', () => {
-  for (const framework of ['react', 'angular']) {
-    const selector = makeKobaHost().selectorFor({framework});
-    assert.ok(
-      FIXTURE_PAGE.includes(selector.slice(1)),
-      `fixture compare-page.html deve conter a classe ${selector}`,
-    );
-  }
+  // O que o Koba aplicaria: merge do override sobre o default do catalogo.
+  // O Anemoi acrescenta a `tag` resolvida (usada no render do motor proprio).
+  const kobaApplied = {
+    ...kobaDefaultState(CATALOG[0]),
+    props: {...kobaDefaultState(CATALOG[0]).props, ...override.props},
+    slots: {...kobaDefaultState(CATALOG[0]).slots, ...override.slots},
+  };
+  assert.deepEqual(state, {...kobaApplied, tag: CATALOG[0].tag});
 });

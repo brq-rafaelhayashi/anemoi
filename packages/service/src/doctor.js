@@ -1,10 +1,12 @@
 'use strict';
-// Doctor do Anemoi Service: config, checkout do DS, Koba vivo e porta.
+// Doctor do Anemoi Service: config, checkout do DS, DS buildado (render), Koba vivo e porta.
 
 const fs = require('node:fs');
+const path = require('node:path');
 const net = require('node:net');
 const {readServiceConfig} = require('./config');
 const {fetchKobaCatalog} = require('./kobaCatalog');
+const {DS_SENTINELS} = require('./harnessPool');
 
 function checkPortFree(port) {
   return new Promise((resolve) => {
@@ -31,6 +33,15 @@ async function collectServiceChecks(rootDir, {fetchCatalog = fetchKobaCatalog, p
   checks.push({
     id: 'ds-repo', label: 'checkout do DS acessivel',
     ok: fs.existsSync(config.dsRepo), detail: config.dsRepo,
+  });
+
+  // O render usa o motor proprio (harnesses buildam sobre o dist/ do DS), entao
+  // o DS precisa estar buildado. Sem isso o build do harness falha no 1o run.
+  const missing = DS_SENTINELS.filter(rel => !fs.existsSync(path.join(config.dsRepo, rel)));
+  checks.push({
+    id: 'ds-build', label: 'DS buildado (dist/ p/ render)',
+    ok: missing.length === 0,
+    detail: missing.length === 0 ? 'tokens/fonts/components/react/angular presentes' : `faltando: ${missing.join(', ')} — rode o build do DS`,
   });
 
   try {

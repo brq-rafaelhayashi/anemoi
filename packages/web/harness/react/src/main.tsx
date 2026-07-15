@@ -18,6 +18,9 @@ const component = params.get('c') ?? '';
 const brand = params.get('brand') ?? 'gol';
 const theme = params.get('theme') ?? 'light';
 const args = JSON.parse(decodeURIComponent(params.get('args') || '%7B%7D'));
+// slots: mapa nome→HTML. Chave '' = default slot (sem atributo slot).
+// Espelha o GenericStage.tsx do mfe-react do Koba: um <span slot> por entrada.
+const slots: Record<string, string> = JSON.parse(decodeURIComponent(params.get('slots') || '%7B%7D'));
 
 // Aplica brand/tema no <html> (convenção: gol = sem atributo, dark = data-theme="dark")
 const htmlEl = document.documentElement;
@@ -57,5 +60,12 @@ if (!Comp) {
     </div>
   );
 } else {
-  root.render(createElement(Comp, args as React.ComponentProps<typeof Comp>));
+  const slotChildren = Object.entries(slots).map(([name, html]) =>
+    createElement('span', {
+      key: name || '__default__',
+      ...(name ? { slot: name } : {}),
+      dangerouslySetInnerHTML: { __html: html ?? '' },
+    })
+  );
+  root.render(createElement(Comp, args as React.ComponentProps<typeof Comp>, ...slotChildren));
 }

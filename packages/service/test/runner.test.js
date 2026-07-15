@@ -10,25 +10,42 @@ const {executeRun} = require('../src/runner');
 const {createRunStore} = require('../src/runStore');
 const {compareStateToCells} = require('../src/stateAdapter');
 
-const FIXTURE = fs.readFileSync(path.join(__dirname, 'fixtures', 'compare-page.html'), 'utf8');
-
-// Servidor fake do Koba: qualquer GET /compare/* devolve a fixture.
-function serveComparePage() {
+// Servidor estatico fake: serve `html` para qualquer path (simula o harness servido pelo pool).
+function serveEvidence(html) {
   return new Promise((resolve) => {
-    const server = http.createServer((req, res) => {
-      if ((req.url || '').startsWith('/compare/')) {
-        res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
-        res.end(FIXTURE);
-        return;
-      }
-      res.writeHead(404);
-      res.end();
+    const server = http.createServer((_req, res) => {
+      res.writeHead(200, {'Content-Type': 'text/html; charset=utf-8'});
+      res.end(html);
     });
     server.listen(0, '127.0.0.1', () => resolve({
       url: `http://127.0.0.1:${server.address().port}`,
       close: () => new Promise(done => server.close(done)),
     }));
   });
+}
+
+// Host fake compativel com captureCells: recorta #evidence-root do server fake.
+function fakeHost(framework) {
+  return {
+    framework,
+    urlFor: (_cell, baseUrl) => `${baseUrl}/index.html`,
+    selectorFor: () => '#evidence-root',
+    verify: async (page) => { await page.waitForSelector('#evidence-root > *', {timeout: 5000}); },
+  };
+}
+
+// Fixture: caixa colorida dentro de #evidence-root. Cor por framework permite (des)igualdade.
+const evidenceHtml = (color) =>
+  `<!doctype html><html><head><meta charset="utf-8"></head>`
+  + `<body style="margin:0"><div id="evidence-root">`
+  + `<div style="width:120px;height:48px;background:${color}"></div></div></body></html>`;
+
+// Pool fake: acquire(fw) devolve host fake + url do server fake daquele framework.
+function fakePool(servers) {
+  return {
+    async acquire(framework) { return {host: fakeHost(framework), url: servers[framework].url}; },
+    async closeAll() {},
+  };
 }
 
 function setup(state) {
@@ -39,13 +56,15 @@ function setup(state) {
   return {dsRepo, store, run, cells};
 }
 
-test('run passed: panes identicos geram bundle com paridade zero', async () => {
+test('run passed: harnesses identicos geram bundle com paridade zero', async () => {
   const state = {componentKey: 'tgr-fake', props: {label: 'Ola'}, slots: {}};
   const {dsRepo, store, run, cells} = setup(state);
-  const koba = await serveComparePage();
+  const react = await serveEvidence(evidenceHtml('#f60'));
+  const angular = await serveEvidence(evidenceHtml('#f60'));
 
-  await executeRun({run, store, cells, state, config: {dsRepo, kobaBaseUrl: koba.url}});
-  await koba.close();
+  await executeRun({run, store, cells, state, config: {dsRepo}, pool: fakePool({react, angular})});
+  await react.close();
+  await angular.close();
 
   const done = store.get(run.runId);
   assert.equal(done.status, 'passed');
@@ -62,13 +81,15 @@ test('run passed: panes identicos geram bundle com paridade zero', async () => {
   assert.ok(fs.existsSync(path.join(done.runDir, 'summary.md')));
 });
 
-test('run failed: panes divergentes acusam mismatch', async () => {
-  const state = {componentKey: 'tgr-fake', props: {label: 'Ola', divergir: true}, slots: {}};
+test('run failed: harnesses divergentes acusam mismatch', async () => {
+  const state = {componentKey: 'tgr-fake', props: {label: 'Ola'}, slots: {}};
   const {dsRepo, store, run, cells} = setup(state);
-  const koba = await serveComparePage();
+  const react = await serveEvidence(evidenceHtml('#f60'));
+  const angular = await serveEvidence(evidenceHtml('#06f')); // cor diferente → mismatch
 
-  await executeRun({run, store, cells, state, config: {dsRepo, kobaBaseUrl: koba.url}});
-  await koba.close();
+  await executeRun({run, store, cells, state, config: {dsRepo}, pool: fakePool({react, angular})});
+  await react.close();
+  await angular.close();
 
   const done = store.get(run.runId);
   assert.equal(done.status, 'failed');
@@ -87,23 +108,24 @@ test('run ja terminal: executeRun nunca rejeita mesmo com transicao inicial inva
   store.transition(run.runId, 'passed', {summary: {cells: 0, mismatches: 0, maxMismatchPx: 0}});
   assert.equal(store.get(run.runId).status, 'passed');
 
-  await assert.doesNotReject(
-    executeRun({run, store, cells, state, config: {dsRepo, kobaBaseUrl: 'http://127.0.0.1:1'}})
-  );
+  // O pool nunca deve ser tocado: a transicao inicial ja falha antes da captura.
+  const pool = {async acquire() { throw new Error('nao deveria buildar'); }, async closeAll() {}};
+  await assert.doesNotReject(executeRun({run, store, cells, state, config: {dsRepo}, pool}));
 
-  const done = store.get(run.runId);
-  assert.equal(done.status, 'passed');
+  assert.equal(store.get(run.runId).status, 'passed');
 });
 
-test('run error: Koba fora do ar termina em error com failure manifest', async () => {
+test('run error: falha ao preparar o harness termina em error com failure manifest', async () => {
   const state = {componentKey: 'tgr-fake', props: {}, slots: {}};
   const {dsRepo, store, run, cells} = setup(state);
 
-  await executeRun({run, store, cells, state, config: {dsRepo, kobaBaseUrl: 'http://127.0.0.1:1'}});
+  // Simula DS nao buildado: pool.acquire lanca (como o assertReady do doctor faria).
+  const pool = {async acquire() { throw new Error('DS nao buildado — rode o build do DS'); }, async closeAll() {}};
+  await executeRun({run, store, cells, state, config: {dsRepo}, pool});
 
   const done = store.get(run.runId);
   assert.equal(done.status, 'error');
-  assert.ok(done.error);
+  assert.match(done.error, /DS nao buildado/);
   const manifest = JSON.parse(fs.readFileSync(path.join(done.runDir, 'manifest.json'), 'utf8'));
   assert.equal(manifest.status, 'failed');
   assert.ok(manifest.error);

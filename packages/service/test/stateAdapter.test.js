@@ -34,6 +34,7 @@ test('normalizeCompareState faz merge sobre os defaults do catalogo', () => {
   );
   assert.deepEqual(state, {
     componentKey: 'tgr-button',
+    tag: 'tgr-button',
     props: {label: 'Pagar', variant: 'primary'},
     slots: {icon: ''},
   });
@@ -46,8 +47,8 @@ test('normalizeCompareState rejeita componentKey desconhecido com code', () => {
   );
 });
 
-test('compareStateToCells produz react e angular por viewport, com state e component', () => {
-  const state = {componentKey: 'tgr-button', props: {label: 'Pagar'}, slots: {}};
+test('compareStateToCells produz react e angular por viewport, com args, slots e component', () => {
+  const state = {componentKey: 'tgr-button', props: {label: 'Pagar'}, slots: {icon: '<b>!</b>'}};
   const cells = compareStateToCells(state, {viewports: ['sm', 'lg']});
 
   assert.equal(cells.length, 4); // 2 frameworks x 2 viewports x 1 theme
@@ -58,6 +59,9 @@ test('compareStateToCells produz react e angular por viewport, com state e compo
     assert.equal(cell.theme, 'light');
     assert.equal(cell.storyId, `koba-state-${hash}`);
     assert.equal(cell.component, 'tgr-button');
+    // Os harnesses do motor proprio leem props (args) e slots da querystring.
+    assert.deepEqual(cell.args, {label: 'Pagar'});
+    assert.deepEqual(cell.slots, {icon: '<b>!</b>'});
     assert.deepEqual(cell.state, state);
   }
   assert.equal(cells.find(c => c.viewport === 'sm').width, 360);
