@@ -30,11 +30,11 @@ function computeParity(groups, runDir) {
         const viewport = assertSafePathSegment(g._cell.viewport, 'viewport');
         const theme = assertSafePathSegment(g._cell.theme, 'theme');
         const diffRel = path.join('diff', `${fw}-vs-wc`, `${brand}-${storyId}-${viewport}-${theme}.png`);
-        const {mismatch} = writeDiff(
+        const {mismatch, width, height} = writeDiff(
           path.join(runDir, g.wc), path.join(runDir, g[fw]), ensureDir(path.join(runDir, diffRel)),
           {fit: 'intersection'},
         );
-        parity.push({against: fw, mismatch, diffPath: diffRel});
+        parity.push({against: fw, mismatch, width, height, diffPath: diffRel});
       }
     }
     const {_cell, ...rest} = g;

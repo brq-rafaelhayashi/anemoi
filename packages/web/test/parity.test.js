@@ -1,6 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert');
-const {groupByCell} = require('../src/parity');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const {PNG} = require('pngjs');
+const {groupByCell, computeParity} = require('../src/parity');
 
 test('groupByCell agrupa as 3 capturas por (brand,story,viewport,theme)', () => {
   const caps = [
@@ -23,4 +27,36 @@ test('groupByCell nao colapsa stories distintas com o mesmo display name', () =>
   ]);
   assert.equal(groups.length, 2);
   assert.deepEqual(groups.map(group => group.wc), ['a.png', 'b.png']);
+});
+
+function writeSolidPng(runDir, rel, fill) {
+  const abs = path.join(runDir, rel);
+  fs.mkdirSync(path.dirname(abs), {recursive: true});
+  const png = new PNG({width: 4, height: 4});
+  for (let i = 0; i < png.data.length; i += 4) {
+    png.data[i] = fill;
+    png.data[i + 1] = fill;
+    png.data[i + 2] = fill;
+    png.data[i + 3] = 255;
+  }
+  fs.writeFileSync(abs, PNG.sync.write(png));
+}
+
+test('computeParity guarda mismatch, width, height e diffPath por comparacao', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
+  writeSolidPng(runDir, 'wc.png', 10);
+  writeSolidPng(runDir, 'react.png', 240);
+  const groups = [{
+    label: 'gol · Primary · sm · light',
+    wc: 'wc.png',
+    react: 'react.png',
+    _cell: {brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }];
+  const [g] = computeParity(groups, runDir);
+  assert.equal(g.parity.length, 1);
+  assert.equal(g.parity[0].against, 'react');
+  assert.ok(g.parity[0].mismatch > 0);
+  assert.equal(g.parity[0].width, 4);
+  assert.equal(g.parity[0].height, 4);
+  assert.match(g.parity[0].diffPath, /react-vs-wc/);
 });
