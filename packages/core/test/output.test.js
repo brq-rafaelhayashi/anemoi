@@ -81,3 +81,24 @@ test('renderHtml usa "Paridade vs wc" como parityLabel default', () => {
   });
   assert.ok(html.includes('"parityLabel":"Paridade vs wc"'));
 });
+
+test('renderHtml: badge de paridade usa percentual com fallback px', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'c', mode: 'current', cellCount: 1,
+    generatedAt: '2026-07-15T00:00:00.000Z',
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{
+      label: 'gol · Primary · sm · light',
+      wc: 'a.png', react: 'b.png',
+      parity: [{against: 'react', mismatch: 8, width: 40, height: 40, diffPath: 'diff/react-vs-wc/x.png'}],
+    }],
+  });
+  // payload embutido carrega width/height/diffPath para o client-side
+  assert.ok(html.includes('"width":40'));
+  assert.ok(html.includes('"height":40'));
+  assert.ok(html.includes('"diffPath":"diff/react-vs-wc/x.png"'));
+  // template contem o formatador com percentual pt-BR e fallback px
+  assert.match(html, /function fmtParity/);
+  assert.match(html, /<0,1%/);
+  assert.match(html, /toFixed\(1\)\.replace\('\.', ','\)/);
+});

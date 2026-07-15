@@ -176,6 +176,14 @@ function renderHtml(manifest) {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // '✓' | 'Npx' (manifests antigos sem area) | percentual pt-BR ('2,1%', '<0,1%').
+  function fmtParity(p) {
+    if (p.mismatch === 0) return '✓';
+    if (!p.width || !p.height) return p.mismatch + 'px';
+    const pct = (p.mismatch / (p.width * p.height)) * 100;
+    return pct < 0.1 ? '<0,1%' : pct.toFixed(1).replace('.', ',') + '%';
+  }
+
   // Header
   document.getElementById('crumb').textContent = DATA.tool + ' · ' + DATA.card;
   document.getElementById('title').innerHTML =
@@ -220,7 +228,7 @@ function renderHtml(manifest) {
       if (hasParity) {
         const pills = (c.parity || []).length
           ? c.parity.map((p) => '<span class="pill ' + (p.mismatch === 0 ? 'ok' : 'bad') + '">' +
-              esc(p.against) + ' ' + (p.mismatch === 0 ? '✓' : p.mismatch + 'px') + '</span>').join('<br>')
+              esc(p.against) + ' ' + esc(fmtParity(p)) + '</span>').join('<br>')
           : '<span class="pill na">—</span>';
         pcell = '<td class="pcell">' + pills + '</td>';
       }
