@@ -36,6 +36,8 @@ test('paridade zero quando as imagens sao iguais', () => {
   assert.equal(groups[0].parity.length, 1);
   assert.equal(groups[0].parity[0].against, 'angular');
   assert.equal(groups[0].parity[0].mismatch, 0);
+  assert.equal(groups[0].parity[0].width, 4);
+  assert.equal(groups[0].parity[0].height, 4);
   assert.ok(fs.existsSync(path.join(runDir, groups[0].parity[0].diffPath)));
   assert.equal(groups[0]._cell, undefined);
 });

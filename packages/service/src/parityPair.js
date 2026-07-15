@@ -20,13 +20,13 @@ function computeParityPair(groups, runDir, {reference = 'react', against = 'angu
       const viewport = assertSafePathSegment(group._cell.viewport, 'viewport');
       const theme = assertSafePathSegment(group._cell.theme, 'theme');
       const diffRel = path.join('diff', `${against}-vs-${reference}`, `${brand}-${storyId}-${viewport}-${theme}.png`);
-      const {mismatch} = writeDiff(
+      const {mismatch, width, height} = writeDiff(
         path.join(runDir, group[reference]),
         path.join(runDir, group[against]),
         ensureDir(path.join(runDir, diffRel)),
         {fit: 'intersection'},
       );
-      parity.push({against, mismatch, diffPath: diffRel});
+      parity.push({against, mismatch, width, height, diffPath: diffRel});
     }
     const {_cell, ...rest} = group;
     return {...rest, parity};
