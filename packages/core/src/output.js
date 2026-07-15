@@ -98,6 +98,9 @@ function renderHtml(manifest) {
   .masthead .summary { display:inline-block; margin-top:16px; font-size:12px; padding:5px 12px; border-radius:99px; font-weight:600; background:var(--soft); color:var(--sub); }
   .masthead .summary.ok { background:var(--okbg); color:var(--ok); }
   .masthead .summary.bad { background:var(--badbg); color:var(--bad); }
+  .masthead .summary.chips { background:none; padding:0; display:flex; flex-wrap:wrap; gap:6px; }
+  .schip { font-size:12px; font-weight:700; padding:5px 12px; border-radius:99px; border:0; background:var(--badbg); color:var(--bad); cursor:pointer; font-family:inherit; }
+  .schip:hover { text-decoration:underline; }
   .filters { background:var(--bg); border-bottom:1px solid var(--line); padding:14px 28px; display:flex; flex-direction:column; gap:8px; }
   .frow { display:grid; grid-template-columns:78px 1fr; align-items:start; gap:12px; }
   .frow .lbl { font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); font-weight:600; padding-top:7px; }
@@ -191,16 +194,32 @@ function renderHtml(manifest) {
   document.getElementById('title').innerHTML =
     '<code>' + esc(DATA.component) + '</code> <span class="sub">— evidência visual</span>';
 
-  const totalDiff = CELLS.reduce((a, c) => a + (c.parity || []).reduce((s, p) => s + p.mismatch, 0), 0);
-  const allOk = hasParity && totalDiff === 0;
+  // Stories com ao menos uma celula divergente -> chips clicaveis que filtram a story.
+  const failingByStory = new Map();
+  for (const c of CELLS) {
+    if ((c.parity || []).some((p) => p.mismatch > 0)) {
+      failingByStory.set(c.story, (failingByStory.get(c.story) || 0) + 1);
+    }
+  }
   const ps = document.getElementById('paritySummary');
   if (!hasParity) {
     ps.className = 'summary'; ps.textContent = DATA.cellCount + ' prints · sem paridade (framework único)';
-  } else if (allOk) {
+  } else if (failingByStory.size === 0) {
     ps.className = 'summary ok'; ps.textContent = '✓ paridade total (' + DATA.cellCount + ' prints)';
   } else {
-    ps.className = 'summary bad'; ps.textContent = '✗ ' + totalDiff + 'px de divergência';
+    ps.className = 'summary chips';
+    ps.innerHTML = [...failingByStory].map(([story, n]) =>
+      '<button class="schip" data-story="' + esc(story) + '">✗ ' + esc(story) +
+      ' (' + n + (n === 1 ? ' célula' : ' células') + ')</button>').join('');
   }
+  ps.addEventListener('click', (e) => {
+    const chip = e.target.closest('.schip');
+    if (!chip) return;
+    state.story = new Set([chip.dataset.story]);
+    document.querySelectorAll('.chip[data-f="story"]').forEach((b) =>
+      b.classList.toggle('on', b.dataset.v === chip.dataset.story));
+    render();
+  });
 
   // Filtros — linhas alinhadas (label + chips)
   document.getElementById('filters').innerHTML = ['story', 'theme', 'viewport']

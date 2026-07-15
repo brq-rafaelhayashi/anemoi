@@ -118,3 +118,22 @@ test('renderHtml: badge divergente e clicavel e lightbox tem aba Diff', () => {
   assert.match(html, /'Diff ' \+ fwLabel/);
   assert.match(html, /button class="pill bad diff"/);
 });
+
+test('renderHtml: cabecalho lista stories divergentes como chips clicaveis', () => {
+  const html = renderHtml({
+    component: 'tgr-button', card: 'c', mode: 'current', cellCount: 2,
+    generatedAt: '2026-07-15T00:00:00.000Z',
+    axes: {frameworks: ['wc', 'react']},
+    groups: [
+      {label: 'gol · Com Icone · sm · light', wc: 'a.png', react: 'b.png',
+        parity: [{against: 'react', mismatch: 8, width: 40, height: 40, diffPath: 'd.png'}]},
+      {label: 'gol · Loading · sm · light', wc: 'c.png', react: 'd2.png',
+        parity: [{against: 'react', mismatch: 0, width: 40, height: 40, diffPath: 'd3.png'}]},
+    ],
+  });
+  assert.match(html, /class="schip"/);
+  assert.match(html, /failingByStory/);
+  // nao ha mais soma global de pixels no cabecalho
+  assert.ok(!html.includes("'px de divergência'"));
+  assert.ok(!html.includes('totalDiff'));
+});
