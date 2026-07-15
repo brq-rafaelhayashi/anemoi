@@ -117,7 +117,7 @@ function renderHtml(manifest) {
   .shot { cursor:zoom-in; border:1px solid var(--line); border-radius:6px; background:#fff; display:block; max-width:none; }
   .shot:hover { border-color:var(--accent); }
   td.dark-bg .shot { background:#1c1c22; }
-  .missing { max-width: 150px; font-size:11px; color:var(--bad); border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; }
+  .missing { max-width:150px; font-size:11px; color:var(--bad); border:1px dashed var(--line); border-radius:6px; padding:10px; text-align:center; }
   .pcell { white-space:nowrap; }
   .pill { display:inline-block; font-size:11px; font-weight:700; padding:3px 9px; border-radius:99px; margin:1px 0; }
   .pill.ok { background:var(--okbg); color:var(--ok); }

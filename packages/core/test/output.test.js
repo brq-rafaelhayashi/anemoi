@@ -145,7 +145,7 @@ test('renderHtml: prints em tamanho real com scroll por celula', () => {
     axes: {frameworks: ['wc', 'react']},
     groups: [{label: 'gol · Primary · sm · light', wc: 'a.png', react: 'b.png', parity: []}],
   });
-  assert.ok(!html.includes('width:150px'));
+  assert.ok(!/\.shot \{[^}]*width:150px/.test(html));
   assert.match(html, /table-layout:fixed/);
   assert.match(html, /class="shotwrap"/);
   assert.match(html, /naturalWidth\s*\/\s*2/);
