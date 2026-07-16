@@ -206,7 +206,10 @@ async function runCurrentState(args, cwd) {
           brands,
         },
       },
-      onStage: (s) => { stage = s; },
+      onStage: (s) => {
+        stage = s;
+        if (s === 'parity') console.log('\n⬛ Computando paridade…');
+      },
       onProgress: ({index, total, relPath}) => {
         process.stdout.write(`  [${index}/${total}] ${relPath}\n`);
       },
@@ -215,7 +218,11 @@ async function runCurrentState(args, cwd) {
     console.log(`\n✅ Concluído! ${captures.length} prints em: ${runDir}`);
     console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
   } catch (error) {
-    writeFailureManifest(runDir, {stage, card, component}, error);
+    try {
+      writeFailureManifest(runDir, {stage, card, component}, error);
+    } catch (_manifestError) {
+      // Ignorado: gravar o manifesto de falha e best-effort e nunca pode mascarar o erro original.
+    }
     throw error;
   }
 }
