@@ -86,10 +86,13 @@ function summarizeA11y(groups) {
   let totalViolations = 0;
   let worstImpact = null;
   let ariaMismatches = 0;
+  let collectionErrors = 0;
   for (const g of groups) {
     if (!g.a11y) continue;
     hasData = true;
     for (const audit of Object.values(g.a11y.audits || {})) {
+      // Coleta indisponivel: conta como "sem medicao", nao como limpo.
+      if (audit.error) collectionErrors += 1;
       for (const violation of audit.violations || []) {
         totalViolations += 1;
         if (IMPACT_ORDER.indexOf(violation.impact) > IMPACT_ORDER.indexOf(worstImpact)) {
@@ -100,7 +103,7 @@ function summarizeA11y(groups) {
     ariaMismatches += (g.a11y.ariaParity || []).filter(p => p.match === false).length;
   }
   if (!hasData) return undefined;
-  return {totalViolations, worstImpact, ariaMismatches, ruleset: WCAG_TAGS};
+  return {totalViolations, worstImpact, ariaMismatches, collectionErrors, ruleset: WCAG_TAGS};
 }
 
 module.exports = {computeA11y, hasA11yDivergence, summarizeA11y};

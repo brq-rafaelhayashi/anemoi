@@ -56,6 +56,9 @@ function writeSummary(runDir, manifest) {
       `- Paridade ARIA: ${a.ariaMismatches === 0 ? 'sem divergência' : `${a.ariaMismatches} célula(s) divergente(s)`}`,
       `- Régua: axe-core com tags ${(a.ruleset || []).join(', ')}`,
     );
+    if (a.collectionErrors > 0) {
+      lines.push(`- Coleta: ${a.collectionErrors} célula(s) sem medição`);
+    }
   }
   lines.push(
     '',
@@ -285,12 +288,22 @@ function renderHtml(manifest) {
     as.style.display = '';
     const a = DATA.a11y;
     const bad = a.totalViolations > 0 || a.ariaMismatches > 0;
-    as.className = 'summary ' + (bad ? 'bad' : 'ok');
-    as.textContent = bad
-      ? '✗ a11y: ' + a.totalViolations + ' violação(ões)'
+    // Campo ausente (manifests antigos) = 0, comportamento inalterado.
+    const collErrors = a.collectionErrors || 0;
+    if (bad) {
+      as.className = 'summary bad';
+      as.textContent = '✗ a11y: ' + a.totalViolations + ' violação(ões)'
         + (a.worstImpact ? ' · pior: ' + a.worstImpact : '')
         + (a.ariaMismatches ? ' · ' + a.ariaMismatches + ' ≠aria' : '')
-      : '✓ a11y sem apontamentos';
+        + (collErrors ? ' · ' + collErrors + ' sem medição' : '');
+    } else if (collErrors > 0) {
+      // Sem violacoes mas coleta indisponivel: nunca "sem apontamentos".
+      as.className = 'summary';
+      as.textContent = 'a11y: ' + collErrors + ' célula(s) sem medição';
+    } else {
+      as.className = 'summary ok';
+      as.textContent = '✓ a11y sem apontamentos';
+    }
   }
 
   // Filtros — linhas alinhadas (label + chips)

@@ -96,6 +96,17 @@ test('summarizeA11y agrega totais, pior impacto e mismatches', () => {
   assert.deepEqual(summary.ruleset, ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
 });
 
+test('summarizeA11y conta collectionErrors: com erro de coleta soma; limpo fica 0', () => {
+  const comErro = summarizeA11y([
+    {a11y: {audits: {wc: {violations: [], artifactPath: 'x'}, react: {error: 'axe timeout'}}, ariaParity: []}},
+  ]);
+  assert.equal(comErro.collectionErrors, 1);
+  const limpo = summarizeA11y([
+    {a11y: {audits: {wc: {violations: [], artifactPath: 'x'}, react: {violations: [], artifactPath: 'y'}}, ariaParity: [{against: 'react', match: true}]}},
+  ]);
+  assert.equal(limpo.collectionErrors, 0);
+});
+
 test('summarizeA11y devolve undefined quando nenhum grupo tem a11y', () => {
   assert.equal(summarizeA11y([{label: 'x', parity: []}]), undefined);
   assert.equal(summarizeA11y([]), undefined);

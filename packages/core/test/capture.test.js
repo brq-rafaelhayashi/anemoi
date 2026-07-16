@@ -85,12 +85,14 @@ test('cellRelPath rejeita eixo inseguro antes de compor o output', () => {
 
 // Page fake que responde aos coletores: addScriptTag/evaluate para o axe,
 // locator().ariaSnapshot() para a arvore ARIA.
-function a11yFakePage({axeResults, aria, evaluateError} = {}) {
+function a11yFakePage({axeResults, aria, evaluateError, evaluateThrowRaw} = {}) {
   return {
     setViewportSize: async () => {},
     goto: async () => {},
     addScriptTag: async () => {},
     evaluate: async () => {
+      // evaluateThrowRaw lanca o valor cru (ex.: string) — sem envelope Error.
+      if (evaluateThrowRaw !== undefined) throw evaluateThrowRaw;
       if (evaluateError) throw new Error(evaluateError);
       return axeResults ?? {violations: []};
     },
@@ -156,6 +158,20 @@ test('falha na coleta a11y nao derruba a captura: vira a11y.error', async () => 
     const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {browserType: fakeBrowserType(page)});
     assert.equal(result.relPath, 'react/gol/button--primary/sm/light.png');
     assert.match(result.a11y.error, /axe timeout/);
+    assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.a11y.json')), false);
+    assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.aria.yaml')), false);
+  } finally {
+    fs.rmSync(destDir, {recursive: true, force: true});
+  }
+});
+
+test('coleta que lanca string vira a11y.error string; captura visual segue valida', async () => {
+  const destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-capture-a11y-'));
+  const page = a11yFakePage({evaluateThrowRaw: 'boom-string'});
+  try {
+    const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {browserType: fakeBrowserType(page)});
+    assert.equal(result.relPath, 'react/gol/button--primary/sm/light.png');
+    assert.equal(result.a11y.error, 'boom-string');
     assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.a11y.json')), false);
     assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.aria.yaml')), false);
   } finally {

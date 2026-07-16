@@ -246,6 +246,28 @@ test('writeSummary: renderiza secao de acessibilidade quando presente', () => {
   assert.match(md, /wcag2a, wcag2aa/);
 });
 
+test('writeSummary: coleta indisponivel mostra linha de celulas sem medicao', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-a11y-coll-'));
+  const p = writeSummary(dir, grid({
+    cellCount: 1,
+    runDir: dir,
+    a11y: {totalViolations: 0, worstImpact: null, ariaMismatches: 0, collectionErrors: 2, ruleset: ['wcag2a']},
+  }));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.match(md, /## Acessibilidade/);
+  assert.match(md, /- Coleta: 2 célula\(s\) sem medição/);
+});
+
+test('renderHtml: embute collectionErrors no payload quando presente', () => {
+  const html = renderHtml(grid({
+    cellCount: 1,
+    a11y: {totalViolations: 0, worstImpact: null, ariaMismatches: 0, collectionErrors: 2, ruleset: ['wcag2a']},
+    axes: {frameworks: ['wc', 'react']},
+    groups: [A11Y_GROUP],
+  }));
+  assert.ok(html.includes('"collectionErrors":2'));
+});
+
 test('writeSummary: sem a11y, secao nao aparece', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-noa11y-'));
   const p = writeSummary(dir, grid({cellCount: 1, runDir: dir}));

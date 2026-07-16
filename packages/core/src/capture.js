@@ -44,7 +44,9 @@ async function collectCellA11y(page, selector, destDir, pngRelPath) {
     );
     return {relPath, ariaRelPath, ruleset: audit.ruleset, violations: audit.violations, ariaSnapshot};
   } catch (error) {
-    return {error: error.message};
+    // throw de string produz message undefined; throw de null quebraria dentro
+    // do catch — normaliza para uma string sempre presente.
+    return {error: String(error?.message ?? error)};
   }
 }
 
