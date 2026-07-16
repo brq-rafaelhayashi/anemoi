@@ -172,3 +172,18 @@ test('writeSummary: sem proveniencia, secao nao aparece', () => {
   const md = fs.readFileSync(p, 'utf8');
   assert.ok(!md.includes('Proveniência'));
 });
+
+test('renderHtml: divergencia de dimensao marca badge mesmo com mismatch 0', () => {
+  const html = renderHtml(grid({
+    cellCount: 1,
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{
+      label: 'gol · Primary · sm · light',
+      wc: 'a.png', react: 'b.png',
+      parity: [{against: 'react', mismatch: 0, width: 40, height: 40, sizeMatch: false, diffPath: 'd.png'}],
+    }],
+  }));
+  assert.match(html, /const isBad/);
+  assert.match(html, /≠dim/);
+  assert.ok(html.includes('"sizeMatch":false'));
+});

@@ -188,6 +188,9 @@ function renderHtml(manifest) {
   const CELLS = DATA.cells.map((c) => ({ ...c, ...parse(c.label) }));
   const hasParity = CELLS.some((c) => (c.parity || []).length);
 
+  // Divergente: pixels diferentes OU dimensoes de captura distintas.
+  const isBad = (p) => p.mismatch > 0 || p.sizeMatch === false;
+
   const uniq = (key) => [...new Set(CELLS.map((c) => c[key]))].filter(Boolean);
   const AXES = { story: uniq('story'), theme: uniq('theme'), viewport: uniq('viewport') };
   const state = { story: new Set(AXES.story), theme: new Set(AXES.theme), viewport: new Set(AXES.viewport) };
@@ -197,12 +200,13 @@ function renderHtml(manifest) {
       .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // '✓' | 'Npx' (manifests antigos sem area) | percentual pt-BR ('2,1%', '<0,1%').
+  // '✓' | '≠dim' (so dimensao) | 'Npx' (manifests antigos sem area) | percentual pt-BR, com sufixo ≠dim.
   function fmtParity(p) {
-    if (p.mismatch === 0) return '✓';
-    if (!p.width || !p.height) return p.mismatch + 'px';
+    const dim = p.sizeMatch === false ? ' ≠dim' : '';
+    if (p.mismatch === 0) return dim ? '≠dim' : '✓';
+    if (!p.width || !p.height) return p.mismatch + 'px' + dim;
     const pct = (p.mismatch / (p.width * p.height)) * 100;
-    return pct < 0.1 ? '<0,1%' : pct.toFixed(1).replace('.', ',') + '%';
+    return (pct < 0.1 ? '<0,1%' : pct.toFixed(1).replace('.', ',') + '%') + dim;
   }
 
   // Header
@@ -213,7 +217,7 @@ function renderHtml(manifest) {
   // Stories com ao menos uma celula divergente -> chips clicaveis que filtram a story.
   const failingByStory = new Map();
   for (const c of CELLS) {
-    if ((c.parity || []).some((p) => p.mismatch > 0)) {
+    if ((c.parity || []).some(isBad)) {
       failingByStory.set(c.story, (failingByStory.get(c.story) || 0) + 1);
     }
   }
@@ -266,7 +270,7 @@ function renderHtml(manifest) {
       if (hasParity) {
         const pills = (c.parity || []).length
           ? c.parity.map((p, k) => {
-              const ok = p.mismatch === 0;
+              const ok = !isBad(p);
               const txt = esc(p.against) + ' ' + esc(fmtParity(p));
               if (ok || !p.diffPath) {
                 return '<span class="pill ' + (ok ? 'ok' : 'bad') + '">' + txt + '</span>';
@@ -299,7 +303,7 @@ function renderHtml(manifest) {
   function viewsOf(c) {
     const v = FWS.map((fw) => ({label: fwLabel(fw), src: c[fw]}));
     for (const p of (c.parity || [])) {
-      if (p.diffPath && p.mismatch > 0) v.push({label: 'Diff ' + fwLabel(p.against), src: p.diffPath});
+      if (p.diffPath && isBad(p)) v.push({label: 'Diff ' + fwLabel(p.against), src: p.diffPath});
     }
     return v;
   }
