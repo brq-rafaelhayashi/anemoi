@@ -5,4 +5,5 @@ module.exports = {
   ...require('./capture'),
   ...require('./output'),
   ...require('./manifest'),
+  ...require('./a11y'),
 };
