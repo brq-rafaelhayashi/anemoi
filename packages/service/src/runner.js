@@ -10,7 +10,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {captureCells, writeManifest, writeSummary, renderHtml} = require('@gol-smiles/anemoi-core');
+const {captureCells, buildManifest, writeManifest, writeSummary, renderHtml} = require('@gol-smiles/anemoi-core');
 const {groupByCell} = require('@gol-smiles/anemoi-web/src/parity');
 const {createRunDir} = require('@gol-smiles/anemoi-web/src/run');
 const {writeFailureManifest} = require('@gol-smiles/anemoi-web/src/failure');
@@ -55,13 +55,12 @@ async function executeRun({run, store, cells, state, config, pool}) {
     const totalMismatch = parities.reduce((sum, parity) => sum + parity.mismatch, 0);
     const status = totalMismatch === 0 ? 'passed' : 'failed';
 
-    const manifest = {
+    const manifest = buildManifest({
       tool: 'Anemoi Service',
       status,
       card: run.card,
       component: run.component,
       mode: 'koba-state',
-      layout: 'parity',
       parityLabel: 'Paridade vs react',
       axes: {
         frameworks,
@@ -73,9 +72,8 @@ async function executeRun({run, store, cells, state, config, pool}) {
       cellCount: captures.length,
       groups,
       compareState: state,
-      generatedAt: new Date().toISOString(),
       runDir,
-    };
+    });
     writeManifest(runDir, manifest);
     writeSummary(runDir, manifest);
     fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');

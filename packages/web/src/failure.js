@@ -2,6 +2,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
+const {buildFailureManifest, writeManifest} = require('@gol-smiles/anemoi-core');
 
 function writeFailureManifest(runDir, context, error) {
   const runRoot = path.resolve(runDir);
@@ -23,18 +24,15 @@ function writeFailureManifest(runDir, context, error) {
     fs.writeFileSync(logPath, `${error?.stack || error?.message || String(error)}\n`);
   }
 
-  const manifest = {
-    tool: 'Anemoi Web',
-    status: 'failed',
+  const manifest = buildFailureManifest({
     stage: context.stage,
     card: context.card,
     component: context.component,
-    generatedAt: new Date().toISOString(),
-    runDir,
     error: error?.message || String(error),
     logPath: path.relative(runRoot, logPath),
-  };
-  fs.writeFileSync(path.join(runRoot, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`);
+    runDir,
+  });
+  writeManifest(runRoot, manifest);
   return manifest;
 }
 

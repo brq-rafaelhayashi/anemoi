@@ -10,6 +10,7 @@ const {
   buildMatrix,
   serveStatic,
   captureCells,
+  buildManifest,
   writeManifest,
   writeSummary,
   renderHtml,
@@ -232,13 +233,11 @@ async function runCurrentState(args, cwd) {
 
     // Manifesto
     stage = 'output';
-    const manifest = {
+    const manifest = buildManifest({
       tool: 'Anemoi Web',
-      status: 'passed',
       card,
       component,
       mode: 'current',
-      layout: 'parity',
       axes: {
         frameworks,
         stories: stories.map(s => s.name),
@@ -248,9 +247,8 @@ async function runCurrentState(args, cwd) {
       },
       cellCount: allCaptures.length,
       groups,
-      generatedAt: new Date().toISOString(),
       runDir,
-    };
+    });
 
     writeManifest(runDir, manifest);
     writeSummary(runDir, manifest);

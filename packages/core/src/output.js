@@ -17,15 +17,15 @@ function writeManifest(runDir, manifest) {
 
 function writeSummary(runDir, manifest) {
   const summaryPath = path.join(runDir, 'summary.md');
-  const tool = manifest.tool || 'Anemoi';
-  const axes = manifest.axes || {};
+  const tool = manifest.tool;
+  const axes = manifest.axes;
   const joinAxis = (value) => (Array.isArray(value) && value.length ? value.join(', ') : '(default)');
   const lines = [
     `# ${tool} - ${manifest.component}`,
     '',
     `- Card: ${manifest.card}`,
     `- Modo: ${manifest.mode}`,
-    `- Status: ${manifest.status || 'passed'}`,
+    `- Status: ${manifest.status}`,
     `- Gerado em: ${manifest.generatedAt}`,
     `- Brands: ${joinAxis(axes.brands)}`,
     `- Stories: ${joinAxis(axes.stories)}`,
@@ -53,12 +53,12 @@ function embedJson(value) {
 // Layout "matriz": uma linha por celula visual, uma coluna por framework, com
 // filtros (story/tema/viewport), badges de paridade e lightbox navegavel por teclado.
 function renderHtml(manifest) {
-  const tool = manifest.tool || 'Anemoi';
-  const axes = manifest.axes || {};
+  const tool = manifest.tool;
+  const axes = manifest.axes;
   const frameworks = (axes.frameworks && axes.frameworks.length)
     ? axes.frameworks
     : ['wc', 'react', 'angular'];
-  const groups = manifest.groups || [];
+  const groups = manifest.groups;
 
   // Cada grupo expoe label ("brand · story · viewport · theme") + relPaths por framework + parity[].
   const cells = groups.map((g) => {
@@ -72,10 +72,10 @@ function renderHtml(manifest) {
     component: manifest.component,
     card: manifest.card,
     mode: manifest.mode,
-    status: manifest.status || 'passed',
+    status: manifest.status,
     generatedAt: manifest.generatedAt,
     cellCount: manifest.cellCount,
-    parityLabel: manifest.parityLabel || 'Paridade vs wc',
+    parityLabel: manifest.parityLabel,
     frameworks,
     cells,
   };
