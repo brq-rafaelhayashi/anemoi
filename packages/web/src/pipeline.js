@@ -47,9 +47,7 @@ async function capturePipeline({
 
   onStage('output');
   const parities = groups.flatMap(group => group.parity);
-  const status = statusFromParity && parities.some(parity => parity.mismatch > 0)
-    ? 'failed'
-    : 'passed';
+  const status = statusFromParity && hasParityDivergence(parities) ? 'failed' : 'passed';
   const manifest = buildManifest({
     ...manifestMeta,
     status,
@@ -64,4 +62,10 @@ async function capturePipeline({
   return {manifest, captures, groups};
 }
 
-module.exports = {capturePipeline};
+// Divergencia de paridade: pixels diferentes OU capturas com dimensoes
+// distintas. sizeMatch ausente (parity entries antigos) nao diverge.
+function hasParityDivergence(parities) {
+  return parities.some(parity => parity.mismatch > 0 || parity.sizeMatch === false);
+}
+
+module.exports = {capturePipeline, hasParityDivergence};

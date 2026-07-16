@@ -6,7 +6,7 @@ const os = require('node:os');
 const path = require('node:path');
 const http = require('node:http');
 
-const {capturePipeline} = require('../src/pipeline');
+const {capturePipeline, hasParityDivergence} = require('../src/pipeline');
 
 // Servidor estatico fake: serve `html` para qualquer path (simula um harness servido).
 function serveEvidence(html) {
@@ -132,4 +132,45 @@ test('pipeline: release e chamado mesmo quando a captura falha', async () => {
     );
     assert.deepEqual(released, ['react']);
   });
+});
+
+test('hasParityDivergence: mismatch, sizeMatch e manifests antigos', () => {
+  assert.equal(hasParityDivergence([{mismatch: 0, sizeMatch: true}]), false);
+  assert.equal(hasParityDivergence([{mismatch: 3, sizeMatch: true}]), true);
+  assert.equal(hasParityDivergence([{mismatch: 0, sizeMatch: false}]), true);
+  // Entries antigos sem sizeMatch nao podem divergir pela ausencia do campo.
+  assert.equal(hasParityDivergence([{mismatch: 0}]), false);
+});
+
+// #evidence-root inline-block: o screenshot abraca o conteudo, entao larguras
+// diferentes produzem capturas de tamanhos diferentes.
+const evidenceHtmlSized = (color, width) =>
+  `<!doctype html><html><head><meta charset="utf-8"></head>`
+  + `<body style="margin:0"><div id="evidence-root" style="display:inline-block">`
+  + `<div style="width:${width}px;height:48px;background:${color}"></div></div></body></html>`;
+
+test('pipeline: dimensoes divergentes acusam failed e registram sizeMatch', async () => {
+  const react = await serveEvidence(evidenceHtmlSized('#f60', 120));
+  const angular = await serveEvidence(evidenceHtmlSized('#f60', 140));
+  try {
+    const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-pipeline-'));
+    const {manifest} = await capturePipeline({
+      cells: [cell('react'), cell('angular')],
+      acquireHost: async (framework) => ({
+        host: fakeHost(framework),
+        url: framework === 'react' ? react.url : angular.url,
+      }),
+      runDir,
+      pairs: [{reference: 'react', against: 'angular'}],
+      statusFromParity: true,
+      manifestMeta: meta(),
+    });
+    assert.equal(manifest.status, 'failed');
+    const p = manifest.groups[0].parity[0];
+    assert.equal(p.sizeMatch, false);
+    assert.ok(p.againstSize.width > p.referenceSize.width);
+  } finally {
+    await react.close();
+    await angular.close();
+  }
 });
