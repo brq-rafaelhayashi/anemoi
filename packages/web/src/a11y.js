@@ -21,7 +21,13 @@ function fileBaseOf(ariaRelPath) {
 
 function auditOf(entry) {
   if (entry.error) return {error: entry.error};
-  return {violations: entry.violations, artifactPath: entry.relPath};
+  return {
+    violations: entry.violations,
+    // Itens "incomplete" do axe (nao conseguiu medir). Capturas antigas nao
+    // tem o campo — omitido para nao inventar dado.
+    ...(entry.needsReview !== undefined ? {needsReview: entry.needsReview} : {}),
+    artifactPath: entry.relPath,
+  };
 }
 
 function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
@@ -87,12 +93,16 @@ function summarizeA11y(groups) {
   let worstImpact = null;
   let ariaMismatches = 0;
   let collectionErrors = 0;
+  let needsReview = 0;
   for (const g of groups) {
     if (!g.a11y) continue;
     hasData = true;
     for (const audit of Object.values(g.a11y.audits || {})) {
       // Coleta indisponivel: conta como "sem medicao", nao como limpo.
       if (audit.error) collectionErrors += 1;
+      // Itens que o axe nao conseguiu medir: visibilidade, nao veredito —
+      // needsReview NAO entra em hasA11yDivergence nem no gate --fail-on-a11y.
+      needsReview += (audit.needsReview || []).length;
       for (const violation of audit.violations || []) {
         totalViolations += 1;
         if (IMPACT_ORDER.indexOf(violation.impact) > IMPACT_ORDER.indexOf(worstImpact)) {
@@ -103,7 +113,7 @@ function summarizeA11y(groups) {
     ariaMismatches += (g.a11y.ariaParity || []).filter(p => p.match === false).length;
   }
   if (!hasData) return undefined;
-  return {totalViolations, worstImpact, ariaMismatches, collectionErrors, ruleset: WCAG_TAGS};
+  return {totalViolations, worstImpact, ariaMismatches, collectionErrors, needsReview, ruleset: WCAG_TAGS};
 }
 
 module.exports = {computeA11y, hasA11yDivergence, summarizeA11y};

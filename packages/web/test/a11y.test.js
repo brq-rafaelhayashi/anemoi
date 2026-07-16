@@ -111,3 +111,22 @@ test('summarizeA11y devolve undefined quando nenhum grupo tem a11y', () => {
   assert.equal(summarizeA11y([{label: 'x', parity: []}]), undefined);
   assert.equal(summarizeA11y([]), undefined);
 });
+
+test('auditOf propaga needsReview; summarizeA11y conta; gate nao diverge por needsReview', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a11y-'));
+  const review = [{id: 'color-contrast', impact: 'serious', wcag: ['wcag2aa'], description: 'd', helpUrl: 'https://x', nodes: []}];
+  const [g] = computeA11y([group({wc: entry('wc', {needsReview: review}), react: entry('react', {needsReview: []})})], runDir);
+  assert.deepEqual(g.a11y.audits.wc.needsReview, review);
+  const summary = summarizeA11y([g]);
+  assert.equal(summary.needsReview, 1);
+  assert.equal(summary.totalViolations, 0);
+  // Visibilidade, nao veredito: needsReview sozinho nunca falha o gate.
+  assert.equal(hasA11yDivergence([g]), false);
+});
+
+test('summarizeA11y: capturas antigas sem needsReview contam 0', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a11y-'));
+  const [g] = computeA11y([group({wc: entry('wc')})], runDir);
+  assert.equal('needsReview' in g.a11y.audits.wc, false);
+  assert.equal(summarizeA11y([g]).needsReview, 0);
+});

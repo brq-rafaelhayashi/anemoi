@@ -59,6 +59,9 @@ function writeSummary(runDir, manifest) {
     if (a.collectionErrors > 0) {
       lines.push(`- Coleta: ${a.collectionErrors} célula(s) sem medição`);
     }
+    if (a.needsReview > 0) {
+      lines.push(`- A revisar: ${a.needsReview} item(ns) que o axe não conseguiu medir (não afetam o gate)`);
+    }
   }
   lines.push(
     '',
@@ -167,6 +170,8 @@ function renderHtml(manifest) {
   .a11y-panel .imp.critical, .a11y-panel .imp.serious { color:var(--bad); }
   .a11y-panel .aerr { color:var(--sub); font-style:italic; margin:0; }
   .a11y-panel .aok { color:var(--ok); margin:0; }
+  .a11y-panel h4.review { color:#8a6d1a; }
+  .a11y-panel .review-list li { color:#6b5a20; }
   tr.hidden { display:none; }
   #lb { position:fixed; inset:0; background:rgba(12,12,16,.88); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column; gap:14px; }
   #lb.open { display:flex; }
@@ -218,16 +223,18 @@ function renderHtml(manifest) {
   const hasA11y = CELLS.some((c) => c.a11y);
 
   // Estado a11y da celula: 'bad' (violacao ou ARIA divergente), 'na' (coleta
-  // indisponivel, sem violacao), 'ok' (limpo).
+  // indisponivel ou itens a revisar, sem violacao), 'ok' (limpo).
+  // review = itens "incomplete" do axe: visibilidade, nunca vira 'bad'.
   function a11yState(a) {
     if (!a) return null;
     const audits = Object.values(a.audits || {});
     const violations = audits.reduce((n, x) => n + (x.violations || []).length, 0);
     const ariaBad = (a.ariaParity || []).filter((p) => p.match === false).length;
     const errors = audits.filter((x) => x.error).length;
-    if (violations > 0 || ariaBad > 0) return {kind: 'bad', violations, ariaBad, errors};
-    if (errors > 0) return {kind: 'na', violations, ariaBad, errors};
-    return {kind: 'ok', violations, ariaBad, errors};
+    const review = audits.reduce((n, x) => n + (x.needsReview || []).length, 0);
+    if (violations > 0 || ariaBad > 0) return {kind: 'bad', violations, ariaBad, errors, review};
+    if (errors > 0 || review > 0) return {kind: 'na', violations, ariaBad, errors, review};
+    return {kind: 'ok', violations, ariaBad, errors, review};
   }
 
   // Divergente: pixels diferentes OU dimensoes de captura distintas.
@@ -288,18 +295,23 @@ function renderHtml(manifest) {
     as.style.display = '';
     const a = DATA.a11y;
     const bad = a.totalViolations > 0 || a.ariaMismatches > 0;
-    // Campo ausente (manifests antigos) = 0, comportamento inalterado.
+    // Campos ausentes (manifests antigos) = 0, comportamento inalterado.
     const collErrors = a.collectionErrors || 0;
+    const review = a.needsReview || 0;
     if (bad) {
       as.className = 'summary bad';
       as.textContent = '✗ a11y: ' + a.totalViolations + ' violação(ões)'
         + (a.worstImpact ? ' · pior: ' + a.worstImpact : '')
         + (a.ariaMismatches ? ' · ' + a.ariaMismatches + ' ≠aria' : '')
-        + (collErrors ? ' · ' + collErrors + ' sem medição' : '');
-    } else if (collErrors > 0) {
-      // Sem violacoes mas coleta indisponivel: nunca "sem apontamentos".
+        + (collErrors ? ' · ' + collErrors + ' sem medição' : '')
+        + (review ? ' · ' + review + ' a revisar' : '');
+    } else if (collErrors > 0 || review > 0) {
+      // Sem violacoes mas com lacunas de medicao: nunca "sem apontamentos".
       as.className = 'summary';
-      as.textContent = 'a11y: ' + collErrors + ' célula(s) sem medição';
+      as.textContent = 'a11y: ' + [
+        collErrors ? collErrors + ' célula(s) sem medição' : null,
+        review ? review + ' item(ns) a revisar' : null,
+      ].filter(Boolean).join(' · ');
     } else {
       as.className = 'summary ok';
       as.textContent = '✓ a11y sem apontamentos';
@@ -324,6 +336,16 @@ function renderHtml(manifest) {
 
   const a11yOpen = new Set();
 
+  // Lista <li> de resultados axe (violacoes ou needs-review): regra, impacto,
+  // helpUrl e, por no, o html afetado + failureSummary (cores/ratios computados).
+  function a11yItemsHtml(list) {
+    return (list || []).map((v) =>
+      '<li><strong>' + esc(v.id) + '</strong> <span class="imp ' + esc(v.impact || '') + '">' + esc(v.impact || 'sem impacto') + '</span> — ' +
+      esc(v.description || '') + ' <a href="' + esc(v.helpUrl || '#') + '" target="_blank" rel="noreferrer">regra ↗</a>' +
+      (v.nodes || []).map((n) =>
+        '<pre>' + esc(n.html) + (n.failureSummary ? '\\n\\n' + esc(n.failureSummary) : '') + '</pre>').join('') + '</li>').join('');
+  }
+
   function a11yDetailHtml(c) {
     const a = c.a11y;
     const blocks = [];
@@ -332,13 +354,13 @@ function renderHtml(manifest) {
         blocks.push('<div class="ab"><h4>' + esc(fwLabel(fw)) + '</h4><p class="aerr">Coleta indisponível: ' + esc(audit.error) + '</p></div>');
         continue;
       }
-      const items = (audit.violations || []).map((v) =>
-        '<li><strong>' + esc(v.id) + '</strong> <span class="imp ' + esc(v.impact || '') + '">' + esc(v.impact || 'sem impacto') + '</span> — ' +
-        esc(v.description || '') + ' <a href="' + esc(v.helpUrl || '#') + '" target="_blank" rel="noreferrer">regra ↗</a>' +
-        (v.nodes || []).map((n) => '<pre>' + esc(n.html) + '</pre>').join('') + '</li>').join('');
+      const items = a11yItemsHtml(audit.violations);
+      const review = a11yItemsHtml(audit.needsReview);
       blocks.push('<div class="ab"><h4>' + esc(fwLabel(fw)) +
         (audit.artifactPath ? ' <a href="' + esc(audit.artifactPath) + '" target="_blank">json ↗</a>' : '') + '</h4>' +
-        (items ? '<ul>' + items + '</ul>' : '<p class="aok">Sem violações.</p>') + '</div>');
+        (items ? '<ul>' + items + '</ul>' : '<p class="aok">Sem violações.</p>') +
+        (review ? '<h4 class="review">A revisar (axe não conseguiu medir)</h4><ul class="review-list">' + review + '</ul>' : '') +
+        '</div>');
     }
     const aria = (a.ariaParity || []).map((p) =>
       '<li>' + esc(fwLabel(p.against)) + ': ' + (p.match !== false
@@ -385,6 +407,7 @@ function renderHtml(manifest) {
           if (st.violations) parts.push(st.violations + (st.violations === 1 ? ' violação' : ' violações'));
           if (st.ariaBad) parts.push('≠aria');
           if (st.errors) parts.push('coleta indisponível');
+          if (st.review) parts.push(st.review + ' a revisar');
           acell = '<td class="pcell"><button class="pill ' + (st.kind === 'bad' ? 'bad' : 'na') +
             ' a11y-toggle" data-i="' + i + '" title="detalhar a11y">' + esc(parts.join(' · ')) + '</button></td>';
         }

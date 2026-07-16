@@ -91,3 +91,29 @@ test('barrel do core exporta as primitivas de a11y', () => {
   assert.deepEqual(core.WCAG_TAGS, WCAG_TAGS);
   assert.equal(core.axeCoreVersion, axeCoreVersion);
 });
+
+// Texto sobre gradiente: axe nao consegue determinar o fundo — color-contrast
+// vai para needsReview (incomplete), nunca para violations.
+const GRADIENT_HTML = '<!doctype html><html lang="pt-BR"><head><meta charset="utf-8">'
+  + '<title>fixture</title></head><body><div id="evidence-root">'
+  + '<p style="background-image:linear-gradient(#fff,#777);color:#888">Texto sobre gradiente</p>'
+  + '</div></body></html>';
+
+test('runAxeAudit: contraste indeterminavel vira needsReview, nao violacao', async () => {
+  const audit = await withPage(GRADIENT_HTML, page => runAxeAudit(page, '#evidence-root'));
+  assert.ok(!audit.violations.some(v => v.id === 'color-contrast'));
+  const review = audit.needsReview.find(v => v.id === 'color-contrast');
+  assert.ok(review, `esperava color-contrast em needsReview, veio: ${audit.needsReview.map(v => v.id).join(', ') || '(nenhum)'}`);
+  assert.ok(review.nodes.length >= 1);
+});
+
+test('runAxeAudit: violacao carrega failureSummary com evidencia de triagem', async () => {
+  const audit = await withPage(VIOLATION_HTML, page => runAxeAudit(page, '#evidence-root'));
+  const violation = audit.violations.find(v => v.id === 'button-name');
+  assert.ok(violation.nodes[0].failureSummary.length > 0);
+});
+
+test('normalizeViolations trunca failureSummary em 400 chars', () => {
+  const [v] = normalizeViolations({violations: [{id: 'x', nodes: [{target: ['a'], html: '<a></a>', failureSummary: 'y'.repeat(900)}]}]});
+  assert.equal(v.nodes[0].failureSummary.length, 400);
+});

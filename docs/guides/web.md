@@ -109,6 +109,12 @@ semântica); divergências geram `aria-diff/<par>/<célula>.txt`. Falha na colet
 evidência visual: a célula registra o erro e, com `--fail-on-a11y`, o gate falha — "não consegui
 medir" não é "está acessível".
 
+Cada violação carrega o `failureSummary` do axe (cores e ratios computados, ex.: "contrast of
+2.7") no artefato e na galeria, permitindo triar contraste sem re-rodar a auditoria. Itens que o
+axe não consegue medir (fundo com gradiente/imagem, stacking) aparecem como "a revisar"
+(`needsReview`) no manifesto, na galeria e no summary — são visibilidade, não veredito: não afetam
+o status nem o código de saída do `--fail-on-a11y`.
+
 ## Estrutura do output
 
 Cada run cria:

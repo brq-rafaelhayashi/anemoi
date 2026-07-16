@@ -178,3 +178,21 @@ test('coleta que lanca string vira a11y.error string; captura visual segue valid
     fs.rmSync(destDir, {recursive: true, force: true});
   }
 });
+
+test('captureCells propaga needsReview do axe para resultado e artefato', async () => {
+  const destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-capture-a11y-'));
+  const page = a11yFakePage({
+    axeResults: {violations: [], incomplete: [{id: 'color-contrast', impact: 'serious', tags: ['wcag2aa'], description: 'd', helpUrl: 'https://x', nodes: [{target: ['p'], html: '<p>x</p>', failureSummary: 'needs review'}]}]},
+    aria: '- text',
+  });
+  try {
+    const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {browserType: fakeBrowserType(page)});
+    assert.equal(result.a11y.needsReview[0].id, 'color-contrast');
+    assert.equal(result.a11y.needsReview[0].nodes[0].failureSummary, 'needs review');
+    const artifact = JSON.parse(fs.readFileSync(path.join(destDir, result.a11y.relPath), 'utf8'));
+    assert.equal(artifact.needsReview[0].id, 'color-contrast');
+    assert.deepEqual(artifact.violations, []);
+  } finally {
+    fs.rmSync(destDir, {recursive: true, force: true});
+  }
+});

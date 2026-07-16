@@ -274,3 +274,31 @@ test('writeSummary: sem a11y, secao nao aparece', () => {
   const md = fs.readFileSync(p, 'utf8');
   assert.ok(!md.includes('Acessibilidade'));
 });
+
+test('renderHtml embute needsReview e failureSummary; painel tem secao A revisar', () => {
+  const html = renderHtml(grid({
+    cellCount: 1,
+    a11y: {totalViolations: 0, worstImpact: null, ariaMismatches: 0, collectionErrors: 0, needsReview: 2, ruleset: ['wcag2a']},
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{
+      label: 'gol · Primary · sm · light',
+      wc: 'a.png', react: 'b.png', parity: [],
+      a11y: {audits: {wc: {violations: [], needsReview: [{id: 'color-contrast', impact: 'serious', wcag: ['wcag2aa'], description: 'd', helpUrl: 'https://x', nodes: [{target: 'p', html: '<p>x</p>', failureSummary: 'Fix any of the following: contrast of 2.7'}]}], artifactPath: 'wc.a11y.json'}}, ariaParity: []},
+    }],
+  }));
+  assert.ok(html.includes('"needsReview":2'));
+  assert.ok(html.includes('contrast of 2.7'));
+  assert.match(html, /A revisar \(axe não conseguiu medir\)/);
+});
+
+test('writeSummary: linha A revisar so aparece quando needsReview > 0', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-review-'));
+  const p = writeSummary(dir, grid({cellCount: 1, runDir: dir,
+    a11y: {totalViolations: 0, worstImpact: null, ariaMismatches: 0, collectionErrors: 0, needsReview: 3, ruleset: ['wcag2a']}}));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.match(md, /- A revisar: 3 item\(ns\)/);
+  const dir2 = fs.mkdtempSync(path.join(os.tmpdir(), 'out-review0-'));
+  const md2 = fs.readFileSync(writeSummary(dir2, grid({cellCount: 1, runDir: dir2,
+    a11y: {totalViolations: 0, worstImpact: null, ariaMismatches: 0, collectionErrors: 0, needsReview: 0, ruleset: ['wcag2a']}})), 'utf8');
+  assert.ok(!md2.includes('A revisar'));
+});

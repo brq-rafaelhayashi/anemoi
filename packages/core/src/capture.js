@@ -42,7 +42,14 @@ async function collectCellA11y(page, selector, destDir, pngRelPath) {
       path.join(destDir, ariaRelPath),
       ariaSnapshot.endsWith('\n') ? ariaSnapshot : ariaSnapshot + '\n',
     );
-    return {relPath, ariaRelPath, ruleset: audit.ruleset, violations: audit.violations, ariaSnapshot};
+    return {
+      relPath,
+      ariaRelPath,
+      ruleset: audit.ruleset,
+      violations: audit.violations,
+      needsReview: audit.needsReview,
+      ariaSnapshot,
+    };
   } catch (error) {
     // throw de string produz message undefined; throw de null quebraria dentro
     // do catch — normaliza para uma string sempre presente.
