@@ -10,8 +10,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {captureCells, buildManifest, writeManifest, writeSummary, renderHtml} = require('@gol-smiles/anemoi-core');
-const {groupByCell, computeParity} = require('@gol-smiles/anemoi-web/src/parity');
+const {capturePipeline} = require('@gol-smiles/anemoi-web/src/pipeline');
 const {createRunDir} = require('@gol-smiles/anemoi-web/src/run');
 const {writeFailureManifest} = require('@gol-smiles/anemoi-web/src/failure');
 
@@ -25,62 +24,45 @@ async function executeRun({run, store, cells, state, config, pool}) {
     fs.mkdirSync(runDir, {recursive: true});
     store.patch(run.runId, {runDir});
 
-    stage = 'capture';
-    store.patch(run.runId, {stage});
     const diagnosticsDir = path.join(runDir, 'logs');
-    // Frameworks presentes nas celulas (react, angular), em ordem estavel.
     const frameworks = [...new Set(cells.map(cell => cell.framework))];
-    const captures = [];
-    for (const framework of frameworks) {
-      const cellsForFramework = cells.filter(cell => cell.framework === framework);
-      if (cellsForFramework.length === 0) continue;
-      // O 1o run por framework paga o build do harness (bloqueante); os seguintes reusam.
-      store.patch(run.runId, {stage: `preparando harness ${framework}`});
-      const {host, url} = await pool.acquire(framework, config.dsRepo);
-      const cellsWithDiagnostics = cellsForFramework.map(cell => ({...cell, diagnosticsDir}));
-      const captured = await captureCells(cellsWithDiagnostics, host, url, runDir, {
-        onProgress: (i, total) => store.patch(run.runId, {stage: `capturando ${framework} ${i}/${total}`}),
-      });
-      captures.push(...captured);
-    }
 
-    stage = 'parity';
-    store.patch(run.runId, {stage});
-    const groups = computeParity(groupByCell(captures), runDir, {pairs: [{reference: 'react', against: 'angular'}]});
-
-    stage = 'output';
-    store.patch(run.runId, {stage});
-    const parities = groups.flatMap(group => group.parity);
-    const totalMismatch = parities.reduce((sum, parity) => sum + parity.mismatch, 0);
-    const status = totalMismatch === 0 ? 'passed' : 'failed';
-
-    const manifest = buildManifest({
-      tool: 'Anemoi Service',
-      status,
-      card: run.card,
-      component: run.component,
-      mode: 'koba-state',
-      parityLabel: 'Paridade vs react',
-      axes: {
-        frameworks,
-        stories: [cells[0].storyName],
-        themes: ['light'],
-        viewports: [...new Set(cells.map(cell => cell.viewport))],
-        brands: ['gol'],
+    const {manifest} = await capturePipeline({
+      cells: cells.map(cell => ({...cell, diagnosticsDir})),
+      acquireHost: async (framework) => {
+        // O 1o run por framework paga o build do harness (bloqueante); os seguintes reusam.
+        store.patch(run.runId, {stage: `preparando harness ${framework}`});
+        const {host, url} = await pool.acquire(framework, config.dsRepo);
+        return {host, url};
       },
-      cellCount: captures.length,
-      groups,
-      compareState: state,
       runDir,
+      pairs: [{reference: 'react', against: 'angular'}],
+      statusFromParity: true,
+      manifestMeta: {
+        tool: 'Anemoi Service',
+        card: run.card,
+        component: run.component,
+        mode: 'koba-state',
+        parityLabel: 'Paridade vs react',
+        axes: {
+          frameworks,
+          stories: [cells[0].storyName],
+          themes: ['light'],
+          viewports: [...new Set(cells.map(cell => cell.viewport))],
+          brands: ['gol'],
+        },
+        compareState: state,
+      },
+      onStage: (s) => { stage = s; store.patch(run.runId, {stage: s}); },
+      onProgress: ({framework, index, total}) =>
+        store.patch(run.runId, {stage: `capturando ${framework} ${index}/${total}`}),
     });
-    writeManifest(runDir, manifest);
-    writeSummary(runDir, manifest);
-    fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');
 
-    store.transition(run.runId, status, {
+    const parities = manifest.groups.flatMap(group => group.parity);
+    store.transition(run.runId, manifest.status, {
       stage: null,
       summary: {
-        cells: captures.length,
+        cells: manifest.cellCount,
         mismatches: parities.filter(parity => parity.mismatch > 0).length,
         maxMismatchPx: parities.length ? Math.max(...parities.map(parity => parity.mismatch)) : 0,
       },
