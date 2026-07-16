@@ -2,7 +2,7 @@
 // Config do Anemoi Service — secao "service" do .anemoi.local.json na raiz do anemoi.
 // O checkout do DS reusa o mecanismo de aliases do anemoi-web (repositories/defaultRepository).
 
-const {readLocalConfig, resolveRepository} = require('@gol-smiles/anemoi-web/src/config');
+const {readLocalConfig, resolveRepository} = require('@gol-smiles/anemoi-web');
 
 const DEFAULTS = {port: 9200, kobaBaseUrl: 'http://localhost:9000'};
 

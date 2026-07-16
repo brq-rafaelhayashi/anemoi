@@ -9,7 +9,7 @@ const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
 const {MIME, assertSafePathSegment} = require('@gol-smiles/anemoi-core');
-const {VIEWPORT_WIDTHS} = require('@gol-smiles/anemoi-web/src/brands');
+const {VIEWPORT_WIDTHS} = require('@gol-smiles/anemoi-web');
 const {normalizeCompareState, compareStateToCells} = require('./stateAdapter');
 
 const MAX_BODY_BYTES = 1024 * 1024;

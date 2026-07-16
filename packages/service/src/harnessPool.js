@@ -17,9 +17,7 @@ const os = require('node:os');
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {serveStatic: defaultServeStatic} = require('@gol-smiles/anemoi-core');
-const {makeReactHost} = require('@gol-smiles/anemoi-web/src/hosts/react');
-const {makeAngularHost} = require('@gol-smiles/anemoi-web/src/hosts/angular');
-const {assertCaptureReady} = require('@gol-smiles/anemoi-web/src/doctor');
+const {makeReactHost, makeAngularHost, assertCaptureReady} = require('@gol-smiles/anemoi-web');
 
 const DEFAULT_HOST_FACTORIES = {react: makeReactHost, angular: makeAngularHost};
 

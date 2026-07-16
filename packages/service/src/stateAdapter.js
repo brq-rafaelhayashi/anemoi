@@ -6,7 +6,7 @@
 
 const {createHash} = require('node:crypto');
 const {buildMatrix} = require('@gol-smiles/anemoi-core');
-const {VIEWPORT_WIDTHS} = require('@gol-smiles/anemoi-web/src/brands');
+const {VIEWPORT_WIDTHS} = require('@gol-smiles/anemoi-web');
 
 function stableStringify(value) {
   if (Array.isArray(value)) {

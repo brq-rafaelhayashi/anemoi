@@ -3,7 +3,11 @@
   "version": "0.1.0",
   "private": true,
   "description": "Anemoi Web: evidencias WC, React e Angular do Tangerina Web Core.",
-  "main": "src/cli.js",
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js",
+    "./package.json": "./package.json"
+  },
   "bin": {"anemoi-web": "bin/anemoi-web.js"},
   "files": ["bin", "src", "harness"],
   "scripts": {"test": "node --test"},

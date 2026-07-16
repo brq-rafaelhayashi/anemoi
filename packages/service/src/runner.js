@@ -10,9 +10,7 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {capturePipeline} = require('@gol-smiles/anemoi-web/src/pipeline');
-const {createRunDir} = require('@gol-smiles/anemoi-web/src/run');
-const {writeFailureManifest} = require('@gol-smiles/anemoi-web/src/failure');
+const {capturePipeline, createRunDir, writeFailureManifest} = require('@gol-smiles/anemoi-web');
 
 async function executeRun({run, store, cells, state, config, pool}) {
   let stage = 'run-dir';
