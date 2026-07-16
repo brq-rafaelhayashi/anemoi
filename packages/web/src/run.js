@@ -9,17 +9,12 @@ const {randomUUID} = require('node:crypto');
 const {
   buildMatrix,
   serveStatic,
-  captureCells,
-  buildManifest,
-  writeManifest,
-  writeSummary,
-  renderHtml,
   assertSafePathSegment,
 } = require('@gol-smiles/anemoi-core');
 
 const {VIEWPORT_WIDTHS} = require('./brands');
 const {readIndexJson, filterStoriesForComponent} = require('./stories');
-const {groupByCell, computeParity} = require('./parity');
+const {capturePipeline} = require('./pipeline');
 const {resolveStoryArgs} = require('./storyArgs');
 const {runDoctor, assertCaptureReady} = require('./doctor');
 const {runTangerinaBuilds} = require('./tangerina');
@@ -44,28 +39,6 @@ async function ensureStorybookIndex(wcHost, repo, sbDir, {logPath} = {}) {
     return wcHost.indexDir ? wcHost.indexDir(built) : built;
   }
   return wcHost.indexDir(sbDir);
-}
-
-// Captura o estado atual para um único framework.
-async function captureFramework(host, repo, cells, runDir) {
-  const buildDir = path.join(runDir, 'build', host.framework);
-  console.log(`\n⬛ Buildando harness ${host.framework}…`);
-  const served = host.build(repo, buildDir, {
-    logPath: path.join(runDir, 'logs', `${host.framework}-harness-build.log`),
-  }) || buildDir;
-  console.log(`⬛ Servindo ${host.framework} de: ${served}`);
-  const server = await serveStatic(served);
-  try {
-    console.log(`⬛ Capturando ${cells.length} célula(s) para ${host.framework}…`);
-    const captures = await captureCells(cells, host, server.url, runDir, {
-      onProgress: (i, total, relPath) => {
-        process.stdout.write(`  [${i}/${total}] ${relPath}\n`);
-      },
-    });
-    return captures;
-  } finally {
-    await server.close();
-  }
 }
 
 function createRunDir(repo, card, component, {
@@ -175,86 +148,71 @@ async function runCurrentState(args, cwd) {
     stage = 'story-args';
     const argsById = await resolveStoryArgs(repo, stories);
 
-    // Captura por framework
+    // Captura + paridade + galeria via pipeline compartilhado
     stage = 'capture';
-    const allCaptures = [];
-
     for (const framework of frameworks) {
-      const factory = HOST_FACTORIES[framework];
-      if (!factory) {
+      if (!HOST_FACTORIES[framework]) {
         throw new Error(`Framework desconhecido: "${framework}". Use wc, react ou angular.`);
-      }
-      const host = factory(repo);
-
-      // Monta células injetando component e args por framework
-      let cells = buildMatrix({
-        frameworks: [framework],
-        stories,
-        brands,
-        themes,
-        viewports,
-        viewportWidths: VIEWPORT_WIDTHS,
-      });
-
-      cells = cells.map(c => ({
-        ...c,
-        component,
-        // WC: sem args na URL (usa storyId nativo do Storybook, evita coerção de tipos)
-        // React: cell.args passado como JSON na URL (resolvido pelo CLI — mesma fonte do Angular)
-        // Angular: cell.args é passado como JSON na URL
-        args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
-      }));
-
-      // WC já foi buildado — reutiliza
-      if (framework === 'wc') {
-        const served = indexDir;
-        const server = await serveStatic(served);
-        try {
-          console.log(`\n⬛ Capturando ${cells.length} célula(s) para wc…`);
-          const caps = await captureCells(cells, host, server.url, runDir, {
-            onProgress: (i, total, relPath) => {
-              process.stdout.write(`  [${i}/${total}] ${relPath}\n`);
-            },
-          });
-          allCaptures.push(...caps);
-        } finally {
-          await server.close();
-        }
-      } else {
-        const caps = await captureFramework(host, repo, cells, runDir);
-        allCaptures.push(...caps);
       }
     }
 
-    // Paridade
-    stage = 'parity';
-    console.log('\n⬛ Computando paridade…');
-    const groups = computeParity(groupByCell(allCaptures), runDir);
-
-    // Manifesto
-    stage = 'output';
-    const manifest = buildManifest({
-      tool: 'Anemoi Web',
-      card,
+    const cells = buildMatrix({
+      frameworks,
+      stories,
+      brands,
+      themes,
+      viewports,
+      viewportWidths: VIEWPORT_WIDTHS,
+    }).map(c => ({
+      ...c,
       component,
-      mode: 'current',
-      axes: {
-        frameworks,
-        stories: stories.map(s => s.name),
-        themes,
-        viewports,
-        brands,
-      },
-      cellCount: allCaptures.length,
-      groups,
+      // WC: sem args na URL (usa storyId nativo do Storybook, evita coercao de tipos)
+      // React/Angular: cell.args passado como JSON na URL (resolvido pelo CLI)
+      args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
+    }));
+
+    const acquireHost = async (framework) => {
+      const host = HOST_FACTORIES[framework](repo);
+      let served;
+      if (framework === 'wc') {
+        served = indexDir; // Storybook ja buildado para obter o index.json
+      } else {
+        const buildDir = path.join(runDir, 'build', host.framework);
+        console.log(`\n⬛ Buildando harness ${host.framework}…`);
+        served = host.build(repo, buildDir, {
+          logPath: path.join(runDir, 'logs', `${host.framework}-harness-build.log`),
+        }) || buildDir;
+      }
+      console.log(`⬛ Servindo ${framework} de: ${served}`);
+      const server = await serveStatic(served);
+      console.log(`⬛ Capturando ${cells.filter(c => c.framework === framework).length} célula(s) para ${framework}…`);
+      return {host, url: server.url, release: () => server.close()};
+    };
+
+    const {manifest, captures} = await capturePipeline({
+      cells,
+      acquireHost,
       runDir,
+      manifestMeta: {
+        tool: 'Anemoi Web',
+        card,
+        component,
+        mode: 'current',
+        axes: {
+          frameworks,
+          stories: stories.map(s => s.name),
+          themes,
+          viewports,
+          brands,
+        },
+      },
+      onStage: (s) => { stage = s; },
+      onProgress: ({index, total, relPath}) => {
+        process.stdout.write(`  [${index}/${total}] ${relPath}\n`);
+      },
     });
 
-    writeManifest(runDir, manifest);
-    writeSummary(runDir, manifest);
-    fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');
-
-    console.log(`\n✅ Concluído! ${allCaptures.length} prints em: ${runDir}`);
+    console.log(`\n✅ Concluído! ${captures.length} prints em: ${runDir}`);
     console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
   } catch (error) {
     writeFailureManifest(runDir, {stage, card, component}, error);
