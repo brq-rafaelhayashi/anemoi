@@ -60,6 +60,27 @@ test('buildFailureManifest: falha de execucao sem grade, com diagnostico', () =>
   assert.ok(!('cellCount' in m));
 });
 
+test('buildManifest: provenance entra verbatim quando fornecida', () => {
+  const provenance = {
+    anemoi: {version: '1.0.0', commit: 'abc123'},
+    tangerina: {commit: 'def456'},
+    thresholds: {pixelmatch: 0.1, mismatchTolerance: 0, fit: 'union'},
+  };
+  const m = buildManifest({
+    tool: 'Anemoi Web', card: 'CDCOM-1', component: 'tgr-button',
+    mode: 'current', runDir: '/tmp/run', provenance, now: NOW,
+  });
+  assert.deepEqual(m.provenance, provenance);
+});
+
+test('buildManifest: sem provenance, a chave nao existe', () => {
+  const m = buildManifest({
+    tool: 'Anemoi Web', card: 'CDCOM-1', component: 'tgr-button',
+    mode: 'current', runDir: '/tmp/run', now: NOW,
+  });
+  assert.ok(!('provenance' in m));
+});
+
 test('barrel do core exporta buildManifest e buildFailureManifest', () => {
   const core = require('../src/index');
   assert.equal(typeof core.buildManifest, 'function');

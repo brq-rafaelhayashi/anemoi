@@ -146,3 +146,29 @@ test('renderHtml: prints em tamanho real com scroll por celula', () => {
   assert.match(html, /class="shotwrap"/);
   assert.match(html, /naturalWidth\s*\/\s*2/);
 });
+
+test('writeSummary: renderiza secao de proveniencia quando presente', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-prov-'));
+  const p = writeSummary(dir, grid({
+    cellCount: 1,
+    runDir: dir,
+    provenance: {
+      anemoi: {version: '1.0.0', commit: 'abc123'},
+      tangerina: {commit: 'def456'},
+      environment: {os: 'darwin 25.5.0', node: 'v24.0.0', browser: 'chromium', playwright: '1.48.0'},
+      thresholds: {pixelmatch: 0.1, mismatchTolerance: 0, fit: 'union'},
+    },
+  }));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.match(md, /## Proveniência/);
+  assert.match(md, /abc123/);
+  assert.match(md, /def456/);
+  assert.match(md, /pixelmatch 0\.1/);
+});
+
+test('writeSummary: sem proveniencia, secao nao aparece', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-noprov-'));
+  const p = writeSummary(dir, grid({cellCount: 1, runDir: dir}));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.ok(!md.includes('Proveniência'));
+});

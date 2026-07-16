@@ -24,6 +24,7 @@ function buildManifest({
   cellCount = 0,
   groups = [],
   compareState,
+  provenance,
   runDir,
   now = new Date(),
 }) {
@@ -40,6 +41,7 @@ function buildManifest({
     cellCount,
     groups,
     ...(compareState !== undefined ? {compareState} : {}),
+    ...(provenance !== undefined ? {provenance} : {}),
     generatedAt: now.toISOString(),
     runDir,
   };

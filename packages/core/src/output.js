@@ -32,6 +32,21 @@ function writeSummary(runDir, manifest) {
     `- Viewports: ${joinAxis(axes.viewports)}`,
     `- Themes: ${joinAxis(axes.themes)}`,
     `- Prints: ${manifest.cellCount}`,
+  ];
+  if (manifest.provenance) {
+    const p = manifest.provenance;
+    lines.push(
+      '',
+      '## Proveniência',
+      '',
+      `- Anemoi: ${p.anemoi?.version ?? '?'} (commit ${p.anemoi?.commit ?? 'desconhecido'})`,
+      `- Tangerina: commit ${p.tangerina?.commit ?? 'desconhecido'}`,
+      `- Browser: ${p.environment?.browser ?? '?'} (playwright ${p.environment?.playwright ?? '?'})`,
+      `- SO: ${p.environment?.os ?? '?'} | Node: ${p.environment?.node ?? '?'}`,
+      `- Thresholds: pixelmatch ${p.thresholds?.pixelmatch ?? '?'} | fit ${p.thresholds?.fit ?? '?'} | tolerância de mismatch ${p.thresholds?.mismatchTolerance ?? '?'}`,
+    );
+  }
+  lines.push(
     '',
     '## Saida',
     '',
@@ -40,7 +55,7 @@ function writeSummary(runDir, manifest) {
     '',
     '> Anexe os prints manualmente no card. O motor nunca faz upload no Jira.',
     '',
-  ];
+  );
   fs.writeFileSync(summaryPath, lines.join('\n'));
   return summaryPath;
 }
