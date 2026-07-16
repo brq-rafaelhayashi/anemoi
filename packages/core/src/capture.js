@@ -1,6 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {chromium} = require('playwright');
+const {runAxeAudit, captureAriaSnapshot} = require('./a11y');
 
 function assertSafePathSegment(value, label = 'segment') {
   const segment = String(value ?? '');
@@ -25,8 +26,30 @@ function cellRelPath(cell) {
   return path.join(framework, brand, storyId, viewport, `${theme}.png`);
 }
 
+// Coleta axe + snapshot ARIA na mesma page da captura, gravando os artefatos
+// irmaos do png (<theme>.a11y.json e <theme>.aria.yaml). Nunca lanca: falha na
+// coleta vira {error} — o screenshot ja gravado permanece valido e nenhum
+// artefato parcial fica em disco.
+async function collectCellA11y(page, selector, destDir, pngRelPath) {
+  const base = pngRelPath.replace(/\.png$/, '');
+  const relPath = `${base}.a11y.json`;
+  const ariaRelPath = `${base}.aria.yaml`;
+  try {
+    const audit = await runAxeAudit(page, selector);
+    const ariaSnapshot = await captureAriaSnapshot(page, selector);
+    fs.writeFileSync(path.join(destDir, relPath), JSON.stringify(audit, null, 2) + '\n');
+    fs.writeFileSync(
+      path.join(destDir, ariaRelPath),
+      ariaSnapshot.endsWith('\n') ? ariaSnapshot : ariaSnapshot + '\n',
+    );
+    return {relPath, ariaRelPath, ruleset: audit.ruleset, violations: audit.violations, ariaSnapshot};
+  } catch (error) {
+    return {error: error.message};
+  }
+}
+
 // host: { urlFor(cell, baseUrl), selectorFor(cell), verify?(page, cell) }
-async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserType = chromium} = {}) {
+async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserType = chromium, collectA11y = true} = {}) {
   const browser = await browserType.launch();
   let context;
   const results = [];
@@ -47,7 +70,11 @@ async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserT
           path: outPath,
           animations: 'disabled',
         });
-        results.push({...cell, relPath});
+        const result = {...cell, relPath};
+        if (collectA11y) {
+          result.a11y = await collectCellA11y(page, host.selectorFor(cell), destDir, relPath);
+        }
+        results.push(result);
         if (onProgress) onProgress(i + 1, cells.length, relPath);
       } finally {
         await page.close();

@@ -80,3 +80,85 @@ test('cellRelPath rejeita eixo inseguro antes de compor o output', () => {
     /storyId/,
   );
 });
+
+// --- coleta a11y na visita da captura ---
+
+// Page fake que responde aos coletores: addScriptTag/evaluate para o axe,
+// locator().ariaSnapshot() para a arvore ARIA.
+function a11yFakePage({axeResults, aria, evaluateError} = {}) {
+  return {
+    setViewportSize: async () => {},
+    goto: async () => {},
+    addScriptTag: async () => {},
+    evaluate: async () => {
+      if (evaluateError) throw new Error(evaluateError);
+      return axeResults ?? {violations: []};
+    },
+    locator: () => ({
+      screenshot: async () => {},
+      ariaSnapshot: async () => aria ?? '- button "Salvar"',
+    }),
+    close: async () => {},
+  };
+}
+
+function fakeBrowserType(page) {
+  const context = {newPage: async () => page, close: async () => {}};
+  const browser = {newContext: async () => context, close: async () => {}};
+  return {launch: async () => browser};
+}
+
+const A11Y_HOST = {urlFor: () => 'http://example.test', selectorFor: () => '#evidence-root'};
+const A11Y_CELL = {
+  framework: 'react', brand: 'gol', storyId: 'button--primary', storyName: 'Primary',
+  viewport: 'sm', theme: 'light', width: 360,
+};
+
+test('captureCells coleta axe + aria e grava artefatos ao lado do png', async () => {
+  const destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-capture-a11y-'));
+  const page = a11yFakePage({
+    axeResults: {violations: [{id: 'button-name', impact: 'critical', tags: ['wcag2a'], description: 'd', helpUrl: 'https://x', nodes: [{target: ['button'], html: '<button></button>'}]}]},
+    aria: '- button',
+  });
+  try {
+    const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {browserType: fakeBrowserType(page)});
+    assert.equal(result.a11y.relPath, 'react/gol/button--primary/sm/light.a11y.json');
+    assert.equal(result.a11y.ariaRelPath, 'react/gol/button--primary/sm/light.aria.yaml');
+    assert.equal(result.a11y.violations[0].id, 'button-name');
+    assert.equal(result.a11y.ariaSnapshot, '- button');
+    const artifact = JSON.parse(fs.readFileSync(path.join(destDir, result.a11y.relPath), 'utf8'));
+    assert.equal(artifact.violations[0].id, 'button-name');
+    assert.deepEqual(artifact.ruleset, ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
+    assert.equal(fs.readFileSync(path.join(destDir, result.a11y.ariaRelPath), 'utf8'), '- button\n');
+  } finally {
+    fs.rmSync(destDir, {recursive: true, force: true});
+  }
+});
+
+test('captureCells com collectA11y=false nao coleta nem grava artefatos', async () => {
+  const destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-capture-a11y-'));
+  try {
+    const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {
+      browserType: fakeBrowserType(a11yFakePage()),
+      collectA11y: false,
+    });
+    assert.equal('a11y' in result, false);
+    assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.a11y.json')), false);
+  } finally {
+    fs.rmSync(destDir, {recursive: true, force: true});
+  }
+});
+
+test('falha na coleta a11y nao derruba a captura: vira a11y.error', async () => {
+  const destDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-capture-a11y-'));
+  const page = a11yFakePage({evaluateError: 'axe timeout'});
+  try {
+    const [result] = await captureCells([A11Y_CELL], A11Y_HOST, 'http://example.test', destDir, {browserType: fakeBrowserType(page)});
+    assert.equal(result.relPath, 'react/gol/button--primary/sm/light.png');
+    assert.match(result.a11y.error, /axe timeout/);
+    assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.a11y.json')), false);
+    assert.equal(fs.existsSync(path.join(destDir, 'react/gol/button--primary/sm/light.aria.yaml')), false);
+  } finally {
+    fs.rmSync(destDir, {recursive: true, force: true});
+  }
+});
