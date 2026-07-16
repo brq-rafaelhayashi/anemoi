@@ -46,6 +46,17 @@ function writeSummary(runDir, manifest) {
       `- Thresholds: pixelmatch ${p.thresholds?.pixelmatch ?? '?'} | fit ${p.thresholds?.fit ?? '?'} | tolerância de mismatch ${p.thresholds?.mismatchTolerance ?? '?'}`,
     );
   }
+  if (manifest.a11y) {
+    const a = manifest.a11y;
+    lines.push(
+      '',
+      '## Acessibilidade',
+      '',
+      `- Violações WCAG: ${a.totalViolations}${a.worstImpact ? ` (pior impacto: ${a.worstImpact})` : ''}`,
+      `- Paridade ARIA: ${a.ariaMismatches === 0 ? 'sem divergência' : `${a.ariaMismatches} célula(s) divergente(s)`}`,
+      `- Régua: axe-core com tags ${(a.ruleset || []).join(', ')}`,
+    );
+  }
   lines.push(
     '',
     '## Saida',
@@ -75,9 +86,9 @@ function renderHtml(manifest) {
     : ['wc', 'react', 'angular'];
   const groups = manifest.groups;
 
-  // Cada grupo expoe label ("brand · story · viewport · theme") + relPaths por framework + parity[].
+  // Cada grupo expoe label ("brand · story · viewport · theme") + relPaths por framework + parity[] + a11y.
   const cells = groups.map((g) => {
-    const cell = {label: g.label, parity: g.parity || []};
+    const cell = {label: g.label, parity: g.parity || [], a11y: g.a11y || null};
     for (const fw of frameworks) cell[fw] = g[fw] || null;
     return cell;
   });
@@ -91,6 +102,7 @@ function renderHtml(manifest) {
     generatedAt: manifest.generatedAt,
     cellCount: manifest.cellCount,
     parityLabel: manifest.parityLabel,
+    a11y: manifest.a11y || null,
     frameworks,
     cells,
   };
@@ -140,6 +152,18 @@ function renderHtml(manifest) {
   .pill.na { background:var(--soft); color:var(--sub); }
   button.pill { border:0; cursor:pointer; font-family:inherit; }
   button.pill:hover { text-decoration:underline; }
+  .masthead .summary + .summary { margin-left:8px; }
+  tr.a11y-detail td { background:var(--soft); padding:14px 20px; }
+  .a11y-panel { display:flex; flex-wrap:wrap; gap:20px; font-size:13px; }
+  .a11y-panel .ab { min-width:260px; max-width:460px; }
+  .a11y-panel h4 { margin:0 0 6px; font-size:12px; text-transform:uppercase; letter-spacing:.06em; color:var(--sub); }
+  .a11y-panel ul { margin:0; padding-left:18px; }
+  .a11y-panel li { margin-bottom:8px; }
+  .a11y-panel pre { margin:4px 0 0; padding:6px 8px; background:#fff; border:1px solid var(--line); border-radius:6px; font-size:11px; overflow-x:auto; white-space:pre-wrap; word-break:break-all; }
+  .a11y-panel .imp { font-weight:700; }
+  .a11y-panel .imp.critical, .a11y-panel .imp.serious { color:var(--bad); }
+  .a11y-panel .aerr { color:var(--sub); font-style:italic; margin:0; }
+  .a11y-panel .aok { color:var(--ok); margin:0; }
   tr.hidden { display:none; }
   #lb { position:fixed; inset:0; background:rgba(12,12,16,.88); display:none; align-items:center; justify-content:center; z-index:100; flex-direction:column; gap:14px; }
   #lb.open { display:flex; }
@@ -156,6 +180,7 @@ function renderHtml(manifest) {
   <div class="crumb" id="crumb"></div>
   <h1 id="title"></h1>
   <span class="summary" id="paritySummary"></span>
+  <span class="summary" id="a11ySummary" style="display:none"></span>
 </header>
 <section class="filters" id="filters"></section>
 <table>
@@ -187,6 +212,20 @@ function renderHtml(manifest) {
   }
   const CELLS = DATA.cells.map((c) => ({ ...c, ...parse(c.label) }));
   const hasParity = CELLS.some((c) => (c.parity || []).length);
+  const hasA11y = CELLS.some((c) => c.a11y);
+
+  // Estado a11y da celula: 'bad' (violacao ou ARIA divergente), 'na' (coleta
+  // indisponivel, sem violacao), 'ok' (limpo).
+  function a11yState(a) {
+    if (!a) return null;
+    const audits = Object.values(a.audits || {});
+    const violations = audits.reduce((n, x) => n + (x.violations || []).length, 0);
+    const ariaBad = (a.ariaParity || []).filter((p) => p.match === false).length;
+    const errors = audits.filter((x) => x.error).length;
+    if (violations > 0 || ariaBad > 0) return {kind: 'bad', violations, ariaBad, errors};
+    if (errors > 0) return {kind: 'na', violations, ariaBad, errors};
+    return {kind: 'ok', violations, ariaBad, errors};
+  }
 
   // Divergente: pixels diferentes OU dimensoes de captura distintas.
   const isBad = (p) => p.mismatch > 0 || p.sizeMatch === false;
@@ -241,6 +280,19 @@ function renderHtml(manifest) {
     render();
   });
 
+  const as = document.getElementById('a11ySummary');
+  if (DATA.a11y) {
+    as.style.display = '';
+    const a = DATA.a11y;
+    const bad = a.totalViolations > 0 || a.ariaMismatches > 0;
+    as.className = 'summary ' + (bad ? 'bad' : 'ok');
+    as.textContent = bad
+      ? '✗ a11y: ' + a.totalViolations + ' violação(ões)'
+        + (a.worstImpact ? ' · pior: ' + a.worstImpact : '')
+        + (a.ariaMismatches ? ' · ' + a.ariaMismatches + ' ≠aria' : '')
+      : '✓ a11y sem apontamentos';
+  }
+
   // Filtros — linhas alinhadas (label + chips)
   document.getElementById('filters').innerHTML = ['story', 'theme', 'viewport']
     .filter((f) => AXES[f].length)
@@ -254,7 +306,34 @@ function renderHtml(manifest) {
   document.getElementById('head').innerHTML =
     '<th style="width:180px">Célula</th>' +
     FWS.map((fw) => '<th>' + fwLabel(fw) + '</th>').join('') +
-    (hasParity ? '<th style="width:160px">' + esc(DATA.parityLabel) + '</th>' : '');
+    (hasParity ? '<th style="width:160px">' + esc(DATA.parityLabel) + '</th>' : '') +
+    (hasA11y ? '<th style="width:170px">A11y (WCAG A/AA)</th>' : '');
+
+  const a11yOpen = new Set();
+
+  function a11yDetailHtml(c) {
+    const a = c.a11y;
+    const blocks = [];
+    for (const [fw, audit] of Object.entries(a.audits || {})) {
+      if (audit.error) {
+        blocks.push('<div class="ab"><h4>' + esc(fwLabel(fw)) + '</h4><p class="aerr">Coleta indisponível: ' + esc(audit.error) + '</p></div>');
+        continue;
+      }
+      const items = (audit.violations || []).map((v) =>
+        '<li><strong>' + esc(v.id) + '</strong> <span class="imp ' + esc(v.impact || '') + '">' + esc(v.impact || 'sem impacto') + '</span> — ' +
+        esc(v.description || '') + ' <a href="' + esc(v.helpUrl || '#') + '" target="_blank" rel="noreferrer">regra ↗</a>' +
+        (v.nodes || []).map((n) => '<pre>' + esc(n.html) + '</pre>').join('') + '</li>').join('');
+      blocks.push('<div class="ab"><h4>' + esc(fwLabel(fw)) +
+        (audit.artifactPath ? ' <a href="' + esc(audit.artifactPath) + '" target="_blank">json ↗</a>' : '') + '</h4>' +
+        (items ? '<ul>' + items + '</ul>' : '<p class="aok">Sem violações.</p>') + '</div>');
+    }
+    const aria = (a.ariaParity || []).map((p) =>
+      '<li>' + esc(fwLabel(p.against)) + ': ' + (p.match !== false
+        ? '✓ árvore ARIA idêntica ao baseline'
+        : '✗ árvore ARIA divergente' + (p.diffPath ? ' — <a href="' + esc(p.diffPath) + '" target="_blank">ver diff ↗</a>' : '')) + '</li>').join('');
+    return '<div class="a11y-panel">' + blocks.join('') +
+      (aria ? '<div class="ab"><h4>Paridade ARIA</h4><ul>' + aria + '</ul></div>' : '') + '</div>';
+  }
 
   function render() {
     document.getElementById('rows').innerHTML = CELLS.map((c, i) => {
@@ -281,10 +360,30 @@ function renderHtml(manifest) {
           : '<span class="pill na">—</span>';
         pcell = '<td class="pcell">' + pills + '</td>';
       }
+      let acell = '';
+      if (hasA11y) {
+        const st = a11yState(c.a11y);
+        if (!st) {
+          acell = '<td class="pcell"><span class="pill na">—</span></td>';
+        } else if (st.kind === 'ok') {
+          acell = '<td class="pcell"><span class="pill ok">✓ a11y</span></td>';
+        } else {
+          const parts = [];
+          if (st.violations) parts.push(st.violations + (st.violations === 1 ? ' violação' : ' violações'));
+          if (st.ariaBad) parts.push('≠aria');
+          if (st.errors) parts.push('coleta indisponível');
+          acell = '<td class="pcell"><button class="pill ' + (st.kind === 'bad' ? 'bad' : 'na') +
+            ' a11y-toggle" data-i="' + i + '" title="detalhar a11y">' + esc(parts.join(' · ')) + '</button></td>';
+        }
+      }
+      const cols = 1 + FWS.length + (hasParity ? 1 : 0) + (hasA11y ? 1 : 0);
+      const detail = (hasA11y && a11yOpen.has(i) && c.a11y)
+        ? '<tr class="a11y-detail' + (hide ? ' hidden' : '') + '"><td colspan="' + cols + '">' + a11yDetailHtml(c) + '</td></tr>'
+        : '';
       return '<tr class="' + (hide ? 'hidden' : '') + '">' +
         '<td class="id"><div class="story">' + esc(c.story) + '</div><div class="dims">' +
         esc([c.viewport, c.theme].filter(Boolean).join(' · ')) + '</div></td>' +
-        tds + pcell + '</tr>';
+        tds + pcell + acell + '</tr>' + detail;
     }).join('');
   }
 
@@ -326,6 +425,12 @@ function renderHtml(manifest) {
       const p = CELLS[i].parity[Number(b.dataset.k)];
       const idx = viewsOf(CELLS[i]).findIndex((v) => v.label === 'Diff ' + fwLabel(p.against));
       openLb(i, Math.max(0, idx));
+    }
+    const t = e.target.closest('button.pill.a11y-toggle');
+    if (t) {
+      const idx = Number(t.dataset.i);
+      a11yOpen.has(idx) ? a11yOpen.delete(idx) : a11yOpen.add(idx);
+      render();
     }
   });
   document.getElementById('lbNav').addEventListener('click', (e) => {

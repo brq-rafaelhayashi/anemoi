@@ -187,3 +187,68 @@ test('renderHtml: divergencia de dimensao marca badge mesmo com mismatch 0', () 
   assert.match(html, /≠dim/);
   assert.ok(html.includes('"sizeMatch":false'));
 });
+
+const A11Y_GROUP = {
+  label: 'gol · Primary · sm · light',
+  wc: 'wc/gol/Primary/sm/light.png',
+  react: 'react/gol/Primary/sm/light.png',
+  parity: [{against: 'react', mismatch: 0, width: 40, height: 40, sizeMatch: true}],
+  a11y: {
+    audits: {
+      wc: {violations: [{id: 'button-name', impact: 'critical', wcag: ['wcag2a'], description: 'Botao sem nome', helpUrl: 'https://dequeuniversity.com/rules/axe/button-name', nodes: [{target: 'button', html: '<button></button>'}]}], artifactPath: 'wc/gol/Primary/sm/light.a11y.json'},
+      react: {error: 'axe timeout'},
+    },
+    ariaParity: [{against: 'react', match: false, diffPath: 'aria-diff/react-vs-wc/gol-Primary-sm-light.txt'}],
+  },
+};
+
+test('renderHtml embute o bloco a11y por celula e o agregado no payload', () => {
+  const html = renderHtml(grid({
+    cellCount: 1,
+    a11y: {totalViolations: 1, worstImpact: 'critical', ariaMismatches: 1, ruleset: ['wcag2a']},
+    axes: {frameworks: ['wc', 'react']},
+    groups: [A11Y_GROUP],
+  }));
+  assert.ok(html.includes('"a11y":{"audits"'));
+  assert.ok(html.includes('"button-name"'));
+  assert.ok(html.includes('"error":"axe timeout"'));
+  assert.ok(html.includes('"totalViolations":1'));
+  assert.match(html, /A11y \(WCAG A\/AA\)/);
+  assert.match(html, /function a11yState/);
+  assert.match(html, /function a11yDetailHtml/);
+  assert.match(html, /a11ySummary/);
+  assert.match(html, /aria-diff\/react-vs-wc\/gol-Primary-sm-light\.txt/);
+});
+
+test('renderHtml sem a11y (manifesto antigo) nao rende coluna nem chip a11y', () => {
+  const html = renderHtml(grid({
+    cellCount: 1,
+    axes: {frameworks: ['wc', 'react']},
+    groups: [{label: 'gol · Primary · sm · light', wc: 'a.png', react: 'b.png', parity: []}],
+  }));
+  assert.ok(html.includes('"a11y":null'));
+  // A coluna so aparece quando alguma celula tem a11y (hasA11y em runtime);
+  // o payload sem dados garante isso.
+  assert.ok(!html.includes('"audits"'));
+});
+
+test('writeSummary: renderiza secao de acessibilidade quando presente', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-a11y-'));
+  const p = writeSummary(dir, grid({
+    cellCount: 1,
+    runDir: dir,
+    a11y: {totalViolations: 3, worstImpact: 'serious', ariaMismatches: 1, ruleset: ['wcag2a', 'wcag2aa']},
+  }));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.match(md, /## Acessibilidade/);
+  assert.match(md, /Violações WCAG: 3 \(pior impacto: serious\)/);
+  assert.match(md, /1 célula\(s\) divergente\(s\)/);
+  assert.match(md, /wcag2a, wcag2aa/);
+});
+
+test('writeSummary: sem a11y, secao nao aparece', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'out-noa11y-'));
+  const p = writeSummary(dir, grid({cellCount: 1, runDir: dir}));
+  const md = fs.readFileSync(p, 'utf8');
+  assert.ok(!md.includes('Acessibilidade'));
+});
