@@ -14,7 +14,12 @@ function groupByCell(captures) {
     if (!map.has(k)) {
       map.set(k, {label: `${c.brand} · ${c.storyName} · ${c.viewport} · ${c.theme}`, _cell: c});
     }
-    map.get(k)[c.framework] = c.relPath;
+    const group = map.get(k);
+    group[c.framework] = c.relPath;
+    if (c.a11y) {
+      group._a11y = group._a11y || {};
+      group._a11y[c.framework] = c.a11y;
+    }
   }
   return [...map.values()];
 }
@@ -61,4 +66,4 @@ function ensureDir(p) {
   return p;
 }
 
-module.exports = {groupByCell, computeParity};
+module.exports = {groupByCell, computeParity, DEFAULT_PAIRS};

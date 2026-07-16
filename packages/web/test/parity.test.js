@@ -124,3 +124,21 @@ test('computeParity: tamanhos iguais => sizeMatch true', () => {
   assert.equal(g.parity[0].sizeMatch, true);
   assert.equal(g.parity[0].mismatch, 0);
 });
+
+test('groupByCell propaga a11y das capturas por framework em _a11y', () => {
+  const base = {brand: 'gol', storyId: 'button--primary', storyName: 'Primary', viewport: 'sm', theme: 'light'};
+  const groups = groupByCell([
+    {...base, framework: 'wc', relPath: 'wc.png', a11y: {relPath: 'wc.a11y.json', violations: []}},
+    {...base, framework: 'react', relPath: 'react.png', a11y: {error: 'axe timeout'}},
+  ]);
+  assert.equal(groups.length, 1);
+  assert.equal(groups[0]._a11y.wc.relPath, 'wc.a11y.json');
+  assert.equal(groups[0]._a11y.react.error, 'axe timeout');
+});
+
+test('groupByCell sem a11y nas capturas nao cria _a11y', () => {
+  const groups = groupByCell([
+    {framework: 'wc', brand: 'gol', storyId: 'b--p', storyName: 'P', viewport: 'sm', theme: 'light', relPath: 'wc.png'},
+  ]);
+  assert.equal('_a11y' in groups[0], false);
+});
