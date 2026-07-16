@@ -4,4 +4,5 @@ module.exports = {
   ...require('./matrix'),
   ...require('./capture'),
   ...require('./output'),
+  ...require('./manifest'),
 };
