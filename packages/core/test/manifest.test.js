@@ -81,6 +81,14 @@ test('buildManifest: sem provenance, a chave nao existe', () => {
   assert.ok(!('provenance' in m));
 });
 
+test('buildManifest carrega agregado a11y quando fornecido, omite quando ausente', () => {
+  const base = {tool: 'Anemoi Web', card: 'C-1', component: 'tgr-x', mode: 'current', runDir: '/tmp/r'};
+  const withA11y = buildManifest({...base, a11y: {totalViolations: 2, worstImpact: 'serious', ariaMismatches: 1, ruleset: ['wcag2a']}});
+  assert.equal(withA11y.a11y.totalViolations, 2);
+  const without = buildManifest(base);
+  assert.equal('a11y' in without, false);
+});
+
 test('barrel do core exporta buildManifest e buildFailureManifest', () => {
   const core = require('../src/index');
   assert.equal(typeof core.buildManifest, 'function');

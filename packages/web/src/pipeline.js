@@ -1,5 +1,5 @@
 'use strict';
-// Nucleo compartilhado do run: captura -> paridade -> manifesto/galeria.
+// Nucleo compartilhado do run: captura -> paridade -> a11y -> manifesto/galeria.
 // CLI (run.js) e service (runner.js) sao callers finos por cima deste modulo:
 // fornecem as celulas prontas e um acquireHost(framework) -> {host, url, release?}.
 // Erros propagam para o caller (que decide entre process.exit e run store).
@@ -14,6 +14,7 @@ const {
   renderHtml,
 } = require('@gol-smiles/anemoi-core');
 const {groupByCell, computeParity} = require('./parity');
+const {computeA11y, hasA11yDivergence, summarizeA11y} = require('./a11y');
 
 async function capturePipeline({
   cells,
@@ -22,6 +23,8 @@ async function capturePipeline({
   pairs,
   manifestMeta,
   statusFromParity = false,
+  statusFromA11y = false,
+  collectA11y = true,
   onStage = () => {},
   onProgress = () => {},
 }) {
@@ -34,6 +37,7 @@ async function capturePipeline({
     const {host, url, release} = await acquireHost(framework);
     try {
       const captured = await captureCells(cellsForFramework, host, url, runDir, {
+        collectA11y,
         onProgress: (index, total, relPath) => onProgress({framework, index, total, relPath}),
       });
       captures.push(...captured);
@@ -43,23 +47,31 @@ async function capturePipeline({
   }
 
   onStage('parity');
-  const groups = computeParity(groupByCell(captures), runDir, pairs ? {pairs} : {});
+  const withParity = computeParity(groupByCell(captures), runDir, pairs ? {pairs} : {});
+
+  onStage('a11y');
+  const groups = computeA11y(withParity, runDir, pairs ? {pairs} : {});
 
   onStage('output');
   const parities = groups.flatMap(group => group.parity);
-  const status = statusFromParity && hasParityDivergence(parities) ? 'failed' : 'passed';
+  const parityDiverged = hasParityDivergence(parities);
+  const a11yDiverged = hasA11yDivergence(groups);
+  const status = (statusFromParity && parityDiverged) || (statusFromA11y && a11yDiverged)
+    ? 'failed'
+    : 'passed';
   const manifest = buildManifest({
     ...manifestMeta,
     status,
     cellCount: captures.length,
     groups,
+    a11y: summarizeA11y(groups),
     runDir,
   });
   writeManifest(runDir, manifest);
   writeSummary(runDir, manifest);
   fs.writeFileSync(path.join(runDir, 'index.html'), renderHtml(manifest), 'utf8');
 
-  return {manifest, captures, groups};
+  return {manifest, captures, groups, parityDiverged, a11yDiverged};
 }
 
 // Divergencia de paridade: pixels diferentes OU capturas com dimensoes

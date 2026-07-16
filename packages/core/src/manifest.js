@@ -25,6 +25,7 @@ function buildManifest({
   groups = [],
   compareState,
   provenance,
+  a11y,
   runDir,
   now = new Date(),
 }) {
@@ -42,6 +43,7 @@ function buildManifest({
     groups,
     ...(compareState !== undefined ? {compareState} : {}),
     ...(provenance !== undefined ? {provenance} : {}),
+    ...(a11y !== undefined ? {a11y} : {}),
     generatedAt: now.toISOString(),
     runDir,
   };

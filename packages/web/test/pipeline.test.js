@@ -86,7 +86,7 @@ test('pipeline: captura por framework, paridade e bundle completo', async () => 
       onStage: (s) => stages.push(s),
     });
 
-    assert.deepEqual(stages, ['capture', 'parity', 'output']);
+    assert.deepEqual(stages, ['capture', 'parity', 'a11y', 'output']);
     assert.deepEqual(released, ['react', 'angular']);
     assert.equal(captures.length, 2);
     assert.equal(manifest.status, 'passed');
@@ -173,4 +173,97 @@ test('pipeline: dimensoes divergentes acusam failed e registram sizeMatch', asyn
     await react.close();
     await angular.close();
   }
+});
+
+// --- estagio a11y ---
+
+// Botao sem nome acessivel (violacao button-name) vs botao com nome:
+// alem da violacao, as arvores ARIA divergem entre os dois servers.
+const evidenceHtmlButton = (label) =>
+  `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>f</title></head>`
+  + `<body style="margin:0"><div id="evidence-root">`
+  + `<button style="color:#000;background:#fff;border:1px solid #000">${label}</button></div></body></html>`;
+
+test('pipeline: coleta a11y por padrao; sem gate, divergencia so aparece no relatorio', async () => {
+  const react = await serveEvidence(evidenceHtmlButton(''));         // violacao button-name
+  const angular = await serveEvidence(evidenceHtmlButton('Salvar')); // limpo, aria diferente
+  try {
+    const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-pipeline-a11y-'));
+    // Sem statusFromParity nem statusFromA11y: nenhuma divergencia muda o status.
+    const {manifest, a11yDiverged, parityDiverged} = await capturePipeline({
+      cells: [cell('react'), cell('angular')],
+      acquireHost: async (framework) => ({
+        host: fakeHost(framework),
+        url: framework === 'react' ? react.url : angular.url,
+      }),
+      runDir,
+      pairs: [{reference: 'react', against: 'angular'}],
+      manifestMeta: meta(),
+    });
+    assert.equal(a11yDiverged, true);
+    assert.equal(parityDiverged, true); // textos diferentes divergem em pixels tambem
+    assert.equal(manifest.status, 'passed'); // gates desligados: so relatorio
+    const {audits, ariaParity} = manifest.groups[0].a11y;
+    assert.ok(audits.react.violations.some(v => v.id === 'button-name'));
+    assert.deepEqual(audits.angular.violations, []);
+    assert.equal(ariaParity[0].against, 'angular');
+    assert.equal(ariaParity[0].match, false);
+    assert.ok(fs.existsSync(path.join(runDir, ariaParity[0].diffPath)));
+    assert.ok(fs.existsSync(path.join(runDir, audits.react.artifactPath)));
+    assert.ok(fs.existsSync(path.join(runDir, 'react/gol/fake--primary/sm/light.aria.yaml')));
+    assert.ok(manifest.a11y.totalViolations >= 1);
+    assert.equal(manifest.a11y.ariaMismatches, 1);
+  } finally {
+    await react.close();
+    await angular.close();
+  }
+});
+
+test('pipeline: statusFromA11y acusa failed e emite o estagio a11y na ordem', async () => {
+  // Botao sem nome nos DOIS lados: pixels e ARIA identicos (paridade passa),
+  // mas ha violacao axe — a divergencia e SOMENTE de acessibilidade.
+  const react = await serveEvidence(evidenceHtmlButton(''));
+  const angular = await serveEvidence(evidenceHtmlButton(''));
+  try {
+    const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-pipeline-a11y-'));
+    const stages = [];
+    const {manifest, parityDiverged} = await capturePipeline({
+      cells: [cell('react'), cell('angular')],
+      acquireHost: async (framework) => ({
+        host: fakeHost(framework),
+        url: framework === 'react' ? react.url : angular.url,
+      }),
+      runDir,
+      pairs: [{reference: 'react', against: 'angular'}],
+      statusFromParity: true,
+      statusFromA11y: true,
+      manifestMeta: meta(),
+      onStage: (s) => stages.push(s),
+    });
+    assert.deepEqual(stages, ['capture', 'parity', 'a11y', 'output']);
+    assert.equal(parityDiverged, false);
+    assert.equal(manifest.status, 'failed'); // violacao button-name nos dois lados
+    assert.equal(manifest.groups[0].a11y.ariaParity[0].match, true);
+  } finally {
+    await react.close();
+    await angular.close();
+  }
+});
+
+test('pipeline: collectA11y false nao coleta nem agrega', async () => {
+  await withServers({react: '#f60', angular: '#f60'}, async (servers) => {
+    const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-pipeline-noa11y-'));
+    const {manifest, a11yDiverged} = await capturePipeline({
+      cells: [cell('react'), cell('angular')],
+      acquireHost: async (framework) => ({host: fakeHost(framework), url: servers[framework].url}),
+      runDir,
+      pairs: [{reference: 'react', against: 'angular'}],
+      collectA11y: false,
+      manifestMeta: meta(),
+    });
+    assert.equal('a11y' in manifest, false);
+    assert.equal('a11y' in manifest.groups[0], false);
+    assert.equal(a11yDiverged, false);
+    assert.equal(fs.existsSync(path.join(runDir, 'react/gol/fake--primary/sm/light.a11y.json')), false);
+  });
 });
