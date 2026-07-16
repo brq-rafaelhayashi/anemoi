@@ -61,6 +61,8 @@ Flags preservadas:
 | `--list-stories` | Faz o preflight e o build do Storybook, lista as stories encontradas para o componente e encerra sem capturar. |
 | `--skip-build` | Reutiliza os artefatos dos seis builds do consumidor; os demais preflights e builds continuam ativos. |
 | `--fail-on-diff` | Encerra com código de saída 1 quando qualquer comparação de paridade diverge (pixels ou dimensões). Sem a flag, a divergência ainda aparece no manifesto (`status: "failed"`), mas o processo sai com 0. |
+| `--no-a11y` | Desliga a coleta de acessibilidade (auditoria axe-core e snapshot ARIA). Incompatível com `--fail-on-a11y`. |
+| `--fail-on-a11y` | Encerra com código de saída 1 quando há violação WCAG A/AA, árvore ARIA divergente do baseline WC ou coleta de a11y indisponível. Sem a flag, os apontamentos aparecem apenas no manifesto e na galeria, sem afetar status ou código de saída. |
 
 Na configuração, `--alias`, `--repo` e o booleano `--default` acompanham o comando
 `npm run web:configure`. O modo before/after não faz parte do fluxo suportado.
@@ -94,11 +96,18 @@ executa operações Git no checkout consumidor.
 | Código | Significado |
 | --- | --- |
 | `0` | Execução completa; sem `--fail-on-diff`, mesmo com paridade divergente. |
-| `1` | Paridade divergente com `--fail-on-diff` ativo. O manifesto de bundle é preservado com `status: "failed"`. |
+| `1` | Gate ligado divergente: paridade com `--fail-on-diff` (pixels ou dimensões), ou acessibilidade com `--fail-on-a11y` (violação WCAG, ARIA divergente ou coleta indisponível). O manifesto de bundle é preservado. |
 | `2` | Erro de execução (build, captura, configuração). Quando o diretório do run já existia, um manifesto de falha com `stage` e `logPath` é gravado. |
 
 Para bloquear CI apenas em divergência real, rode com `--fail-on-diff` e trate `2` como falha de
 infraestrutura, não de paridade.
+
+A análise de acessibilidade roda em toda captura: cada célula ganha `<theme>.a11y.json` (auditoria
+axe-core, WCAG A/AA) e `<theme>.aria.yaml` (árvore ARIA) ao lado do PNG, e o manifesto agrega o
+veredito em `a11y`. A árvore ARIA de React e Angular é comparada à do WC baseline (paridade
+semântica); divergências geram `aria-diff/<par>/<célula>.txt`. Falha na coleta nunca invalida a
+evidência visual: a célula registra o erro e, com `--fail-on-a11y`, o gate falha — "não consegui
+medir" não é "está acessível".
 
 ## Estrutura do output
 

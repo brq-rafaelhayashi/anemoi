@@ -38,3 +38,9 @@ test('collectProvenance: versao do anemoi vem do package.json do web', () => {
   const p = collectProvenance({repo: os.tmpdir()});
   assert.equal(p.anemoi.version, require('../package.json').version);
 });
+
+test('collectProvenance registra a regua de acessibilidade (axe-core + tags)', () => {
+  const provenance = collectProvenance({repo: process.cwd()});
+  assert.match(provenance.a11y.axeCore, /^\d+\.\d+\.\d+/);
+  assert.deepEqual(provenance.a11y.ruleset, ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
+});

@@ -7,7 +7,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {execFileSync} = require('node:child_process');
-const {DEFAULT_THRESHOLD} = require('@gol-smiles/anemoi-core');
+const {DEFAULT_THRESHOLD, WCAG_TAGS, axeCoreVersion} = require('@gol-smiles/anemoi-core');
 
 function gitCommit(cwd) {
   try {
@@ -50,6 +50,8 @@ function collectProvenance({repo, anemoiDir = path.resolve(__dirname, '..')}) {
     // Espelha os parametros fixos de captureCells (core/src/capture.js).
     capture: {deviceScaleFactor: 2, viewportHeight: 900, waitUntil: 'networkidle', animations: 'disabled'},
     thresholds: {pixelmatch: DEFAULT_THRESHOLD, mismatchTolerance: 0, fit: 'union'},
+    // Regua da auditoria de acessibilidade (axe-core injetado na captura).
+    a11y: {axeCore: axeCoreVersion(), ruleset: WCAG_TAGS},
   };
 }
 

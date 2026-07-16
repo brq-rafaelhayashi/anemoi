@@ -63,10 +63,25 @@ function prepareCapture(repo, {
   return assertReady(repo);
 }
 
-// Codigo de saida do gate de paridade: 1 apenas quando --fail-on-diff esta
-// ligado e a paridade divergiu. Erros de execucao saem com 2 via bin (throw).
-function resolveExitCode(manifest, {failOnDiff = false} = {}) {
-  return failOnDiff && manifest.status === 'failed' ? 1 : 0;
+// Codigo de saida dos gates: 1 apenas quando um gate ligado divergiu (cada
+// flag observa somente a sua divergencia). Erros de execucao saem com 2 via
+// bin (throw).
+function resolveExitCode({parityDiverged = false, a11yDiverged = false} = {}, {failOnDiff = false, failOnA11y = false} = {}) {
+  if (failOnDiff && parityDiverged) return 1;
+  if (failOnA11y && a11yDiverged) return 1;
+  return 0;
+}
+
+// Coleta sempre ligada por padrao (--no-a11y desliga); gate opt-in
+// (--fail-on-a11y). Combinar as duas e contradicao: nao existe gate sobre
+// uma coleta desligada.
+function resolveA11yFlags(args) {
+  const collectA11y = !args['no-a11y'];
+  const failOnA11y = Boolean(args['fail-on-a11y']);
+  if (!collectA11y && failOnA11y) {
+    throw new Error('flags incompativeis: --no-a11y desliga a coleta que --fail-on-a11y precisa para o gate.');
+  }
+  return {collectA11y, failOnA11y};
 }
 
 async function runCurrentState(args, cwd) {
@@ -87,6 +102,15 @@ async function runCurrentState(args, cwd) {
   // Rejeita --before-after
   if (args['before-after']) {
     console.error('Erro: before/after ainda nao implementado. Use o modo estado-atual (padrão).');
+    process.exit(1);
+  }
+
+  // Flags de acessibilidade (validadas antes de criar o runDir).
+  let a11yFlags;
+  try {
+    a11yFlags = resolveA11yFlags(args);
+  } catch (error) {
+    console.error(`Erro: ${error.message}`);
     process.exit(1);
   }
 
@@ -196,11 +220,13 @@ async function runCurrentState(args, cwd) {
       return {host, url: server.url, release: () => server.close()};
     };
 
-    const {manifest, captures} = await capturePipeline({
+    const {manifest, captures, parityDiverged, a11yDiverged} = await capturePipeline({
       cells,
       acquireHost,
       runDir,
       statusFromParity: true,
+      statusFromA11y: a11yFlags.failOnA11y,
+      collectA11y: a11yFlags.collectA11y,
       manifestMeta: {
         tool: 'Anemoi Web',
         card,
@@ -225,12 +251,22 @@ async function runCurrentState(args, cwd) {
     });
 
     if (manifest.status === 'failed') {
-      console.log(`\n❌ Paridade divergente — ${captures.length} prints em: ${runDir}`);
+      const reasons = [
+        parityDiverged ? 'Paridade divergente' : null,
+        a11yDiverged ? 'Acessibilidade divergente' : null,
+      ].filter(Boolean).join(' e ');
+      console.log(`\n❌ ${reasons} — ${captures.length} prints em: ${runDir}`);
     } else {
       console.log(`\n✅ Concluído! ${captures.length} prints em: ${runDir}`);
+      if (a11yDiverged) {
+        console.log('⚠️  Acessibilidade com apontamentos — veja o bloco a11y no manifesto/galeria (gate desligado; use --fail-on-a11y para falhar).');
+      }
     }
     console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
-    const exitCode = resolveExitCode(manifest, {failOnDiff: Boolean(args['fail-on-diff'])});
+    const exitCode = resolveExitCode({parityDiverged, a11yDiverged}, {
+      failOnDiff: Boolean(args['fail-on-diff']),
+      failOnA11y: a11yFlags.failOnA11y,
+    });
     if (exitCode !== 0) process.exitCode = exitCode;
   } catch (error) {
     try {
@@ -242,4 +278,4 @@ async function runCurrentState(args, cwd) {
   }
 }
 
-module.exports = {createRunDir, prepareCapture, resolveExitCode, runCurrentState};
+module.exports = {createRunDir, prepareCapture, resolveExitCode, resolveA11yFlags, runCurrentState};
