@@ -43,7 +43,10 @@ async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserT
         await page.setViewportSize({width: cell.width, height: 900});
         await page.goto(host.urlFor(cell, baseUrl), {waitUntil: 'networkidle', timeout: 30000});
         if (host.verify) await host.verify(page, cell);
-        await page.locator(host.selectorFor(cell)).screenshot({path: outPath});
+        await page.locator(host.selectorFor(cell)).screenshot({
+          path: outPath,
+          animations: 'disabled',
+        });
         results.push({...cell, relPath});
         if (onProgress) onProgress(i + 1, cells.length, relPath);
       } finally {

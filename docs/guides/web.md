@@ -139,3 +139,11 @@ story, viewport e theme.
 
 Paridade zero comprova igualdade dos pixels capturados para a matriz executada; não substitui testes
 de comportamento, acessibilidade ou estados que não foram selecionados.
+
+### Limite de stories com render customizado
+
+Os harnesses React e Angular reproduzem stories que podem ser descritas por `meta.args + story.args`
+serializáveis. Um `render` CSF customizado que cria wrappers, conteúdo de light DOM ou slots não é
+traduzido automaticamente para os outros frameworks. Nesses casos, a divergência pode representar uma
+limitação do método, e não do componente. Até existir um contrato explícito para esse conteúdo, selecione
+somente stories baseadas em args com `--stories` ao exigir paridade entre frameworks.

@@ -10,6 +10,7 @@
 const path = require('node:path');
 const {runLogged} = require('../process');
 const { VIEWPORT_WIDTHS } = require('../brands');
+const {backgroundForCell} = require('./environment');
 
 // Diretório do harness React (relativo a este arquivo)
 const HARNESS = path.join(__dirname, '..', '..', 'harness', 'react');
@@ -50,7 +51,8 @@ function urlFor(cell, baseUrl) {
   const viewport = encodeURIComponent(cell.viewport ?? 'sm');
   const args = encodeURIComponent(JSON.stringify(cell.args || {}));
   const slots = encodeURIComponent(JSON.stringify(cell.slots || {}));
-  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}`;
+  const background = encodeURIComponent(backgroundForCell(cell));
+  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}&background=${background}`;
 }
 
 /** Seletor da raiz montada pelo React. */

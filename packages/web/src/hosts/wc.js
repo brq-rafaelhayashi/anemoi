@@ -2,17 +2,17 @@
 // wcHost — Storybook estático (Web Components / Stencil baseline)
 //
 // Formato de URL confirmado por spike (Storybook 8.6.18, tangerina-web-core):
-//   iframe.html?id=<storyId>&globals=themes:<brand>;backgrounds.value:%23<hex>
+//   iframe.html?id=<storyId>&globals=themes:<brand>;colorScheme:<theme>;backgrounds.value:%23<hex>
 //   - brand  : valor do global `themes` (gol|smiles|clube-smiles); "gol" = sem data-brand (default)
-//   - dark   : backgrounds.value=%23211E1C  (%23 = '#' percent-encoded)
-//   - light  : sem backgrounds.value (ou qualquer outra cor) → sem data-theme
+//   - theme  : valor do global `colorScheme` (light|dark), que controla data-theme
+//   - dark   : backgrounds.value=%23211E1C  (%23 = '#' percent-encoded) controla apenas o fundo
 //   - args   : &args=key:value;key2:value2  (mesmo encoding semicolon/colon)
 //
 // O decorator do preview.ts aplica:
 //   themes:gol        → remove data-brand
 //   themes:<outro>    → data-brand=<outro>
-//   backgrounds.value:#211E1C → data-theme=dark
-//   outro background  → remove data-theme
+//   colorScheme:dark   → data-theme=dark
+//   colorScheme:light  → remove data-theme
 //
 // Seletor de recorte: #storybook-root  (contém o custom element hidratado)
 
@@ -20,7 +20,7 @@ const path = require('node:path');
 const {runLogged} = require('../process');
 const { VIEWPORT_WIDTHS, THEME_ATTR, brandGlobal } = require('../brands');
 
-// Cor de background dark (sem '#') usada pelo Storybook para acionar data-theme=dark.
+// Cor de fundo dark (sem '#'); o tema dos tokens vem do global colorScheme.
 const DARK_BG_HEX = '211E1C';
 
 // Codifica um objeto de args no formato SB: key:value;key2:value2
@@ -35,7 +35,7 @@ function encodeArgs(args) {
 // Formato confirmado no spike: backgrounds.value=%23<hex> (percent-encoded '#')
 function urlFor(cell, baseUrl) {
   const brand = brandGlobal(cell.brand);   // valida a brand
-  const globals = [`themes:${brand}`];
+  const globals = [`themes:${brand}`, `colorScheme:${cell.theme}`];
 
   if (THEME_ATTR[cell.theme] === 'dark') {
     // '#' encoded como %23 — formato que o SB 8.6.18 deste repo aceita

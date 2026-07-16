@@ -5,7 +5,7 @@
 const path = require('node:path');
 const fs = require('node:fs');
 const {pathToFileURL} = require('node:url');
-const {toId} = require('@storybook/csf');
+const {storyNameFromExport, toId} = require('@storybook/csf');
 
 function assertSerializableArgs(value, {storyName, sourcePath}) {
   const seen = new Set();
@@ -67,15 +67,20 @@ async function resolveStoryArgs(repo, stories, {
     if (!byPath.has(abs)) byPath.set(abs, await import(pathToFileURL(abs).href));
     const mod = byPath.get(abs);
     const meta = mod.default || {};
-    // Encontra o export cujo toId(meta.title, exportName) === s.id (ou casa por s.name)
-    let storyArgs = {};
+    // O Storybook humaniza exports camelCase antes de gerar o storyId.
+    // Ex.: FullWidth -> "Full Width" -> action-button--full-width.
+    let storyExport;
     for (const [exp, val] of Object.entries(mod)) {
       if (exp === 'default') continue;
-      if (toId(meta.title, exp) === s.id || exp === s.name) {
-        storyArgs = (val && val.args) || {};
+      if (toId(meta.title, storyNameFromExport(exp)) === s.id) {
+        storyExport = val;
         break;
       }
     }
+    if (!storyExport) {
+      throw new Error(`Story "${s.name}" (${s.id}) nao encontrou export em ${s.importPath}.`);
+    }
+    const storyArgs = storyExport.args || {};
     const mergedArgs = {...(meta.args || {}), ...storyArgs};
     assertSerializableArgs(mergedArgs, {storyName: s.name, sourcePath: s.importPath});
     out[s.id] = mergedArgs;

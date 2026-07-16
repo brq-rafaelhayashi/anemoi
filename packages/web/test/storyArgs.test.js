@@ -30,6 +30,8 @@ test('mescla meta.args + story.args para cada storyId', { skip: supportsTs ? fal
   const stories = [
     {id: 'action-button--primary', name: 'Primary', importPath: './test/fixtures/sample.stories.ts'},
     {id: 'action-button--disabled', name: 'Disabled', importPath: './test/fixtures/sample.stories.ts'},
+    {id: 'action-button--full-width', name: 'Full Width', importPath: './test/fixtures/sample.stories.ts'},
+    {id: 'action-button--on-brand', name: 'On Brand', importPath: './test/fixtures/sample.stories.ts'},
   ];
   const got = await resolveStoryArgs(PACKAGE_DIR, stories, {
     storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
@@ -37,17 +39,30 @@ test('mescla meta.args + story.args para cada storyId', { skip: supportsTs ? fal
 
   assert.deepEqual(got['action-button--primary'], {label: 'Salvar', variant: 'primary', disabled: false});
   assert.deepEqual(got['action-button--disabled'], {label: 'Salvar', variant: 'primary', disabled: true});
+  assert.deepEqual(got['action-button--full-width'], {
+    label: 'Continuar',
+    variant: 'primary',
+    disabled: false,
+    fullWidth: true,
+  });
+  assert.deepEqual(got['action-button--on-brand'], {
+    label: 'Entrar',
+    variant: 'primary',
+    disabled: false,
+    brand: true,
+  });
 });
 
-test('retorna objeto vazio para storyId nao encontrado na story', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
+test('falha com contexto quando storyId nao corresponde a um export', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
   const stories = [
     {id: 'action-button--nope', name: 'Nope', importPath: './test/fixtures/sample.stories.ts'},
   ];
-  const got = await resolveStoryArgs(PACKAGE_DIR, stories, {
-    storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
-  });
-  // Usa somente meta.args (story nao encontrada = storyArgs vazio)
-  assert.deepEqual(got['action-button--nope'], {label: 'Salvar', variant: 'primary', disabled: false});
+  await assert.rejects(
+    resolveStoryArgs(PACKAGE_DIR, stories, {
+      storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
+    }),
+    /Nope.*action-button--nope.*sample\.stories\.ts/s,
+  );
 });
 
 test('rejeita importPath fora da raiz de stories permitida', async () => {

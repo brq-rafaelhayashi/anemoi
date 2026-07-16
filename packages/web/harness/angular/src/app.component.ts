@@ -37,6 +37,7 @@ export class AppComponent implements OnInit, AfterViewInit {
     this.component = component;
     const brand = p.get('brand') || 'gol';
     const theme = p.get('theme') || 'light';
+    const background = p.get('background') || '';
     this.args = JSON.parse(decodeURIComponent(p.get('args') || '%7B%7D'));
     this.slots = JSON.parse(decodeURIComponent(p.get('slots') || '%7B%7D'));
 
@@ -47,7 +48,7 @@ export class AppComponent implements OnInit, AfterViewInit {
     theme === 'dark'
       ? html.setAttribute('data-theme', 'dark')
       : html.removeAttribute('data-theme');
-    document.body.style.background = theme === 'dark' ? '#211E1C' : '';
+    document.body.style.background = background;
 
     // Find component from DIRECTIVES by selector.
     // DIRECTIVES is [TgrButton, ...]; TgrButton.ɵcmp.selectors = [['tgr-button']]
