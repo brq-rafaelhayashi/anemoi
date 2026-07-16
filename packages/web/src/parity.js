@@ -19,22 +19,30 @@ function groupByCell(captures) {
   return [...map.values()];
 }
 
-// Compara react×wc e angular×wc com writeDiff e GRAVA os PNGs de diff em <runDir>/diff/. Retorna os grupos com parity[].
-function computeParity(groups, runDir) {
+// Pares default do CLI: WC e o baseline padrao-ouro, react e angular comparados contra ele.
+const DEFAULT_PAIRS = [
+  {reference: 'wc', against: 'react'},
+  {reference: 'wc', against: 'angular'},
+];
+
+// Compara cada par (reference x against) com writeDiff e GRAVA os PNGs de diff
+// em <runDir>/diff/<against>-vs-<reference>/. Retorna os grupos com parity[].
+function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
   return groups.map(g => {
     const parity = [];
-    for (const fw of ['react', 'angular']) {
-      if (g.wc && g[fw]) {
+    for (const {reference, against} of pairs) {
+      if (g[reference] && g[against]) {
         const brand = assertSafePathSegment(g._cell.brand, 'brand');
         const storyId = assertSafePathSegment(g._cell.storyId, 'storyId');
         const viewport = assertSafePathSegment(g._cell.viewport, 'viewport');
         const theme = assertSafePathSegment(g._cell.theme, 'theme');
-        const diffRel = path.join('diff', `${fw}-vs-wc`, `${brand}-${storyId}-${viewport}-${theme}.png`);
+        const diffRel = path.join('diff', `${against}-vs-${reference}`, `${brand}-${storyId}-${viewport}-${theme}.png`);
         const {mismatch, width, height} = writeDiff(
-          path.join(runDir, g.wc), path.join(runDir, g[fw]), ensureDir(path.join(runDir, diffRel)),
+          path.join(runDir, g[reference]), path.join(runDir, g[against]),
+          ensureDir(path.join(runDir, diffRel)),
           {fit: 'intersection'},
         );
-        parity.push({against: fw, mismatch, width, height, diffPath: diffRel});
+        parity.push({against, mismatch, width, height, diffPath: diffRel});
       }
     }
     const {_cell, ...rest} = g;

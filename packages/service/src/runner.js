@@ -11,10 +11,9 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const {captureCells, buildManifest, writeManifest, writeSummary, renderHtml} = require('@gol-smiles/anemoi-core');
-const {groupByCell} = require('@gol-smiles/anemoi-web/src/parity');
+const {groupByCell, computeParity} = require('@gol-smiles/anemoi-web/src/parity');
 const {createRunDir} = require('@gol-smiles/anemoi-web/src/run');
 const {writeFailureManifest} = require('@gol-smiles/anemoi-web/src/failure');
-const {computeParityPair} = require('./parityPair');
 
 async function executeRun({run, store, cells, state, config, pool}) {
   let stage = 'run-dir';
@@ -47,7 +46,7 @@ async function executeRun({run, store, cells, state, config, pool}) {
 
     stage = 'parity';
     store.patch(run.runId, {stage});
-    const groups = computeParityPair(groupByCell(captures), runDir);
+    const groups = computeParity(groupByCell(captures), runDir, {pairs: [{reference: 'react', against: 'angular'}]});
 
     stage = 'output';
     store.patch(run.runId, {stage});

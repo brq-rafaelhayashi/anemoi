@@ -60,3 +60,33 @@ test('computeParity guarda mismatch, width, height e diffPath por comparacao', (
   assert.equal(g.parity[0].height, 4);
   assert.match(g.parity[0].diffPath, /react-vs-wc/);
 });
+
+test('computeParity com pairs customizado compara angular contra react', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
+  writeSolidPng(runDir, 'react.png', 10);
+  writeSolidPng(runDir, 'angular.png', 240);
+  const groups = [{
+    label: 'gol · Primary · sm · light',
+    react: 'react.png',
+    angular: 'angular.png',
+    _cell: {brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }];
+  const [g] = computeParity(groups, runDir, {pairs: [{reference: 'react', against: 'angular'}]});
+  assert.equal(g.parity.length, 1);
+  assert.equal(g.parity[0].against, 'angular');
+  assert.ok(g.parity[0].mismatch > 0);
+  assert.match(g.parity[0].diffPath, /^diff\/angular-vs-react\//);
+  assert.equal(g._cell, undefined);
+});
+
+test('computeParity pairs: parity vazio quando falta um dos lados', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
+  writeSolidPng(runDir, 'react.png', 10);
+  const groups = [{
+    label: 'gol · Primary · sm · light',
+    react: 'react.png',
+    _cell: {brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }];
+  const [g] = computeParity(groups, runDir, {pairs: [{reference: 'react', against: 'angular'}]});
+  assert.deepEqual(g.parity, []);
+});
