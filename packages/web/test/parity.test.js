@@ -29,10 +29,10 @@ test('groupByCell nao colapsa stories distintas com o mesmo display name', () =>
   assert.deepEqual(groups.map(group => group.wc), ['a.png', 'b.png']);
 });
 
-function writeSolidPng(runDir, rel, fill) {
+function writeSolidPng(runDir, rel, fill, width = 4, height = 4) {
   const abs = path.join(runDir, rel);
   fs.mkdirSync(path.dirname(abs), {recursive: true});
-  const png = new PNG({width: 4, height: 4});
+  const png = new PNG({width, height});
   for (let i = 0; i < png.data.length; i += 4) {
     png.data[i] = fill;
     png.data[i + 1] = fill;
@@ -89,4 +89,38 @@ test('computeParity pairs: parity vazio quando falta um dos lados', () => {
   }];
   const [g] = computeParity(groups, runDir, {pairs: [{reference: 'react', against: 'angular'}]});
   assert.deepEqual(g.parity, []);
+});
+
+test('computeParity: uniao das dimensoes e sizeMatch false quando tamanhos divergem', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-union-'));
+  writeSolidPng(runDir, 'wc.png', 200, 4, 4);
+  writeSolidPng(runDir, 'react.png', 200, 6, 4); // mesma cor, mais larga
+  const groups = [{
+    label: 'gol · Primary · sm · light',
+    wc: 'wc.png',
+    react: 'react.png',
+    _cell: {brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }];
+  const [g] = computeParity(groups, runDir);
+  assert.equal(g.parity[0].width, 6);   // uniao (max), nao intersecao (min)
+  assert.equal(g.parity[0].height, 4);
+  assert.equal(g.parity[0].sizeMatch, false);
+  assert.deepEqual(g.parity[0].referenceSize, {width: 4, height: 4});
+  assert.deepEqual(g.parity[0].againstSize, {width: 6, height: 4});
+  assert.ok(g.parity[0].mismatch > 0, 'area extra da uniao conta como divergencia');
+});
+
+test('computeParity: tamanhos iguais => sizeMatch true', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-eq-'));
+  writeSolidPng(runDir, 'wc.png', 10);
+  writeSolidPng(runDir, 'react.png', 10);
+  const groups = [{
+    label: 'gol · Primary · sm · light',
+    wc: 'wc.png',
+    react: 'react.png',
+    _cell: {brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }];
+  const [g] = computeParity(groups, runDir);
+  assert.equal(g.parity[0].sizeMatch, true);
+  assert.equal(g.parity[0].mismatch, 0);
 });

@@ -27,6 +27,9 @@ const DEFAULT_PAIRS = [
 
 // Compara cada par (reference x against) com writeDiff e GRAVA os PNGs de diff
 // em <runDir>/diff/<against>-vs-<reference>/. Retorna os grupos com parity[].
+// O diff usa a uniao das dimensoes (fit default do core): area que existe em
+// apenas um dos lados conta como divergencia, e sizeMatch registra se as
+// capturas tinham o mesmo tamanho.
 function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
   return groups.map(g => {
     const parity = [];
@@ -37,12 +40,15 @@ function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
         const viewport = assertSafePathSegment(g._cell.viewport, 'viewport');
         const theme = assertSafePathSegment(g._cell.theme, 'theme');
         const diffRel = path.join('diff', `${against}-vs-${reference}`, `${brand}-${storyId}-${viewport}-${theme}.png`);
-        const {mismatch, width, height} = writeDiff(
+        const {mismatch, width, height, sizeMatch, beforeSize, afterSize} = writeDiff(
           path.join(runDir, g[reference]), path.join(runDir, g[against]),
           ensureDir(path.join(runDir, diffRel)),
-          {fit: 'intersection'},
         );
-        parity.push({against, mismatch, width, height, diffPath: diffRel});
+        parity.push({
+          against, mismatch, width, height, sizeMatch,
+          referenceSize: beforeSize, againstSize: afterSize,
+          diffPath: diffRel,
+        });
       }
     }
     const {_cell, ...rest} = g;
