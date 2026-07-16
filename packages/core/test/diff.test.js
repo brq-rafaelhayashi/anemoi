@@ -98,3 +98,51 @@ test('writeDiff intersection: retorna dimensoes menores', () => {
   assert.equal(width, 6);   // min(10,6)
   assert.equal(height, 8);  // min(8,12)
 });
+
+test('writeDiff: retorna sizeMatch true e dimensoes originais quando tamanhos coincidem', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-size-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePng(a, {r: 10, g: 20, b: 30});
+  writePng(b, {r: 10, g: 20, b: 30});
+
+  const result = writeDiff(a, b, out);
+  assert.equal(result.sizeMatch, true);
+  assert.deepEqual(result.beforeSize, {width: 4, height: 4});
+  assert.deepEqual(result.afterSize, {width: 4, height: 4});
+  assert.equal(result.threshold, 0.1);
+});
+
+test('writeDiff: sizeMatch false com tamanhos originais quando dimensoes divergem', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-size2-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePngSized(a, 4, 4, {r: 200, g: 0, b: 0});
+  writePngSized(b, 6, 4, {r: 200, g: 0, b: 0});
+
+  const result = writeDiff(a, b, out);
+  assert.equal(result.sizeMatch, false);
+  assert.deepEqual(result.beforeSize, {width: 4, height: 4});
+  assert.deepEqual(result.afterSize, {width: 6, height: 4});
+});
+
+test('writeDiff: threshold customizado e aplicado e registrado no retorno', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'diff-thr-'));
+  const a = path.join(dir, 'a.png');
+  const b = path.join(dir, 'b.png');
+  const out = path.join(dir, 'd.png');
+  writePng(a, {r: 0, g: 0, b: 0});
+  writePng(b, {r: 255, g: 255, b: 255});
+
+  // threshold 1 = tolerancia maxima do pixelmatch: preto vs branco nao conta.
+  const result = writeDiff(a, b, out, {threshold: 1});
+  assert.equal(result.mismatch, 0);
+  assert.equal(result.threshold, 1);
+});
+
+test('barrel do core exporta DEFAULT_THRESHOLD', () => {
+  const core = require('../src/index');
+  assert.equal(core.DEFAULT_THRESHOLD, 0.1);
+});
