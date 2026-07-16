@@ -4,19 +4,8 @@
   "private": true,
   "description": "Nucleo agnostico do Anemoi para matriz, captura, diff, output e servidor estatico.",
   "main": "src/index.js",
-  "files": [
-    "src"
-  ],
-  "scripts": {
-    "test": "node --test"
-  },
-  "engines": {
-    "node": ">=24"
-  },
-  "dependencies": {
-    "axe-core": "^4.12.1",
-    "pixelmatch": "^5.3.0",
-    "playwright": "^1.48.0",
-    "pngjs": "^7.0.0"
-  }
+  "files": ["src"],
+  "scripts": { "test": "node --test" },
+  "engines": { "node": ">=24" },
+  "dependencies": { "playwright": "^1.49.0", "pixelmatch": "^5.3.0", "pngjs": "^7.0.0", "axe-core": "^4.12.1" }
 }
