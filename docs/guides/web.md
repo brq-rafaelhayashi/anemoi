@@ -60,6 +60,7 @@ Flags preservadas:
 | `--doctor` | Diagnostica identidade, scripts, pnpm, Storybook, artefatos WC/React/Angular e Chromium sem iniciar captura. |
 | `--list-stories` | Faz o preflight e o build do Storybook, lista as stories encontradas para o componente e encerra sem capturar. |
 | `--skip-build` | Reutiliza os artefatos dos seis builds do consumidor; os demais preflights e builds continuam ativos. |
+| `--fail-on-diff` | Encerra com código de saída 1 quando qualquer comparação de paridade diverge (pixels ou dimensões). Sem a flag, a divergência ainda aparece no manifesto (`status: "failed"`), mas o processo sai com 0. |
 
 Na configuração, `--alias`, `--repo` e o booleano `--default` acompanham o comando
 `npm run web:configure`. O modo before/after não faz parte do fluxo suportado.
@@ -88,6 +89,17 @@ a execução.
 Esses builds podem atualizar artefatos gerados conforme os scripts do Tangerina, mas o Anemoi nunca
 executa operações Git no checkout consumidor.
 
+## Códigos de saída
+
+| Código | Significado |
+| --- | --- |
+| `0` | Execução completa; sem `--fail-on-diff`, mesmo com paridade divergente. |
+| `1` | Paridade divergente com `--fail-on-diff` ativo. O manifesto de bundle é preservado com `status: "failed"`. |
+| `2` | Erro de execução (build, captura, configuração). Quando o diretório do run já existia, um manifesto de falha com `stage` e `logPath` é gravado. |
+
+Para bloquear CI apenas em divergência real, rode com `--fail-on-diff` e trate `2` como falha de
+infraestrutura, não de paridade.
+
 ## Estrutura do output
 
 Cada run cria:
@@ -111,9 +123,12 @@ Cada run cria:
     └── angular-vs-wc/
 ```
 
-No sucesso, `manifest.json` contém `tool: "Anemoi Web"`, `status: "passed"`, eixos, contagem de
-células e grupos de paridade. `summary.md` resume o run. `index.html` usa caminhos relativos e pode
-ser aberto offline para comparar WC, React e Angular lado a lado.
+`manifest.json` contém `tool: "Anemoi Web"`, eixos, contagem de células, grupos de paridade e a
+proveniência do run (commits do Anemoi e do consumidor, browser, Node, thresholds e parâmetros de
+captura). `status` reflete a paridade: `"passed"` somente quando nenhuma comparação divergiu em
+pixels nem em dimensões; caso contrário, `"failed"`. `summary.md` resume o run, incluindo a
+proveniência. `index.html` usa caminhos relativos e pode ser aberto offline para comparar WC, React
+e Angular lado a lado.
 
 ## Falhas
 
@@ -130,9 +145,10 @@ WC é sempre a linha de base visual. React e Angular recebem o mesmo conjunto se
 `meta.args + story.args`; cada screenshot desses wrappers é comparado à célula WC com a mesma brand,
 story, viewport e theme.
 
-- `mismatch: 0` significa paridade de pixels na região comparada.
-- `mismatch > 0` indica divergência visual naquele wrapper e naquela célula; abra o PNG em `diff/` e
-  a galeria para localizar o sinal.
+- `mismatch: 0` com `sizeMatch: true` significa paridade de pixels na união das dimensões capturadas.
+- `mismatch > 0` ou `sizeMatch: false` indica divergência naquele wrapper e naquela célula; abra o
+  PNG em `diff/` e a galeria para localizar o sinal. Área que existe em apenas uma das capturas
+  conta como divergência (o diff usa a união das dimensões, não a interseção).
 - Uma divergência apenas em React ou Angular deve aparecer somente no comparativo desse wrapper.
 - Se React ou Angular forem solicitados sem `wc`, o Anemoi inclui WC automaticamente para produzir a
   comparação.

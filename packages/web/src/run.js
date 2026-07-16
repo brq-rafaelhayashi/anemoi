@@ -19,6 +19,7 @@ const {resolveStoryArgs} = require('./storyArgs');
 const {runDoctor, assertCaptureReady} = require('./doctor');
 const {runTangerinaBuilds} = require('./tangerina');
 const {writeFailureManifest} = require('./failure');
+const {collectProvenance} = require('./provenance');
 const {makeWcHost} = require('./hosts/wc');
 const {makeReactHost} = require('./hosts/react');
 const {makeAngularHost} = require('./hosts/angular');
@@ -60,6 +61,12 @@ function prepareCapture(repo, {
 } = {}) {
   runBuilds(repo, {skipBuild, logDir});
   return assertReady(repo);
+}
+
+// Codigo de saida do gate de paridade: 1 apenas quando --fail-on-diff esta
+// ligado e a paridade divergiu. Erros de execucao saem com 2 via bin (throw).
+function resolveExitCode(manifest, {failOnDiff = false} = {}) {
+  return failOnDiff && manifest.status === 'failed' ? 1 : 0;
 }
 
 async function runCurrentState(args, cwd) {
@@ -193,11 +200,13 @@ async function runCurrentState(args, cwd) {
       cells,
       acquireHost,
       runDir,
+      statusFromParity: true,
       manifestMeta: {
         tool: 'Anemoi Web',
         card,
         component,
         mode: 'current',
+        provenance: collectProvenance({repo}),
         axes: {
           frameworks,
           stories: stories.map(s => s.name),
@@ -215,8 +224,14 @@ async function runCurrentState(args, cwd) {
       },
     });
 
-    console.log(`\n✅ Concluído! ${captures.length} prints em: ${runDir}`);
+    if (manifest.status === 'failed') {
+      console.log(`\n❌ Paridade divergente — ${captures.length} prints em: ${runDir}`);
+    } else {
+      console.log(`\n✅ Concluído! ${captures.length} prints em: ${runDir}`);
+    }
     console.log(`   Galeria: ${path.join(runDir, 'index.html')}`);
+    const exitCode = resolveExitCode(manifest, {failOnDiff: Boolean(args['fail-on-diff'])});
+    if (exitCode !== 0) process.exitCode = exitCode;
   } catch (error) {
     try {
       writeFailureManifest(runDir, {stage, card, component}, error);
@@ -227,4 +242,4 @@ async function runCurrentState(args, cwd) {
   }
 }
 
-module.exports = {createRunDir, prepareCapture, runCurrentState};
+module.exports = {createRunDir, prepareCapture, resolveExitCode, runCurrentState};
