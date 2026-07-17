@@ -50,6 +50,9 @@ function generateFiles(repo) {
         '@gol-smiles/tangerina-angular': [
           path.join(repo, 'packages/components-angular/dist'),
         ],
+        '@gol-smiles/tangerina-assets-angular/icons': [
+          path.join(repo, 'packages/assets-angular/dist/icons'),
+        ],
         '@gol-smiles/tangerina-web-core/components/*': [
           path.join(repo, 'packages/components/dist/components/*'),
         ],

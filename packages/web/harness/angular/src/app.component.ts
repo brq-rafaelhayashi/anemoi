@@ -6,9 +6,11 @@ import {
   Type,
   EnvironmentInjector,
   inject,
+  createComponent,
 } from '@angular/core';
 import { NgComponentOutlet } from '@angular/common';
 import { DIRECTIVES } from '@gol-smiles/tangerina-angular';
+import * as TgrIcons from '@gol-smiles/tangerina-assets-angular/icons';
 
 @Component({
   selector: 'app-root',
@@ -27,7 +29,7 @@ export class AppComponent implements OnInit, AfterViewInit {
   Cmp: Type<any> | null = null;
   args: Record<string, unknown> = {};
   // slots: mapa nome→HTML. Chave '' = default slot (HTML direto, sem <span slot>).
-  slots: Record<string, string> = {};
+  slots: Record<string, string | { icon: string }> = {};
   component = '';
   envInjector = inject(EnvironmentInjector);
 
@@ -69,14 +71,41 @@ export class AppComponent implements OnInit, AfterViewInit {
 
   ngAfterViewInit() {
     // Projeta os slots na light DOM do custom element ja renderizado pelo outlet.
-    // Espelha o applySlots do generic-stage.component.ts do mfe-angular do Koba.
+    // string = HTML bruto (comportamento original); {icon} = standalone component
+    // dos assets-angular localizado pelo seletor tgr-icon-<nome>.
     if (!this.Cmp || Object.keys(this.slots).length === 0) return;
     const host = document.querySelector(`#evidence-root ${this.component}`) as HTMLElement | null;
     if (!host) return;
-    host.innerHTML = Object.entries(this.slots)
-      .map(([name, value]) =>
-        name ? `<span slot="${name}">${value ?? ''}</span>` : String(value ?? '')
-      )
-      .join('');
+    host.innerHTML = '';
+    for (const [name, value] of Object.entries(this.slots)) {
+      if (value !== null && typeof value === 'object') {
+        const selector = `tgr-icon-${value.icon}`;
+        const IconCls = (Object.values(TgrIcons) as Type<any>[]).find((cls: any) => {
+          const meta = cls?.ɵcmp;
+          if (!meta?.selectors) return false;
+          return (meta.selectors as string[][]).some((s: string[]) => s[0] === selector);
+        });
+        if (!IconCls) {
+          host.insertAdjacentHTML(
+            'beforeend',
+            `<span${name ? ` slot="${name}"` : ''}>Ícone não encontrado: ${value.icon}</span>`
+          );
+          continue;
+        }
+        const el = document.createElement(selector);
+        if (name) el.setAttribute('slot', name);
+        host.appendChild(el);
+        const ref = createComponent(IconCls, {
+          environmentInjector: this.envInjector,
+          hostElement: el,
+        });
+        ref.changeDetectorRef.detectChanges();
+      } else {
+        host.insertAdjacentHTML(
+          'beforeend',
+          name ? `<span slot="${name}">${value ?? ''}</span>` : String(value ?? '')
+        );
+      }
+    }
   }
 }
