@@ -199,7 +199,7 @@ async function runCurrentState(args, cwd) {
       component,
       // WC: sem args na URL (usa storyId nativo do Storybook, evita coercao de tipos)
       // React/Angular: cell.args passado como JSON na URL (resolvido pelo CLI)
-      args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
+      args: c.framework === 'wc' ? {} : (argsById[c.storyId]?.args || {}),
     }));
 
     const acquireHost = async (framework) => {
