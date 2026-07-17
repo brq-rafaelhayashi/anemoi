@@ -16,6 +16,10 @@ export default defineConfig({
         repo,
         'packages/components-react/dist/index.mjs'
       ),
+      '@gol-smiles/tangerina-assets-react/icons': path.join(
+        repo,
+        'packages/assets-react/dist/icons/index.mjs'
+      ),
       // dir-alias: cobre subpaths como /dist/components e /dist/components/tgr-button.js
       '@gol-smiles/tangerina-web-core': path.join(repo, 'packages/components'),
       '@gol-smiles/tangerina-token': path.join(repo, 'packages/tokens'),
