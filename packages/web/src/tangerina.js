@@ -8,6 +8,8 @@ const BUILD_SCRIPTS = [
   'build:tokens',
   'build:assets',
   'build:fonts',
+  'build:assets-react',
+  'build:assets-angular',
   'build:components',
   'build:react',
   'build:angular',

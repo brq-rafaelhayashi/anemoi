@@ -126,6 +126,20 @@ function collectChecks(
   });
 
   checks.push({
+    id: 'react-assets',
+    label: 'Icones React buildados (packages/assets-react/dist/icons/index.js)',
+    ok: exists('packages/assets-react/dist/icons/index.js'),
+    detail: 'rode pnpm build:assets-react',
+  });
+
+  checks.push({
+    id: 'angular-assets',
+    label: 'Icones Angular buildados (packages/assets-angular/dist/icons)',
+    ok: exists('packages/assets-angular/dist/icons'),
+    detail: 'rode pnpm build:assets-angular',
+  });
+
+  checks.push({
     id: 'playwright',
     label: 'Browser Chromium do Playwright instalado',
     ok: playwrightInstalled(),
