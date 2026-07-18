@@ -201,3 +201,14 @@ test('runDoctor continua somente reportando checks falhos', () => {
   );
   assert.ok(lines.some(line => line.includes('item(ns) a resolver')));
 });
+
+test('doctor verifica dists dos assets-react e assets-angular', () => {
+  const repo = makeConsumerRepo('pnpm@9.0.0');
+  const checks = collectWithPnpmResult(repo, {status: 0, stdout: '9.0.0\n'});
+  const reactAssets = checks.find(c => c.id === 'react-assets');
+  const angularAssets = checks.find(c => c.id === 'angular-assets');
+  assert.ok(reactAssets, 'check react-assets ausente');
+  assert.ok(angularAssets, 'check angular-assets ausente');
+  assert.equal(reactAssets.ok, false);
+  assert.equal(angularAssets.ok, false);
+});

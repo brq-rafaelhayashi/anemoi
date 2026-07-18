@@ -39,6 +39,28 @@ function assertSerializableArgs(value, {storyName, sourcePath}) {
   return value;
 }
 
+const SLOT_SHAPE_HINT = 'valores de parameters.anemoi.slots devem ser string (HTML) ou {icon: string}';
+
+function assertValidSlots(value, {storyName, sourcePath}) {
+  if (value === undefined) return {};
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`Story "${storyName}" (${sourcePath}) possui parameters.anemoi.slots invalido: ${SLOT_SHAPE_HINT}.`);
+  }
+  for (const [slotName, slotValue] of Object.entries(value)) {
+    if (typeof slotValue === 'string') continue;
+    const isIconRef = slotValue !== null
+      && typeof slotValue === 'object'
+      && !Array.isArray(slotValue)
+      && Object.keys(slotValue).length === 1
+      && typeof slotValue.icon === 'string'
+      && slotValue.icon.trim() !== '';
+    if (!isIconRef) {
+      throw new Error(`Story "${storyName}" (${sourcePath}) possui slot "${slotName}" invalido: ${SLOT_SHAPE_HINT}.`);
+    }
+  }
+  return value;
+}
+
 function resolveStorySource(repo, importPath, storiesRoot) {
   const root = path.resolve(storiesRoot);
   const candidate = path.resolve(repo, importPath);
@@ -83,10 +105,15 @@ async function resolveStoryArgs(repo, stories, {
     const storyArgs = storyExport.args || {};
     const mergedArgs = {...(meta.args || {}), ...storyArgs};
     assertSerializableArgs(mergedArgs, {storyName: s.name, sourcePath: s.importPath});
-    out[s.id] = mergedArgs;
+    const mergedSlots = {
+      ...(meta.parameters?.anemoi?.slots || {}),
+      ...(storyExport.parameters?.anemoi?.slots || {}),
+    };
+    assertValidSlots(mergedSlots, {storyName: s.name, sourcePath: s.importPath});
+    out[s.id] = {args: mergedArgs, slots: mergedSlots};
   }
 
   return out;
 }
 
-module.exports = {resolveStoryArgs, assertSerializableArgs, resolveStorySource};
+module.exports = {resolveStoryArgs, assertSerializableArgs, resolveStorySource, assertValidSlots};

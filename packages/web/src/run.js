@@ -177,7 +177,7 @@ async function runCurrentState(args, cwd) {
 
     // Resolve args de cada story via CSF (fonte única = type-stripping Node 24)
     stage = 'story-args';
-    const argsById = await resolveStoryArgs(repo, stories);
+    const storyDataById = await resolveStoryArgs(repo, stories);
 
     // Captura + paridade + galeria via pipeline compartilhado
     stage = 'capture';
@@ -197,9 +197,10 @@ async function runCurrentState(args, cwd) {
     }).map(c => ({
       ...c,
       component,
-      // WC: sem args na URL (usa storyId nativo do Storybook, evita coercao de tipos)
-      // React/Angular: cell.args passado como JSON na URL (resolvido pelo CLI)
-      args: c.framework === 'wc' ? {} : (argsById[c.storyId] || {}),
+      // WC: sem args/slots na URL (usa storyId nativo do Storybook, evita coercao de tipos)
+      // React/Angular: args e slots passados como JSON na URL (resolvidos pelo CLI)
+      args: c.framework === 'wc' ? {} : (storyDataById[c.storyId]?.args || {}),
+      slots: c.framework === 'wc' ? {} : (storyDataById[c.storyId]?.slots || {}),
     }));
 
     const acquireHost = async (framework) => {

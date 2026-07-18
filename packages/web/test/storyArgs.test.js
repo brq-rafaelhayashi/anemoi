@@ -37,15 +37,15 @@ test('mescla meta.args + story.args para cada storyId', { skip: supportsTs ? fal
     storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
   });
 
-  assert.deepEqual(got['action-button--primary'], {label: 'Salvar', variant: 'primary', disabled: false});
-  assert.deepEqual(got['action-button--disabled'], {label: 'Salvar', variant: 'primary', disabled: true});
-  assert.deepEqual(got['action-button--full-width'], {
+  assert.deepEqual(got['action-button--primary'].args, {label: 'Salvar', variant: 'primary', disabled: false});
+  assert.deepEqual(got['action-button--disabled'].args, {label: 'Salvar', variant: 'primary', disabled: true});
+  assert.deepEqual(got['action-button--full-width'].args, {
     label: 'Continuar',
     variant: 'primary',
     disabled: false,
     fullWidth: true,
   });
-  assert.deepEqual(got['action-button--on-brand'], {
+  assert.deepEqual(got['action-button--on-brand'].args, {
     label: 'Entrar',
     variant: 'primary',
     disabled: false,
@@ -73,5 +73,30 @@ test('rejeita importPath fora da raiz de stories permitida', async () => {
       importPath: '../package.json',
     }], {storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures')}),
     /fora da raiz de stories permitida/,
+  );
+});
+
+test('retorna slots da convencao parameters.anemoi.slots', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
+  const stories = [
+    {id: 'action-button--com-icone', name: 'Com Icone', importPath: './test/fixtures/sample.stories.ts'},
+    {id: 'action-button--primary', name: 'Primary', importPath: './test/fixtures/sample.stories.ts'},
+  ];
+  const got = await resolveStoryArgs(PACKAGE_DIR, stories, {
+    storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
+  });
+  assert.deepEqual(got['action-button--com-icone'].slots, {icon: {icon: 'add'}});
+  assert.deepEqual(got['action-button--com-icone'].args, {label: 'Baixar', variant: 'primary', disabled: false});
+  assert.deepEqual(got['action-button--primary'].slots, {});
+});
+
+test('rejeita slot que nao e string nem {icon: string}', { skip: supportsTs ? false : 'requer Node >=24 (type-stripping nativo de .ts)' }, async () => {
+  const stories = [
+    {id: 'action-button--slot-invalido', name: 'Slot Invalido', importPath: './test/fixtures/sample.stories.ts'},
+  ];
+  await assert.rejects(
+    resolveStoryArgs(PACKAGE_DIR, stories, {
+      storiesRoot: path.join(PACKAGE_DIR, 'test', 'fixtures'),
+    }),
+    /slot "icon" invalido/i,
   );
 });

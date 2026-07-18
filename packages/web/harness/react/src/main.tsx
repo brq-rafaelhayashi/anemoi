@@ -12,6 +12,20 @@ defineCustomElements();
 // Todos os wrappers React
 import * as Tgr from '@gol-smiles/tangerina-react';
 
+// Ícones dos assets — barrel completo; o mapeamento nome→export replica o
+// toPascalCase do generate.mjs do assets-react (add → TgrIconAdd).
+import * as TgrIcons from '@gol-smiles/tangerina-assets-react/icons';
+
+function iconExportName(iconName: string): string {
+  return (
+    'TgrIcon' +
+    iconName
+      .replace(/^\d+[-_\s]?/, '')
+      .replace(/[-_\s]+(.)/g, (_, c: string) => c.toUpperCase())
+      .replace(/^(.)/, (_, c: string) => c.toUpperCase())
+  );
+}
+
 // Lê querystring
 const params = new URLSearchParams(location.search);
 const component = params.get('c') ?? '';
@@ -21,7 +35,9 @@ const background = params.get('background') ?? '';
 const args = JSON.parse(decodeURIComponent(params.get('args') || '%7B%7D'));
 // slots: mapa nome→HTML. Chave '' = default slot (sem atributo slot).
 // Espelha o GenericStage.tsx do mfe-react do Koba: um <span slot> por entrada.
-const slots: Record<string, string> = JSON.parse(decodeURIComponent(params.get('slots') || '%7B%7D'));
+const slots: Record<string, string | { icon: string }> = JSON.parse(
+  decodeURIComponent(params.get('slots') || '%7B%7D')
+);
 
 // Aplica brand/tema no <html> (convenção: gol = sem atributo, dark = data-theme="dark")
 const htmlEl = document.documentElement;
@@ -61,12 +77,29 @@ if (!Comp) {
     </div>
   );
 } else {
-  const slotChildren = Object.entries(slots).map(([name, html]) =>
-    createElement('span', {
+  const slotChildren = Object.entries(slots).map(([name, value]) => {
+    if (value !== null && typeof value === 'object') {
+      const IconComp = (TgrIcons as Record<string, React.ComponentType<Record<string, unknown>>>)[
+        iconExportName(value.icon)
+      ];
+      if (!IconComp) {
+        return createElement(
+          'span',
+          { key: name || '__default__', ...(name ? { slot: name } : {}) },
+          `Ícone não encontrado: ${value.icon}`
+        );
+      }
+      return createElement(IconComp, {
+        key: name || '__default__',
+        ...(name ? { slot: name } : {}),
+        'aria-hidden': 'true',
+      });
+    }
+    return createElement('span', {
       key: name || '__default__',
       ...(name ? { slot: name } : {}),
-      dangerouslySetInnerHTML: { __html: html ?? '' },
-    })
-  );
+      dangerouslySetInnerHTML: { __html: value ?? '' },
+    });
+  });
   root.render(createElement(Comp, args as React.ComponentProps<typeof Comp>, ...slotChildren));
 }
