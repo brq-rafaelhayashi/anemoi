@@ -1,0 +1,119 @@
+{
+  "schemaVersion": 1,
+  "component": "tgr-button",
+  "digest": "9bdad9d8e96de0a86044bbf3f7a018c2d07d49207ae0f9740b62bd52fb3bcd34",
+  "surface": {
+    "component": "tgr-button",
+    "wc": {
+      "attributes": [
+        {
+          "name": "aria-label",
+          "type": "null | string"
+        },
+        {
+          "name": "brand",
+          "type": "boolean"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "full-width",
+          "type": "boolean"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "loading",
+          "type": "boolean"
+        },
+        {
+          "name": "size",
+          "type": "\"lg\" | \"sm\""
+        },
+        {
+          "name": "type",
+          "type": "\"button\" | \"reset\" | \"submit\""
+        },
+        {
+          "name": "variant",
+          "type": "\"mini\" | \"primary\" | \"secondary\""
+        }
+      ],
+      "properties": [
+        {
+          "name": "ariaLabel",
+          "type": "null | string"
+        },
+        {
+          "name": "brand",
+          "type": "boolean"
+        },
+        {
+          "name": "disabled",
+          "type": "boolean"
+        },
+        {
+          "name": "fullWidth",
+          "type": "boolean"
+        },
+        {
+          "name": "label",
+          "type": "string"
+        },
+        {
+          "name": "loading",
+          "type": "boolean"
+        },
+        {
+          "name": "size",
+          "type": "\"lg\" | \"sm\""
+        },
+        {
+          "name": "type",
+          "type": "\"button\" | \"reset\" | \"submit\""
+        },
+        {
+          "name": "variant",
+          "type": "\"mini\" | \"primary\" | \"secondary\""
+        }
+      ],
+      "events": [
+        {
+          "name": "tgrClick",
+          "type": "CustomEvent<{ clicked: true; originalEvent: MouseEvent; }>"
+        }
+      ],
+      "slots": []
+    },
+    "react": {
+      "exportName": "TgrButton",
+      "events": [
+        "onTgrClick"
+      ]
+    },
+    "angular": {
+      "selector": "tgr-button",
+      "inputs": [
+        "ariaLabel",
+        "brand",
+        "disabled",
+        "fullWidth",
+        "label",
+        "loading",
+        "size",
+        "type",
+        "variant"
+      ],
+      "outputs": [
+        "tgrClick"
+      ],
+      "projectableSlots": [
+        "*"
+      ]
+    }
+  }
+}
