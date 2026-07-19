@@ -1,5 +1,7 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
+const path = require('node:path');
 const {runPlaywrightState} = require('../src/run');
 
 function baseArgs() {
@@ -42,4 +44,33 @@ test('run diagnostico termina sem mentir que o gate foi aprovado', async () => {
   });
   assert.equal(manifest.gate.trusted, false);
   assert.deepEqual(exits, [0]);
+});
+
+test('falha de persistencia do invocador e infraestrutura e nao finaliza', async () => {
+  const cause = new Error('Falha ao persistir log do Playwright Test em /tmp/playwright.log: sem espaco');
+  let finalized = false;
+  await assert.rejects(() => runPlaywrightState(baseArgs(), '/cwd', {
+    createRunDir: () => '/tmp/run',
+    preflight: async () => ({planPath: '/tmp/plan'}),
+    invoke: async () => { throw cause; },
+    finalize: async () => { finalized = true; },
+    writeFailure: () => {},
+  }), error => error === cause);
+  assert.equal(finalized, false);
+});
+
+test('bin preserva exit 2 para erro de infraestrutura da CLI', () => {
+  const root = path.resolve(__dirname, '../../..');
+  const result = childProcess.spawnSync(process.execPath, [
+    path.join(root, 'packages/web/bin/anemoi-web.js'),
+    '--repo', root,
+    '--component', 'tgr-button',
+    '--engine', 'desconhecida',
+  ], {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+  });
+  assert.equal(result.status, 2, result.stderr);
+  assert.match(result.stderr, /Engine desconhecida/);
 });

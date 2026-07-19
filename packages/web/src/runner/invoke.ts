@@ -11,6 +11,7 @@ interface InvokeOptions {
   planPath: string;
   logPath: string;
   spawn?: typeof childProcess.spawn;
+  mkdir?: typeof fs.mkdirSync;
   writeFile?: typeof fs.writeFileSync;
 }
 
@@ -18,10 +19,12 @@ export function invokePlaywright({
   planPath,
   logPath,
   spawn = childProcess.spawn,
+  mkdir = fs.mkdirSync,
   writeFile = fs.writeFileSync,
 }: InvokeOptions) {
   return new Promise<{exitCode: number; signal: NodeJS.Signals | null}>((resolve, reject) => {
     const chunks: Buffer[] = [];
+    let settled = false;
     const cli = require.resolve('@playwright/test/cli');
     const child = spawn(
       process.execPath,
@@ -39,10 +42,25 @@ export function invokePlaywright({
         process.stderr.write(chunk);
       });
     }
-    child.on('error', reject);
+    child.on('error', error => {
+      if (settled) return;
+      settled = true;
+      reject(error);
+    });
     child.on('close', (exitCode: number | null, signal: NodeJS.Signals | null) => {
-      fs.mkdirSync(path.dirname(logPath), {recursive: true});
-      writeFile(logPath, Buffer.concat(chunks));
+      if (settled) return;
+      settled = true;
+      try {
+        mkdir(path.dirname(logPath), {recursive: true});
+        writeFile(logPath, Buffer.concat(chunks));
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : String(cause);
+        reject(new Error(
+          `Falha ao persistir log do Playwright Test em ${logPath}: ${detail}`,
+          {cause},
+        ));
+        return;
+      }
       resolve({exitCode: exitCode ?? 2, signal});
     });
   });
