@@ -110,6 +110,56 @@ test('finalizeRun preserva retries e reprova qualquer flaky', async t => {
   assert.deepEqual(manifest.attempts[0].attempts[1].attachments, ['results/primary/attempt-1/attachments/trace.zip']);
 });
 
+test('finalizeRun reprova resultado final failed mesmo quando provas parecem aprovadas', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene, {status: 'failed'}));
+  const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+  assert.equal(manifest.gate.dimensions.stability.status, 'failed');
+  assert.equal(manifest.gate.status, 'failed');
+  assert.equal(manifest.gate.trusted, false);
+});
+
+test('finalizeRun reprova resultado final error mesmo quando provas parecem aprovadas', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene, {status: 'error'}));
+  const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+  assert.equal(manifest.gate.dimensions.stability.status, 'unavailable');
+  assert.equal(manifest.gate.status, 'failed');
+  assert.equal(manifest.gate.trusted, false);
+});
+
+test('finalizeRun calcula browserCoverage pelo conjunto exato e por duplicatas', async t => {
+  await t.test('missing e unexpected em relacao aos required', async t => {
+    const value = await setup(t, {requiredBrowsers: ['firefox']});
+    value.writeAtomicResult(value.runDir, result(value.scene));
+    const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+    assert.equal(manifest.gate.dimensions.browserCoverage.status, 'failed');
+    assert.equal(manifest.gate.dimensions.browserCoverage.failed, 2);
+    assert.equal(manifest.gate.status, 'failed');
+  });
+
+  await t.test('browser selecionado duplicado', async t => {
+    const value = await setup(t, {browsers: ['chromium', 'chromium']});
+    value.writeAtomicResult(value.runDir, result(value.scene));
+    const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+    assert.equal(manifest.gate.dimensions.browserCoverage.status, 'failed');
+    assert.equal(manifest.gate.dimensions.browserCoverage.failed, 1);
+  });
+
+  await t.test('required oficial incompleto permanece falha mesmo em diagnostico', async t => {
+    const value = await setup(t, {
+      diagnostic: true,
+      requiredBrowsers: ['chromium', 'firefox', 'webkit'],
+    });
+    value.writeAtomicResult(value.runDir, result(value.scene));
+    const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+    assert.equal(manifest.gate.dimensions.browserCoverage.status, 'failed');
+    assert.equal(manifest.gate.dimensions.browserCoverage.failed, 2);
+    assert.equal(manifest.gate.status, 'not-approved');
+    assert.equal(manifest.gate.trusted, false);
+  });
+});
+
 test('finalizeRun marca roteiro ausente como evidencia indisponivel', async t => {
   const value = await setup(t);
   value.writeAtomicResult(value.runDir, result(value.scene, {routes: []}));
@@ -118,12 +168,45 @@ test('finalizeRun marca roteiro ausente como evidencia indisponivel', async t =>
   assert.equal(manifest.gate.dimensions.behavioralParity.status, 'unavailable');
 });
 
+test('finalizeRun deriva cobertura comportamental das rotas finais e exige covers canonico', async t => {
+  for (const covers of [[], ['extra'], ['activate', 'extra']]) {
+    await t.test(JSON.stringify(covers), async t => {
+      const value = await setup(t);
+      const atomic = result(value.scene);
+      atomic.routes[0].covers = covers;
+      value.writeAtomicResult(value.runDir, atomic);
+      const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+      assert.equal(manifest.gate.dimensions.behavioralConformance.status, 'unavailable');
+      assert.equal(manifest.gate.dimensions.contractCoverage.status, 'failed');
+      assert.ok(manifest.gate.dimensions.contractCoverage.failed > 0);
+      assert.equal(manifest.gate.status, 'failed');
+    });
+  }
+});
+
 test('finalizeRun nao aprova provas visuais, captures ou a11y estruturalmente ausentes', async t => {
   const value = await setup(t);
   value.writeAtomicResult(value.runDir, result(value.scene, {captures: [], proofs: {groups: []}}));
   const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
   assert.equal(manifest.gate.dimensions.visualParity.status, 'unavailable');
   assert.equal(manifest.gate.dimensions.axe.status, 'unavailable');
+  assert.equal(manifest.gate.status, 'failed');
+});
+
+test('finalizeRun exige conjuntos exatos de parity, audits e ariaParity', async t => {
+  const value = await setup(t);
+  const atomic = result(value.scene);
+  const group = atomic.proofs.groups[0];
+  group.parity.push(parity('wc', 0));
+  group.parity.push(parity('react', 0));
+  group.a11y.audits.vue = {violations: []};
+  group.a11y.ariaParity.push({against: 'wc', match: true});
+  group.a11y.ariaParity.push({against: 'react', match: true});
+  value.writeAtomicResult(value.runDir, atomic);
+  const manifest = value.finalizeRun(value.planPath, dependencies(value.runDir));
+  assert.equal(manifest.gate.dimensions.visualParity.status, 'unavailable');
+  assert.equal(manifest.gate.dimensions.axe.status, 'unavailable');
+  assert.equal(manifest.gate.dimensions.ariaParity.status, 'unavailable');
   assert.equal(manifest.gate.status, 'failed');
 });
 

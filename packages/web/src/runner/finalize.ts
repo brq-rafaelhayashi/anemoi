@@ -17,6 +17,8 @@ interface FinalizeDependencies {
 }
 
 type UnknownRecord = Record<string, any>;
+const EXPECTED_FRAMEWORKS = ['wc', 'react', 'angular'];
+const EXPECTED_COMPARISONS = ['react', 'angular'];
 
 export function finalizeRun(planPath: string, overrides: Partial<FinalizeDependencies> = {}) {
   const dependencies: FinalizeDependencies = {
@@ -38,33 +40,45 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
       `Matriz de Resultados Atomicos invalida. Resultado Atomico ausente: ${missing.join(', ') || '(nenhum)'}. Inesperado: ${unexpected.join(', ') || '(nenhum)'}.`,
     );
   }
+  const browserCoverageFailed = exactSetFailures(plan.browsers, plan.requiredBrowsers);
 
   const allCaptures = logical.flatMap(result => result.final.captures) as UnknownRecord[];
   const captures = allCaptures.filter(capture => !('error' in capture));
   const captureErrors = allCaptures.filter(capture => 'error' in capture).length;
   const captureShapeUnavailable = logical.reduce((total, result) => total
-    + plan.frameworks.filter(framework => result.final.captures
-      .filter(capture => capture.framework === framework).length !== 1).length, 0);
+    + exactSetFailures(
+      result.final.captures.map(capture => String(capture.framework)),
+      EXPECTED_FRAMEWORKS,
+    ), 0);
 
   const groups = logical.flatMap(result => result.final.proofs.groups) as UnknownRecord[];
   const groupUnavailable = logical
     .filter(result => result.final.proofs.groups.length !== 1).length;
   const parityEntries = groups.flatMap(group => group.parity || []) as UnknownRecord[];
   const parityShapeUnavailable = groups.reduce((total, group) => total
-    + ['react', 'angular'].filter(framework => (group.parity || [])
-      .filter((item: UnknownRecord) => item.against === framework).length !== 1).length, 0);
+    + exactSetFailures(
+      (group.parity || []).map((item: UnknownRecord) => String(item.against)),
+      EXPECTED_COMPARISONS,
+    ), 0);
   const visualUnavailable = captureErrors + captureShapeUnavailable
     + (groupUnavailable * 2) + parityShapeUnavailable;
 
   const routeResults = logical.flatMap(result => result.final.routes);
-  const routeShapeUnavailable = logical.reduce((total, result) => {
+  let routeIdentityUnavailable = 0;
+  let routeCoversFailed = 0;
+  for (const result of logical) {
     const expectedRoutes = plan.contract.routes.filter(route => route.sceneId === result.final.scene.id);
     const expectedIds = new Set(expectedRoutes.map(route => route.id));
     const missingOrDuplicate = expectedRoutes.filter(route => result.final.routes
       .filter(actualRoute => actualRoute.routeId === route.id).length !== 1).length;
     const unexpectedRoutes = result.final.routes.filter(route => !expectedIds.has(route.routeId)).length;
-    return total + missingOrDuplicate + unexpectedRoutes;
-  }, 0);
+    const coversMismatch = expectedRoutes.filter(expectedRoute => {
+      const actualRoute = result.final.routes.find(route => route.routeId === expectedRoute.id);
+      return actualRoute && !arraysEqual(actualRoute.covers, expectedRoute.covers);
+    }).length;
+    routeIdentityUnavailable += missingOrDuplicate + unexpectedRoutes;
+    routeCoversFailed += coversMismatch;
+  }
   const conformanceUnavailable = routeResults
     .filter(route => Object.values(route.frameworks).some(value => value.execution === 'error')).length;
   const conformanceFailed = routeResults
@@ -75,12 +89,13 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
 
   const audits = groups.flatMap(group => Object.values(group.a11y?.audits || {})) as UnknownRecord[];
   const ariaEntries = groups.flatMap(group => group.a11y?.ariaParity || []) as UnknownRecord[];
-  const auditShapeUnavailable = groups.reduce((total, group) => total
-    + plan.frameworks.filter(framework => !group.a11y
-      || !Object.hasOwn(group.a11y.audits || {}, framework)).length, 0);
-  const ariaShapeUnavailable = groups.reduce((total, group) => total
-    + ['react', 'angular'].filter(framework => (group.a11y?.ariaParity || [])
-      .filter((item: UnknownRecord) => item.against === framework).length !== 1).length, 0);
+  const auditShapeUnavailable = plan.collectA11y ? groups.reduce((total, group) => total
+    + exactSetFailures(Object.keys(group.a11y?.audits || {}), EXPECTED_FRAMEWORKS), 0) : 0;
+  const ariaShapeUnavailable = plan.collectA11y ? groups.reduce((total, group) => total
+    + exactSetFailures(
+      (group.a11y?.ariaParity || []).map((item: UnknownRecord) => String(item.against)),
+      EXPECTED_COMPARISONS,
+    ), 0) : 0;
   const a11yUnavailable = audits.filter(audit => audit.error).length
     + auditShapeUnavailable + (groupUnavailable * plan.frameworks.length);
   const ariaUnavailable = ariaShapeUnavailable + (groupUnavailable * 2);
@@ -88,21 +103,37 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
 
   const interruptedAttempts = logical.filter(result => result.final.status === 'error'
     || result.final.diagnostics.pageErrors.length > 0).length;
+  const failedExecutions = logical.filter(result => result.final.status === 'failed').length;
   const attemptGaps = logical.filter(result => result.attempts
     .some((attempt, index) => attempt.attempt !== index)).length;
-  const uncoveredBehaviors = plan.contract.requiredBehaviors
-    .filter(id => !plan.contract.coveredBehaviors.includes(id));
+  const executedBehaviors = [...new Set(routeResults.flatMap(route => route.covers))];
+  const behaviorCoverageFailed = exactSetFailures(
+    executedBehaviors,
+    plan.contract.requiredBehaviors,
+  );
   const staleContract = plan.contract.status === 'stale' ? 1 : 0;
   const dimensions = {
-    browserCoverage: verdict(0, 0),
+    browserCoverage: verdict(0, browserCoverageFailed),
     visualParity: verdict(visualUnavailable, parityEntries.filter(item => item.mismatch > 0).length),
     dimensions: verdict(visualUnavailable, parityEntries.filter(item => item.sizeMatch === false).length),
     axe: verdict(a11yUnavailable + (plan.collectA11y ? 0 : 1), axeFailed),
     ariaParity: verdict(a11yUnavailable + ariaUnavailable + (plan.collectA11y ? 0 : 1), ariaEntries.filter(item => item.match === false).length),
-    behavioralConformance: verdict(staleContract + conformanceUnavailable + routeShapeUnavailable, conformanceFailed),
-    behavioralParity: verdict(staleContract + behaviorParityUnavailable + routeShapeUnavailable, behaviorParityFailed),
-    contractCoverage: verdict(staleContract + routeShapeUnavailable, uncoveredBehaviors.length),
-    stability: verdict(interruptedAttempts + attemptGaps, logical.filter(result => result.stability === 'flaky').length),
+    behavioralConformance: verdict(
+      staleContract + conformanceUnavailable + routeIdentityUnavailable + routeCoversFailed,
+      conformanceFailed,
+    ),
+    behavioralParity: verdict(
+      staleContract + behaviorParityUnavailable + routeIdentityUnavailable + routeCoversFailed,
+      behaviorParityFailed,
+    ),
+    contractCoverage: verdict(
+      staleContract + routeIdentityUnavailable,
+      routeCoversFailed + behaviorCoverageFailed,
+    ),
+    stability: verdict(
+      interruptedAttempts + attemptGaps,
+      failedExecutions + logical.filter(result => result.stability === 'flaky').length,
+    ),
   };
   const gate = buildConfidenceGate({diagnostic: plan.diagnostic, dimensions});
 
@@ -146,6 +177,21 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
 
   dependencies.writeManifest(plan.runDir, manifest);
   return manifest;
+}
+
+function arraysEqual(actual: string[], expected: string[]) {
+  return actual.length === expected.length
+    && actual.every((value, index) => value === expected[index]);
+}
+
+function exactSetFailures(actual: string[], expected: string[]) {
+  const actualSet = new Set(actual);
+  const expectedSet = new Set(expected);
+  const duplicateActual = actual.length - actualSet.size;
+  const duplicateExpected = expected.length - expectedSet.size;
+  const missing = [...expectedSet].filter(value => !actualSet.has(value)).length;
+  const unexpected = [...actualSet].filter(value => !expectedSet.has(value)).length;
+  return duplicateActual + duplicateExpected + missing + unexpected;
 }
 
 function verdict(unavailable: number, failed: number) {
