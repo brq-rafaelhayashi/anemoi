@@ -90,6 +90,54 @@ test('finalizeRun rejeita matriz incompleta ou com IDs inesperados sem publicar'
   assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
 });
 
+test('finalizeRun exige que toda tentativa preserve a Cena planejada completa', async t => {
+  const mutations = {
+    args: atomic => { atomic.scene.args = {variant: 'forged'}; },
+    width: atomic => { atomic.scene.width = 768; },
+    viewport: atomic => {
+      atomic.scene.viewport = 'lg';
+      atomic.captures.forEach(item => { item.viewport = 'lg'; });
+      atomic.proofs.groups.forEach(item => { item.viewport = 'lg'; });
+    },
+    theme: atomic => {
+      atomic.scene.theme = 'dark';
+      atomic.captures.forEach(item => { item.theme = 'dark'; });
+      atomic.proofs.groups.forEach(item => { item.theme = 'dark'; });
+    },
+    component: atomic => { atomic.scene.component = 'forged-component'; },
+  };
+
+  for (const [field, mutate] of Object.entries(mutations)) {
+    await t.test(field, async t => {
+      const value = await setup(t);
+      const atomic = result(value.scene);
+      mutate(atomic);
+      value.writeAtomicResult(value.runDir, atomic);
+
+      assert.throws(() => value.finalizeRun(value.planPath, dependencies(value.runDir)), error => {
+        assert.match(error.message, /Cena planejada.*diverge/i);
+        assert.match(error.message, new RegExp(field, 'i'));
+        return true;
+      });
+      assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
+    });
+  }
+});
+
+test('finalizeRun valida a Cena planejada em todas as tentativas', async t => {
+  const value = await setup(t);
+  const forged = result(value.scene);
+  forged.scene = {...forged.scene, args: {forged: true}};
+  value.writeAtomicResult(value.runDir, forged);
+  value.writeAtomicResult(value.runDir, result(value.scene, {attempt: 1}));
+
+  assert.throws(
+    () => value.finalizeRun(value.planPath, dependencies(value.runDir)),
+    /Cena planejada.*attempt-0.*diverge/i,
+  );
+  assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
+});
+
 test('finalizeRun publica v2 aprovado quando todas as provas estao presentes', async t => {
   const value = await setup(t);
   value.writeAtomicResult(value.runDir, result(value.scene));

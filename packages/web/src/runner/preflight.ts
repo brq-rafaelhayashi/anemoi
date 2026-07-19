@@ -36,8 +36,8 @@ interface PreflightDependencies {
   definition?: Definition;
   contractDir?: string;
   support?: SupportMatrix;
-  reviewedFingerprint?: {digest: string};
-  currentFingerprint?: {digest: string};
+  reviewedFingerprint?: {component: string; digest: string};
+  currentFingerprint?: {component: string; digest: string};
   prepareConsumer?: (repo: string, options: Record<string, unknown>) => void;
   prepareHarnessBuilds?: (repo: string, runDir: string) => unknown;
   [key: string]: any;
@@ -109,6 +109,13 @@ export async function preflightRun(
   }));
   assertDefinitionIdentity(definition, consumer, component);
   const coverage = runtime.validateContract(definition.contract, definition.scenes);
+  const fingerprintFile = path.join(contractDir, 'fingerprint.json');
+  const reviewed = dependencies.reviewedFingerprint || runtime.readReviewedFingerprint(fingerprintFile);
+  if (reviewed.component !== component) {
+    throw new Error(
+      `Fingerprint revisado pertence a ${reviewed.component}; componente solicitado: ${component}.`,
+    );
+  }
   const support = dependencies.support || runtime.loadSupportMatrix(repo);
 
   const scenes = scenesFilter?.length
@@ -124,10 +131,13 @@ export async function preflightRun(
     logDir: path.join(runDir, 'logs', 'tangerina'),
   });
 
-  const fingerprintFile = path.join(contractDir, 'fingerprint.json');
-  const reviewed = dependencies.reviewedFingerprint || runtime.readReviewedFingerprint(fingerprintFile);
   const current = dependencies.currentFingerprint
     || runtime.createFingerprint(runtime.readPublicSurface(repo, component));
+  if (current.component !== component) {
+    throw new Error(
+      `Fingerprint atual pertence a ${current.component}; componente solicitado: ${component}.`,
+    );
+  }
   const contractStatus = reviewed.digest === current.digest && coverage.missing.length === 0
     ? 'current'
     : 'stale';

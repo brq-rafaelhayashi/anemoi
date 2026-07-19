@@ -231,8 +231,8 @@ function preflightDependencies(dir, overrides = {}) {
       scenes: [scene],
     },
     contractDir: path.join(dir, 'contract'),
-    reviewedFingerprint: {digest: 'same'},
-    currentFingerprint: {digest: 'same'},
+    reviewedFingerprint: {component: 'tgr-button', digest: 'same'},
+    currentFingerprint: {component: 'tgr-button', digest: 'same'},
     support,
     prepareConsumer: () => {},
     prepareHarnessBuilds: () => fs.writeFileSync(path.join(dir, 'builds.json'), '{}'),
@@ -253,12 +253,47 @@ test('preflight preserva coletas e fecha contrato quando fingerprint esta stale'
     themes: ['light'],
     viewports: ['sm'],
   }, preflightDependencies(dir, {
-    reviewedFingerprint: {digest: 'reviewed'},
-    currentFingerprint: {digest: 'current'},
+    reviewedFingerprint: {component: 'tgr-button', digest: 'reviewed'},
+    currentFingerprint: {component: 'tgr-button', digest: 'current'},
   }));
   assert.equal(plan.contract.status, 'stale');
   assert.equal(plan.scenes.length, 1);
   assert.equal(fs.existsSync(planPath), true);
+});
+
+test('preflight rejeita fingerprint revisado de outro componente', async t => {
+  const {preflightRun} = await subject('preflight.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-fingerprint-component-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  let consumerPrepared = false;
+  let harnessesPrepared = false;
+  const dependencies = preflightDependencies(dir, {
+    reviewedFingerprint: {component: 'other-component', digest: 'same'},
+    prepareConsumer: () => { consumerPrepared = true; },
+    prepareHarnessBuilds: () => { harnessesPrepared = true; },
+  });
+
+  await assert.rejects(preflightRun({
+    repo: '/tmp/tangerina', runDir: dir, component: 'tgr-button', card: 'C-1',
+  }, dependencies), /Fingerprint revisado pertence a other-component.*tgr-button/);
+  assert.equal(consumerPrepared, false);
+  assert.equal(harnessesPrepared, false);
+});
+
+test('preflight rejeita fingerprint atual de outro componente', async t => {
+  const {preflightRun} = await subject('preflight.ts');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-current-component-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  let harnessesPrepared = false;
+  const dependencies = preflightDependencies(dir, {
+    currentFingerprint: {component: 'other-component', digest: 'same'},
+    prepareHarnessBuilds: () => { harnessesPrepared = true; },
+  });
+
+  await assert.rejects(preflightRun({
+    repo: '/tmp/tangerina', runDir: dir, component: 'tgr-button', card: 'C-1',
+  }, dependencies), /Fingerprint atual pertence a other-component.*tgr-button/);
+  assert.equal(harnessesPrepared, false);
 });
 
 test('preflight fecha cobertura ausente sem publicar contrato current', async t => {

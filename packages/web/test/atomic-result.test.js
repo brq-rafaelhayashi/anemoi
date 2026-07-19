@@ -195,6 +195,33 @@ test('consolidateAttempts ignora paths exclusivos de cada tentativa', async () =
   assert.equal(logical.stability, 'stable');
 });
 
+test('consolidateAttempts ignora attachments diagnosticos exclusivos do retry', async () => {
+  const {consolidateAttempts} = await subject();
+  const [logical] = consolidateAttempts([
+    result({
+      diagnostics: {
+        console: ['same'],
+        pageErrors: [],
+        attachments: ['results/primary--chromium/attempt-0/attachments/failure.png'],
+      },
+    }),
+    result({
+      attempt: 1,
+      diagnostics: {
+        console: ['same'],
+        pageErrors: [],
+        attachments: [
+          'results/primary--chromium/attempt-1/attachments/failure.png',
+          'results/primary--chromium/attempt-1/attachments/trace.zip',
+        ],
+      },
+    }),
+  ]);
+
+  assert.equal(logical.stability, 'stable');
+  assert.equal(logical.attempts[1].diagnostics.attachments.length, 2);
+});
+
 test('consolidateAttempts preserva diagnosticos substantivos na assinatura', async () => {
   const {consolidateAttempts} = await subject();
   const [logical] = consolidateAttempts([

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
+import {isDeepStrictEqual} from 'node:util';
 import {readRunPlan} from './runPlan.ts';
 import {atomicResultPath, readAtomicResults, consolidateAttempts} from './atomicResult.ts';
 import {buildConfidenceGate} from './verdict.ts';
@@ -36,10 +37,10 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
     ...overrides,
   };
   const plan = readRunPlan(planPath);
-  const logical = consolidateAttempts(readAtomicResults(plan.runDir));
+  const atomicResults = readAtomicResults(plan.runDir);
   const expected = new Set(plan.scenes
     .flatMap(scene => plan.browsers.map(browser => `${scene.cellId}--${browser}`)));
-  const actual = new Set(logical.map(result => result.logicalTestId));
+  const actual = new Set(atomicResults.map(result => result.logicalTestId));
   const missing = [...expected].filter(id => !actual.has(id));
   const unexpected = [...actual].filter(id => !expected.has(id));
   if (missing.length || unexpected.length) {
@@ -47,6 +48,27 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
       `Matriz de Resultados Atomicos invalida. Resultado Atomico ausente: ${missing.join(', ') || '(nenhum)'}. Inesperado: ${unexpected.join(', ') || '(nenhum)'}.`,
     );
   }
+  const plannedScenes = new Map(plan.scenes.map(scene => [scene.cellId, scene]));
+  for (const result of atomicResults) {
+    const planned = plannedScenes.get(result.scene.cellId);
+    if (!planned) {
+      throw new Error(
+        `Cena planejada de ${result.logicalTestId} attempt-${result.attempt} inexistente: ${result.scene.cellId}.`,
+      );
+    }
+    if (!isDeepStrictEqual(result.scene, planned)) {
+      const fields = [...new Set([...Object.keys(planned), ...Object.keys(result.scene)])]
+        .filter(field => !isDeepStrictEqual(
+          planned[field as keyof typeof planned],
+          result.scene[field as keyof typeof result.scene],
+        ))
+        .sort();
+      throw new Error(
+        `Cena planejada de ${result.logicalTestId} attempt-${result.attempt} diverge nos campos: ${fields.join(', ') || '(shape)'}.`,
+      );
+    }
+  }
+  const logical = consolidateAttempts(atomicResults);
   const browserCoverageFailed = exactSetFailures(plan.browsers, plan.requiredBrowsers);
 
   const allCaptures = logical.flatMap(result => result.final.captures) as UnknownRecord[];

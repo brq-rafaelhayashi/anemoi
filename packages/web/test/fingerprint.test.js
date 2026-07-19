@@ -27,6 +27,33 @@ function withOverride(t, fixtureName, contents) {
   };
 }
 
+function publicSurface(component = 'tgr-button') {
+  return {
+    component,
+    wc: {
+      attributes: [{name: 'disabled', type: 'boolean'}],
+      properties: [],
+      events: [{name: 'tgrClick', type: 'CustomEvent'}],
+      slots: ['', 'icon'],
+    },
+    react: {exportName: 'TgrButton', events: ['onTgrClick']},
+    angular: {
+      selector: component,
+      inputs: ['disabled'],
+      outputs: ['tgrClick'],
+      projectableSlots: ['*'],
+    },
+  };
+}
+
+function fingerprintFile(t, contents) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-reviewed-fingerprint-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const file = path.join(dir, 'fingerprint.json');
+  fs.writeFileSync(file, typeof contents === 'string' ? contents : JSON.stringify(contents));
+  return file;
+}
+
 test('readPublicSurface combina WC, React e Angular de forma canonica', async () => {
   const [{readPublicSurface}] = await modules();
   const surface = readPublicSurface('/unused', 'tgr-button', {
@@ -311,4 +338,66 @@ test('writeReviewedFingerprint usa JSON formatado com newline', async t => {
   writeReviewedFingerprint(file, fingerprint);
   assert.equal(fs.readFileSync(file, 'utf8').endsWith('\n'), true);
   assert.deepEqual(readReviewedFingerprint(file), fingerprint);
+});
+
+test('readReviewedFingerprint falha fechado para JSON e shape invalidos', async t => {
+  const [, {createFingerprint, readReviewedFingerprint}] = await modules();
+  const valid = createFingerprint(publicSurface());
+
+  assert.throws(
+    () => readReviewedFingerprint(fingerprintFile(t, '{invalid')),
+    /Fingerprint revisado possui JSON invalido/,
+  );
+  for (const invalid of [
+    null,
+    [],
+    {...valid, component: ''},
+    {...valid, surface: {...valid.surface, wc: {...valid.surface.wc, events: [{name: 'x'}]}}},
+    {...valid, surface: {...valid.surface, react: {...valid.surface.react, events: [42]}}},
+    {...valid, surface: {...valid.surface, angular: {...valid.surface.angular, selector: ''}}},
+  ]) {
+    assert.throws(
+      () => readReviewedFingerprint(fingerprintFile(t, invalid)),
+      /Fingerprint revisado .*invalido/,
+    );
+  }
+});
+
+test('readReviewedFingerprint exige schema e digest SHA-256 lowercase', async t => {
+  const [, {createFingerprint, readReviewedFingerprint}] = await modules();
+  const valid = createFingerprint(publicSurface());
+
+  assert.throws(
+    () => readReviewedFingerprint(fingerprintFile(t, {...valid, schemaVersion: 2})),
+    /schemaVersion invalido/,
+  );
+  for (const digest of ['abc', 'A'.repeat(64), 'g'.repeat(64)]) {
+    assert.throws(
+      () => readReviewedFingerprint(fingerprintFile(t, {...valid, digest})),
+      /digest invalido/,
+    );
+  }
+});
+
+test('readReviewedFingerprint rejeita identidade incoerente e surface adulterada', async t => {
+  const [, {createFingerprint, readReviewedFingerprint}] = await modules();
+  const valid = createFingerprint(publicSurface());
+
+  assert.throws(
+    () => readReviewedFingerprint(fingerprintFile(t, {
+      ...valid,
+      surface: {...valid.surface, component: 'other-component'},
+    })),
+    /component.*diverge/i,
+  );
+  assert.throws(
+    () => readReviewedFingerprint(fingerprintFile(t, {
+      ...valid,
+      surface: {
+        ...valid.surface,
+        wc: {...valid.surface.wc, slots: [...valid.surface.wc.slots, 'forged']},
+      },
+    })),
+    /digest.*diverge/i,
+  );
 });

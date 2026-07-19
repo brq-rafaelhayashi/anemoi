@@ -464,7 +464,10 @@ function signature(result: AtomicResult) {
     captures: result.captures,
     proofs: result.proofs,
     routes: result.routes,
-    diagnostics: result.diagnostics,
+    diagnostics: {
+      console: result.diagnostics.console,
+      pageErrors: result.diagnostics.pageErrors,
+    },
   }));
 }
 
