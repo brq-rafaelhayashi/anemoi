@@ -11,7 +11,7 @@
   "bin": {"anemoi-web": "bin/anemoi-web.js"},
   "files": ["bin", "src", "harness"],
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test \"test/**/*.test.js\"",
     "typecheck": "tsc --noEmit",
     "test:browser": "playwright test --config playwright.config.ts"
   },

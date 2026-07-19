@@ -19,3 +19,8 @@ test('workspace web declara Playwright Test e typecheck sem emissao', () => {
   assert.equal(tsconfig.compilerOptions.moduleResolution, 'Bundler');
   assert.ok(fs.existsSync(path.join(ROOT, 'src', 'runner', 'types.ts')));
 });
+
+test('workspace web usa discovery recursivo explicito sem incluir fixtures d.ts', () => {
+  const pkg = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8'));
+  assert.equal(pkg.scripts.test, 'node --test "test/**/*.test.js"');
+});

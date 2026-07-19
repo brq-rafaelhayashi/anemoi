@@ -14,6 +14,19 @@ async function modules() {
   ]);
 }
 
+function withOverride(t, fixtureName, contents) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-public-surface-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const file = path.join(dir, fixtureName);
+  fs.writeFileSync(file, contents);
+  return {
+    cemPath: path.join(FIXTURE, 'custom-elements.json'),
+    reactPath: path.join(FIXTURE, 'react.d.ts'),
+    angularPath: path.join(FIXTURE, 'angular.d.ts'),
+    [fixtureName === 'react.d.ts' ? 'reactPath' : 'angularPath']: file,
+  };
+}
+
 test('readPublicSurface combina WC, React e Angular de forma canonica', async () => {
   const [{readPublicSurface}] = await modules();
   const surface = readPublicSurface('/unused', 'tgr-button', {
@@ -28,6 +41,95 @@ test('readPublicSurface combina WC, React e Angular de forma canonica', async ()
   assert.deepEqual(surface.angular, {selector: 'tgr-button', inputs: ['disabled'], outputs: ['tgrClick'], projectableSlots: ['*']});
 });
 
+test('readPublicSurface rejeita declaracao React que nao e exportada', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type TgrButtonEvents = {onTgrClick: EventName<CustomEvent>};',
+    'declare const TgrButton: StencilReactComponent<TgrButtonElement, TgrButtonEvents>;',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React nao exporta TgrButton/);
+});
+
+test('readPublicSurface nao confunde export type React com export de valor', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type TgrButtonEvents = {onTgrClick: EventName<CustomEvent>};',
+    'declare const TgrButton: StencilReactComponent<TgrButtonElement, TgrButtonEvents>;',
+    'export type {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React nao exporta TgrButton/);
+});
+
+test('readPublicSurface rejeita formato React sem event map reconhecivel', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'declare const TgrButton: UnknownWrapper<TgrButtonElement>;',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React TgrButton possui formato de eventos nao reconhecido/);
+});
+
+test('readPublicSurface usa alias publico Angular e altera o fingerprint', async t => {
+  const [{readPublicSurface}, {createFingerprint}] = await modules();
+  const current = readPublicSurface('/unused', 'tgr-button', {
+    cemPath: path.join(FIXTURE, 'custom-elements.json'),
+    reactPath: path.join(FIXTURE, 'react.d.ts'),
+    angularPath: path.join(FIXTURE, 'angular.d.ts'),
+  });
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {',
+    '    "disabled": {"alias": "isDisabled"; "required": false};',
+    '  }, {}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton { tgrClick: EventEmitter<CustomEvent>; }',
+    'export {TgrButton};',
+  ].join('\n'));
+  const aliased = readPublicSurface('/unused', 'tgr-button', overrides);
+  assert.deepEqual(aliased.angular.inputs, ['isDisabled']);
+  assert.notEqual(createFingerprint(aliased).digest, createFingerprint(current).digest);
+});
+
+test('readPublicSurface rejeita mapping de inputs Angular desconhecido', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {',
+    '    "disabled": boolean;',
+    '  }, {}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton { tgrClick: EventEmitter<CustomEvent>; }',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper Angular TgrButton possui mapping de inputs nao reconhecido/);
+});
+
+for (const [collection, label, itemName] of [
+  ['attributes', 'atributo', 'disabled'],
+  ['members', 'propriedade', 'disabled'],
+  ['events', 'evento', 'tgrClick'],
+]) {
+  test(`readPublicSurface rejeita ${label} CEM sem tipo`, async t => {
+    const [{readPublicSurface}] = await modules();
+    const cem = JSON.parse(fs.readFileSync(path.join(FIXTURE, 'custom-elements.json'), 'utf8'));
+    const declaration = cem.modules[0].declarations[0];
+    delete declaration[collection][0].type;
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-public-surface-'));
+    t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+    const cemPath = path.join(dir, 'custom-elements.json');
+    fs.writeFileSync(cemPath, JSON.stringify(cem));
+    assert.throws(() => readPublicSurface('/unused', 'tgr-button', {
+      cemPath,
+      reactPath: path.join(FIXTURE, 'react.d.ts'),
+      angularPath: path.join(FIXTURE, 'angular.d.ts'),
+    }), new RegExp(`Custom Elements Manifest declara ${label} ${itemName} sem tipo`));
+  });
+}
+
 test('fingerprint e diff sao deterministas e legiveis', async () => {
   const [, {createFingerprint, diffFingerprints}] = await modules();
   const base = {
@@ -41,6 +143,49 @@ test('fingerprint e diff sao deterministas e legiveis', async () => {
   assert.match(first.digest, /^[a-f0-9]{64}$/);
   assert.deepEqual(createFingerprint(base), first);
   assert.deepEqual(diffFingerprints(first, second), [{path: 'wc.slots', kind: 'added', value: 'icon'}]);
+});
+
+test('fingerprint e diff ignoram reorder de arrays e chaves de objetos', async () => {
+  const [, {createFingerprint, diffFingerprints}] = await modules();
+  const first = createFingerprint({
+    component: 'tgr-button',
+    wc: {
+      attributes: [{name: 'disabled', type: 'boolean'}, {name: 'size', type: 'string'}],
+      properties: [], events: [], slots: ['', 'icon'],
+    },
+    react: {exportName: 'TgrButton', events: ['onFocus', 'onTgrClick']},
+    angular: {selector: 'tgr-button', inputs: ['disabled', 'size'], outputs: [], projectableSlots: ['*']},
+  });
+  const reordered = createFingerprint({
+    component: 'tgr-button',
+    wc: {
+      attributes: [{type: 'string', name: 'size'}, {type: 'boolean', name: 'disabled'}],
+      properties: [], events: [], slots: ['icon', ''],
+    },
+    react: {exportName: 'TgrButton', events: ['onTgrClick', 'onFocus']},
+    angular: {selector: 'tgr-button', inputs: ['size', 'disabled'], outputs: [], projectableSlots: ['*']},
+  });
+  assert.equal(reordered.digest, first.digest);
+  assert.deepEqual(diffFingerprints(first, reordered), []);
+});
+
+test('fingerprint e diff preservam multiplicidade dos arrays', async () => {
+  const [, {createFingerprint, diffFingerprints}] = await modules();
+  const base = {
+    component: 'tgr-button',
+    wc: {attributes: [], properties: [], events: [], slots: ['icon']},
+    react: {exportName: 'TgrButton', events: []},
+    angular: {selector: 'tgr-button', inputs: [], outputs: [], projectableSlots: []},
+  };
+  const single = createFingerprint(base);
+  const duplicate = createFingerprint({...base, wc: {...base.wc, slots: ['icon', 'icon']}});
+  assert.notEqual(duplicate.digest, single.digest);
+  assert.deepEqual(diffFingerprints(single, duplicate), [
+    {path: 'wc.slots', kind: 'added', value: 'icon'},
+  ]);
+  assert.deepEqual(diffFingerprints(duplicate, single), [
+    {path: 'wc.slots', kind: 'removed', value: 'icon'},
+  ]);
 });
 
 test('writeReviewedFingerprint usa JSON formatado com newline', async t => {

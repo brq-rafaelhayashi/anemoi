@@ -19,7 +19,7 @@ export interface FingerprintDiff {
 }
 
 function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
+  if (Array.isArray(value)) return `[${value.map(canonical).sort().join(',')}]`;
   if (value && typeof value === 'object') {
     const entries = Object.entries(value as Record<string, unknown>)
       .sort(([a], [b]) => a.localeCompare(b));
@@ -46,12 +46,13 @@ function flatten(value: unknown, prefix = '', out = new Map<string, unknown>()) 
   return out;
 }
 
-function serializedArrayValue(value: unknown) {
-  return typeof value === 'string' ? value : JSON.stringify(value);
-}
-
-function deserializedArrayValue(value: string) {
-  return JSON.parse(value.startsWith('{') ? value : JSON.stringify(value));
+function multiset(values: unknown[]) {
+  const result = new Map<string, number>();
+  for (const value of values) {
+    const key = canonical(value);
+    result.set(key, (result.get(key) || 0) + 1);
+  }
+  return result;
 }
 
 export function diffFingerprints(
@@ -66,13 +67,18 @@ export function diffFingerprints(
     const left = before.get(itemPath);
     const right = after.get(itemPath);
     if (Array.isArray(left) && Array.isArray(right)) {
-      const leftValues = new Set(left.map(serializedArrayValue));
-      const rightValues = new Set(right.map(serializedArrayValue));
-      for (const value of [...rightValues].filter(item => !leftValues.has(item)).sort()) {
-        diffs.push({path: itemPath, kind: 'added', value: deserializedArrayValue(value)});
-      }
-      for (const value of [...leftValues].filter(item => !rightValues.has(item)).sort()) {
-        diffs.push({path: itemPath, kind: 'removed', value: deserializedArrayValue(value)});
+      const leftValues = multiset(left);
+      const rightValues = multiset(right);
+      const values = [...new Set([...leftValues.keys(), ...rightValues.keys()])].sort();
+      for (const value of values) {
+        const removed = Math.max((leftValues.get(value) || 0) - (rightValues.get(value) || 0), 0);
+        const added = Math.max((rightValues.get(value) || 0) - (leftValues.get(value) || 0), 0);
+        for (let index = 0; index < added; index += 1) {
+          diffs.push({path: itemPath, kind: 'added', value: JSON.parse(value)});
+        }
+        for (let index = 0; index < removed; index += 1) {
+          diffs.push({path: itemPath, kind: 'removed', value: JSON.parse(value)});
+        }
       }
     } else if (canonical(left) !== canonical(right)) {
       diffs.push({
