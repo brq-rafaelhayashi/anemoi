@@ -3,11 +3,49 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {cellRelPath, assertSafePathSegment, captureCells} = require('../src/capture');
+const {
+  cellRelPath,
+  assertSafePathSegment,
+  captureCells,
+  captureCellOnPage,
+} = require('../src/capture');
 
 test('cellRelPath organiza por framework/brand/story/viewport/theme', () => {
   const rel = cellRelPath({framework: 'react', brand: 'gol', storyId: 'action-button--primary', storyName: 'Primary', viewport: 'sm', theme: 'dark'});
   assert.equal(rel, 'react/gol/action-button--primary/sm/dark.png');
+});
+
+test('cellRelPath inclui browser somente quando informado', () => {
+  const base = {framework: 'wc', brand: 'gol', storyId: 'primary', viewport: 'sm', theme: 'light'};
+  assert.equal(cellRelPath(base), path.join('wc', 'gol', 'primary', 'sm', 'light.png'));
+  assert.equal(cellRelPath({...base, browser: 'firefox'}), path.join('firefox', 'wc', 'gol', 'primary', 'sm', 'light.png'));
+});
+
+test('captureCellOnPage usa a Page recebida sem lancar browser', async t => {
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-page-capture-'));
+  t.after(() => fs.rmSync(dest, {recursive: true, force: true}));
+  const calls = [];
+  const page = {
+    setViewportSize: async value => calls.push(['viewport', value]),
+    goto: async value => calls.push(['goto', value]),
+    locator: () => ({
+      screenshot: async ({path: output}) => {
+        fs.mkdirSync(path.dirname(output), {recursive: true});
+        fs.writeFileSync(output, 'png');
+      },
+    }),
+  };
+  const host = {
+    urlFor: () => 'http://fixture/scene',
+    selectorFor: () => '#evidence-root',
+    verify: async () => calls.push(['verify']),
+  };
+  const result = await captureCellOnPage(page, {
+    browser: 'webkit', framework: 'wc', brand: 'gol', storyId: 'primary', storyName: 'Primary',
+    viewport: 'sm', theme: 'light', width: 360,
+  }, host, 'http://fixture', dest, {collectA11y: false});
+  assert.equal(result.relPath, path.join('webkit', 'wc', 'gol', 'primary', 'sm', 'light.png'));
+  assert.deepEqual(calls.map(call => call[0]), ['viewport', 'goto', 'verify']);
 });
 
 test('captureCells fecha browser quando newContext falha', async () => {

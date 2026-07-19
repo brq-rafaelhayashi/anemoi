@@ -7,17 +7,8 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {WCAG_TAGS} = require('@gol-smiles/anemoi-core');
+const {WCAG_TAGS, assertSafePathSegment} = require('@gol-smiles/anemoi-core');
 const {DEFAULT_PAIRS} = require('./parity');
-
-// 'react/gol/button--primary/sm/light.aria.yaml' -> 'gol-button--primary-sm-light'
-// Espelha o nome dos diffs de pixel (brand-storyId-viewport-theme). Os
-// segmentos ja foram validados por assertSafePathSegment na captura.
-function fileBaseOf(ariaRelPath) {
-  const segments = ariaRelPath.split('/').slice(1);
-  const last = segments.pop().replace(/\.aria\.yaml$/, '');
-  return [...segments, last].join('-');
-}
 
 function auditOf(entry) {
   if (entry.error) return {error: entry.error};
@@ -30,9 +21,9 @@ function auditOf(entry) {
   };
 }
 
-function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
+function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = ''} = {}) {
   return groups.map(g => {
-    const {_a11y, ...rest} = g;
+    const {_a11y, _cell: cell, ...rest} = g;
     if (!_a11y) return rest;
 
     const audits = {};
@@ -50,7 +41,16 @@ function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS} = {}) {
       const match = ref.ariaSnapshot === other.ariaSnapshot;
       const entry = {against, match};
       if (!match) {
-        const diffRel = path.join('aria-diff', `${against}-vs-${reference}`, `${fileBaseOf(other.ariaRelPath)}.txt`);
+        const fileBase = [
+          assertSafePathSegment(cell.brand, 'brand'),
+          assertSafePathSegment(cell.storyId || cell.sceneId, 'sceneId'),
+          assertSafePathSegment(cell.viewport, 'viewport'),
+          assertSafePathSegment(cell.theme, 'theme'),
+        ].join('-');
+        const parts = artifactPrefix ? [artifactPrefix, 'aria-diff'] : ['aria-diff'];
+        if (cell.browser) parts.push(assertSafePathSegment(cell.browser, 'browser'));
+        parts.push(`${against}-vs-${reference}`, `${fileBase}.txt`);
+        const diffRel = path.join(...parts);
         const abs = path.join(runDir, diffRel);
         fs.mkdirSync(path.dirname(abs), {recursive: true});
         fs.writeFileSync(abs, [

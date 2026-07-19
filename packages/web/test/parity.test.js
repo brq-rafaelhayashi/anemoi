@@ -29,6 +29,16 @@ test('groupByCell nao colapsa stories distintas com o mesmo display name', () =>
   assert.deepEqual(groups.map(group => group.wc), ['a.png', 'b.png']);
 });
 
+test('groupByCell nao mistura a mesma Cena entre browsers', () => {
+  const base = {framework: 'wc', brand: 'gol', storyId: 'button--primary', storyName: 'Primary', viewport: 'sm', theme: 'light'};
+  const groups = groupByCell([
+    {...base, browser: 'chromium', relPath: 'chromium/wc.png'},
+    {...base, browser: 'firefox', relPath: 'firefox/wc.png'},
+  ]);
+  assert.equal(groups.length, 2);
+  assert.deepEqual(groups.map(group => group.browser), ['chromium', 'firefox']);
+});
+
 function writeSolidPng(runDir, rel, fill, width = 4, height = 4) {
   const abs = path.join(runDir, rel);
   fs.mkdirSync(path.dirname(abs), {recursive: true});
@@ -76,7 +86,32 @@ test('computeParity com pairs customizado compara angular contra react', () => {
   assert.equal(g.parity[0].against, 'angular');
   assert.ok(g.parity[0].mismatch > 0);
   assert.match(g.parity[0].diffPath, /^diff\/angular-vs-react\//);
-  assert.equal(g._cell, undefined);
+  assert.equal(g._cell.storyId, 'button--primary');
+});
+
+test('computeParity grava diff dentro do browser', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-browser-'));
+  writeSolidPng(runDir, 'chromium/wc.png', 10);
+  writeSolidPng(runDir, 'chromium/react.png', 240);
+  const [group] = computeParity([{
+    browser: 'chromium', brand: 'gol', storyId: 'button--primary', story: 'Primary', viewport: 'sm', theme: 'light',
+    label: 'chromium · gol · Primary · sm · light', wc: 'chromium/wc.png', react: 'chromium/react.png',
+    _cell: {browser: 'chromium', brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  }], runDir);
+  assert.match(group.parity[0].diffPath, /^diff\/chromium\/react-vs-wc\//);
+  assert.equal(group._cell.browser, 'chromium');
+});
+
+test('computeParity isola diff no prefixo da tentativa', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-attempt-'));
+  writeSolidPng(runDir, 'chromium/wc.png', 10);
+  writeSolidPng(runDir, 'chromium/react.png', 240);
+  const [group] = computeParity([{
+    browser: 'chromium', brand: 'gol', storyId: 'primary', story: 'Primary', viewport: 'sm', theme: 'light',
+    wc: 'chromium/wc.png', react: 'chromium/react.png',
+    _cell: {browser: 'chromium', brand: 'gol', storyId: 'primary', viewport: 'sm', theme: 'light'},
+  }], runDir, {artifactPrefix: 'results/primary--chromium/attempt-1/evidence'});
+  assert.match(group.parity[0].diffPath, /^results\/primary--chromium\/attempt-1\/evidence\/diff\/chromium\//);
 });
 
 test('computeParity pairs: parity vazio quando falta um dos lados', () => {
