@@ -44,3 +44,11 @@ test('collectProvenance registra a regua de acessibilidade (axe-core + tags)', (
   assert.match(provenance.a11y.axeCore, /^\d+\.\d+\.\d+/);
   assert.deepEqual(provenance.a11y.ruleset, ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa']);
 });
+
+test('collectProvenance registra Playwright Test e todas as engines do run', () => {
+  const provenance = collectProvenance({repo: os.tmpdir(), browsers: ['chromium', 'firefox', 'webkit']});
+  assert.equal(provenance.environment.runner, '@playwright/test');
+  assert.equal(provenance.environment.browser, null);
+  assert.deepEqual(provenance.environment.browsers, ['chromium', 'firefox', 'webkit']);
+  assert.match(provenance.environment.playwright, /^1\.61\./);
+});

@@ -89,8 +89,26 @@ test('buildManifest carrega agregado a11y quando fornecido, omite quando ausente
   assert.equal('a11y' in without, false);
 });
 
-test('barrel do core exporta buildManifest e buildFailureManifest', () => {
+test('buildManifestV2 publica schema explicito e leitor trata manifesto sem versao como v1', () => {
+  const {buildManifestV2, manifestSchemaVersion} = require('../src/manifest');
+  const manifest = buildManifestV2({
+    tool: 'Anemoi Web', status: 'passed', card: 'C-1', component: 'tgr-button', mode: 'current',
+    axes: {}, cellCount: 0, groups: [], behavior: {}, gate: {status: 'passed'}, attempts: [],
+    runDir: '/tmp/run', now: NOW,
+  });
+  assert.equal(manifest.schemaVersion, 2);
+  assert.equal(manifest.parityLabel, 'Paridade vs wc no mesmo browser');
+  assert.equal(manifestSchemaVersion(manifest), 2);
+  assert.equal(manifestSchemaVersion(buildManifest({
+    tool: 'Anemoi Web', card: 'C-1', component: 'tgr-button', mode: 'current',
+    runDir: '/tmp/run', now: NOW,
+  })), 1);
+});
+
+test('barrel do core exporta produtores v1 e v2', () => {
   const core = require('../src/index');
   assert.equal(typeof core.buildManifest, 'function');
+  assert.equal(typeof core.buildManifestV2, 'function');
   assert.equal(typeof core.buildFailureManifest, 'function');
+  assert.equal(typeof core.manifestSchemaVersion, 'function');
 });

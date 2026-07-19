@@ -49,6 +49,50 @@ function buildManifest({
   };
 }
 
+function buildManifestV2({
+  tool,
+  status,
+  card,
+  component,
+  mode,
+  axes,
+  cellCount,
+  groups,
+  provenance,
+  a11y,
+  behavior,
+  gate,
+  attempts,
+  runDir,
+  now = new Date(),
+}) {
+  requireFields({tool, status, card, component, mode, runDir, gate});
+  return {
+    schemaVersion: 2,
+    tool,
+    status,
+    card,
+    component,
+    mode,
+    layout: 'confidence',
+    parityLabel: 'Paridade vs wc no mesmo browser',
+    axes,
+    cellCount,
+    groups,
+    provenance,
+    a11y,
+    behavior,
+    gate,
+    attempts,
+    generatedAt: now.toISOString(),
+    runDir,
+  };
+}
+
+function manifestSchemaVersion(manifest) {
+  return manifest && manifest.schemaVersion === 2 ? 2 : 1;
+}
+
 // Manifesto de falha de execucao: sem grade, com diagnostico apontando o log.
 function buildFailureManifest({
   tool = 'Anemoi Web',
@@ -74,4 +118,4 @@ function buildFailureManifest({
   };
 }
 
-module.exports = {buildManifest, buildFailureManifest};
+module.exports = {buildManifest, buildManifestV2, buildFailureManifest, manifestSchemaVersion};

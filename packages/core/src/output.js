@@ -1,5 +1,6 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const {randomUUID} = require('node:crypto');
 
 function escapeHtml(value) {
   return String(value)
@@ -11,7 +12,24 @@ function escapeHtml(value) {
 
 function writeManifest(runDir, manifest) {
   const manifestPath = path.join(runDir, 'manifest.json');
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  const temporary = `${manifestPath}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    const handle = fs.openSync(temporary, 'wx');
+    try {
+      fs.writeFileSync(handle, JSON.stringify(manifest, null, 2) + '\n');
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    fs.linkSync(temporary, manifestPath);
+  } catch (error) {
+    if (error.code === 'EEXIST') {
+      throw new Error(`manifest.json ja existe e e imutavel: ${manifestPath}.`, {cause: error});
+    }
+    throw error;
+  } finally {
+    fs.rmSync(temporary, {force: true});
+  }
   return manifestPath;
 }
 
