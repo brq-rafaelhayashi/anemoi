@@ -97,6 +97,10 @@ test('finalizeRun publica v2 aprovado quando todas as provas estao presentes', a
   assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.gate.status, 'passed');
   assert.equal(manifest.behavior.results.length, 1);
+  assert.equal(fs.existsSync(path.join(value.runDir, 'summary.md')), true);
+  assert.equal(fs.existsSync(path.join(value.runDir, 'index.html')), true);
+  assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), true);
+  assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
 });
 
 test('finalizeRun preserva retries e reprova qualquer flaky', async t => {
@@ -232,4 +236,35 @@ test('finalizeRun publica manifest somente depois de consolidar todos os dados',
   const deps = dependencies(value.runDir, {summarizeA11y: () => { throw new Error('aggregate failed'); }});
   assert.throws(() => value.finalizeRun(value.planPath, deps), /aggregate failed/);
   assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
+});
+
+test('finalizeRun nao publica manifest quando a escrita atomica do summary falha', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene));
+  fs.mkdirSync(path.join(value.runDir, 'summary.md'));
+  assert.throws(() => value.finalizeRun(value.planPath, dependencies(value.runDir)));
+  assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
+  assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
+});
+
+test('finalizeRun nao publica manifest quando a escrita atomica da galeria falha', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene));
+  fs.mkdirSync(path.join(value.runDir, 'index.html'));
+  assert.throws(() => value.finalizeRun(value.planPath, dependencies(value.runDir)));
+  assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), false);
+  assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
+});
+
+test('finalizeRun chama o publicador do manifest somente com os artefatos humanos completos', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene));
+  const writeManifest = (_dir, manifest) => {
+    assert.equal(fs.statSync(path.join(value.runDir, 'summary.md')).isFile(), true);
+    assert.equal(fs.statSync(path.join(value.runDir, 'index.html')).isFile(), true);
+    assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
+    fs.writeFileSync(path.join(value.runDir, 'manifest.json'), JSON.stringify(manifest));
+  };
+  value.finalizeRun(value.planPath, dependencies(value.runDir, {writeManifest}));
+  assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), true);
 });

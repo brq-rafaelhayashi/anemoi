@@ -1,8 +1,11 @@
+import fs from 'node:fs';
 import path from 'node:path';
+import {randomUUID} from 'node:crypto';
 import {createRequire} from 'node:module';
 import {readRunPlan} from './runPlan.ts';
 import {atomicResultPath, readAtomicResults, consolidateAttempts} from './atomicResult.ts';
 import {buildConfidenceGate} from './verdict.ts';
+import {renderHtmlV2, renderSummaryV2} from './outputV2.ts';
 
 const require = createRequire(import.meta.url);
 const {buildManifestV2, writeManifest} = require('@gol-smiles/anemoi-core');
@@ -175,8 +178,28 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
     runDir: plan.runDir,
   });
 
+  const summary = renderSummaryV2(manifest);
+  const html = renderHtmlV2(manifest);
+  writeTextAtomic(path.join(plan.runDir, 'summary.md'), summary);
+  writeTextAtomic(path.join(plan.runDir, 'index.html'), html);
   dependencies.writeManifest(plan.runDir, manifest);
   return manifest;
+}
+
+function writeTextAtomic(file: string, content: string) {
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    const handle = fs.openSync(temporary, 'wx');
+    try {
+      fs.writeFileSync(handle, content, 'utf8');
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    fs.renameSync(temporary, file);
+  } finally {
+    fs.rmSync(temporary, {force: true});
+  }
 }
 
 function arraysEqual(actual: string[], expected: string[]) {
