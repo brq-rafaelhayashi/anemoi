@@ -1,7 +1,8 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {randomUUID} from 'node:crypto';
-import type {AtomicResult, Stability} from './types.ts';
+import type {AtomicResult, BehaviorObservation, Stability} from './types.ts';
+import {assertObservation as validateBehaviorObservation} from './observation.ts';
 
 export interface LogicalResult {
   logicalTestId: string;
@@ -256,7 +257,7 @@ function assertProofGroups(value: unknown, browser: AtomicResult['browser'], sce
   value.forEach(item => assertProofGroup(item, browser, scene));
 }
 
-function assertObservation(value: unknown) {
+function assertObservationShape(value: unknown) {
   if (!isRecord(value)
     || !('focus' in value)
     || !Array.isArray(value.events)
@@ -266,6 +267,7 @@ function assertObservation(value: unknown) {
     || !isRecord(value.state)) {
     throw new Error('Resultado Atomico route observation invalida.');
   }
+  validateBehaviorObservation(value as unknown as BehaviorObservation);
 }
 
 function assertFrameworkResult(value: unknown) {
@@ -276,10 +278,37 @@ function assertFrameworkResult(value: unknown) {
   if (!PROOF_VERDICTS.has(value.conformance as string)) {
     throw new Error('Resultado Atomico route framework conformance invalido.');
   }
-  if ('observation' in value) assertObservation(value.observation);
-  if ('error' in value && !isNonEmptyString(value.error)) {
-    throw new Error('Resultado Atomico route framework error invalido.');
+
+  if (value.execution === 'passed' && value.conformance === 'passed') {
+    if (!('observation' in value)) {
+      throw new Error('Resultado Atomico route framework observation obrigatoria.');
+    }
+    if ('error' in value) {
+      throw new Error('Resultado Atomico route framework exige error ausente.');
+    }
+    assertObservationShape(value.observation);
+    return;
   }
+  if (value.execution === 'passed' && value.conformance === 'failed') {
+    if (!('observation' in value)) {
+      throw new Error('Resultado Atomico route framework observation obrigatoria.');
+    }
+    if (!isNonEmptyString(value.error)) {
+      throw new Error('Resultado Atomico route framework error obrigatorio.');
+    }
+    assertObservationShape(value.observation);
+    return;
+  }
+  if (value.execution === 'error' && value.conformance === 'not-run') {
+    if (!isNonEmptyString(value.error)) {
+      throw new Error('Resultado Atomico route framework error obrigatorio.');
+    }
+    if ('observation' in value) {
+      throw new Error('Resultado Atomico route framework exige observation ausente.');
+    }
+    return;
+  }
+  throw new Error('Resultado Atomico route framework combinacao invalida.');
 }
 
 function assertRoute(value: Record<string, unknown>) {

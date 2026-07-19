@@ -297,6 +297,80 @@ test('validateAtomicResult valida routes e resultados dos tres frameworks', asyn
   assert.throws(() => validateAtomicResult(result({routes: [route({frameworks: {...route().frameworks, react: frameworkResult({observation: {events: []}})}})]})), /observation invalida/);
 });
 
+test('validateAtomicResult rejeita observacao nao serializavel antes de criar temporario', async t => {
+  const {validateAtomicResult, writeAtomicResult} = await subject();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-result-observation-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const withObservation = observation => result({routes: [route({
+    frameworks: {...route().frameworks, react: frameworkResult({observation})},
+  })]});
+  const undefinedFocus = withObservation({
+    focus: undefined,
+    events: [],
+    visibility: {},
+    state: {},
+  });
+  const bigintDetail = withObservation({
+    focus: 'button',
+    events: [{name: 'activate', detail: 1n}],
+    visibility: {},
+    state: {},
+  });
+  const cyclicState = {};
+  cyclicState.self = cyclicState;
+  const cyclic = withObservation({
+    focus: 'button',
+    events: [],
+    visibility: {},
+    state: cyclicState,
+  });
+
+  assert.throws(() => validateAtomicResult(undefinedFocus), /nao e serializavel/);
+  assert.throws(() => validateAtomicResult(bigintDetail), /nao e serializavel/);
+  assert.throws(() => validateAtomicResult(cyclic), /referencia circular/);
+  assert.throws(() => writeAtomicResult(dir, undefinedFocus), /nao e serializavel/);
+  assert.equal(fs.existsSync(path.join(dir, 'results')), false);
+});
+
+test('validateAtomicResult exige estados discriminados do resultado por framework', async () => {
+  const {validateAtomicResult} = await subject();
+  const withReact = react => result({routes: [route({
+    frameworks: {...route().frameworks, react},
+  })]});
+  const observation = frameworkResult().observation;
+
+  const valid = withReact(frameworkResult());
+  assert.equal(validateAtomicResult(valid), valid);
+  assert.doesNotThrow(() => validateAtomicResult(withReact(frameworkResult({
+    conformance: 'failed',
+    error: 'Expected one event',
+  }))));
+  assert.doesNotThrow(() => validateAtomicResult(withReact({
+    execution: 'error',
+    conformance: 'not-run',
+    error: 'mount failed',
+  })));
+
+  assert.throws(() => validateAtomicResult(withReact({execution: 'passed', conformance: 'passed'})), /observation obrigatoria/);
+  assert.throws(() => validateAtomicResult(withReact({...frameworkResult(), error: 'unexpected'})), /error ausente/);
+  assert.throws(() => validateAtomicResult(withReact({execution: 'passed', conformance: 'failed', observation})), /error obrigatorio/);
+  assert.throws(() => validateAtomicResult(withReact({execution: 'passed', conformance: 'not-run', observation})), /combinacao invalida/);
+  assert.throws(() => validateAtomicResult(withReact({execution: 'error', conformance: 'failed', error: 'mount failed'})), /combinacao invalida/);
+  assert.throws(() => validateAtomicResult(withReact({execution: 'error', conformance: 'not-run'})), /error obrigatorio/);
+  assert.throws(() => validateAtomicResult(withReact({execution: 'error', conformance: 'not-run', error: 'mount failed', observation})), /observation ausente/);
+});
+
+test('observacao valida preserva identidade e faz roundtrip no resultado atomico', async t => {
+  const {writeAtomicResult, readAtomicResults} = await subject();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-result-observation-roundtrip-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const value = result({routes: [route()]});
+  const original = value.routes[0].frameworks.wc.observation;
+  writeAtomicResult(dir, value);
+  assert.equal(value.routes[0].frameworks.wc.observation, original);
+  assert.deepEqual(readAtomicResults(dir)[0].routes[0].frameworks.wc.observation, original);
+});
+
 test('validateAtomicResult aceita resultado completo da fixture e emergencia vazia', async () => {
   const {validateAtomicResult} = await subject();
   const complete = result({
