@@ -6,9 +6,11 @@ checkout local do `tangerina-web-core` por alias.
 
 ```bash
 npm install
+npx playwright install chromium firefox webkit
 npm run web:configure -- --alias tangerina --repo /absolute/path/to/tangerina-web-core
 npm run web -- --repo tangerina --doctor
 npm run web -- --repo tangerina --component tgr-button --card CDCOM-123
+npm run web -- --repo tangerina --component tgr-button --review-contract
 ```
 
 ## Requisitos
@@ -16,10 +18,10 @@ npm run web -- --repo tangerina --component tgr-button --card CDCOM-123
 - Node.js 24.13.1.
 - npm 7 ou superior, com suporte a workspaces.
 - pnpm 9 ou superior disponível no `PATH`; ele executa os builds do checkout Tangerina.
-- Chromium do Playwright instalado. Se o doctor apontar sua ausência, execute
-  `npx playwright install chromium` na raiz do Anemoi.
+- Chromium, Firefox e WebKit da versão fixada do Playwright instalados. Se o doctor apontar alguma
+  ausência, execute `npx playwright install chromium firefox webkit` na raiz do Anemoi.
 
-O `npm install` instala os workspaces e também prepara os harnesses isolados de React e Angular.
+O `npm install` instala os workspaces e também prepara os harnesses isolados de WC, React e Angular.
 Para reinstalar somente os harnesses, use `npm run setup:harnesses`.
 
 ## Uso Web
@@ -28,24 +30,30 @@ O comando de configuração grava o arquivo local e ignorado `.anemoi.local.json
 versionado [.anemoi.local.example.json](.anemoi.local.example.json) documenta o formato. O primeiro
 alias configurado se torna o padrão; passe `--default` para tornar outro alias o padrão.
 
-O Anemoi valida o checkout consumidor, executa os builds necessários, lê as stories CSF, renderiza
-o mesmo estado nos três frameworks e grava o resultado no próprio checkout consumidor em:
+O Anemoi valida o checkout consumidor, a Matriz de Suporte e o contrato versionado do componente,
+executa os builds necessários e roda uma spec Playwright Test nativa. Cada unidade lógica cobre uma
+Cena em um browser e executa WC, React e Angular como steps. O resultado fica no próprio checkout
+consumidor em:
 
 ```text
 outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/
 ```
 
-O bundle contém `manifest.json`, `summary.md`, screenshots, diffs e uma galeria offline
-`index.html`. Consulte o [guia completo do Anemoi Web](docs/guides/web.md) para flags, ordem de
-build, falhas e interpretação da paridade. A visão estrutural está em
+O bundle contém o plano imutável `run-plan.json`, Resultados Atômicos por tentativa,
+`manifest.json` v2, `summary.md`, screenshots, diffs, diagnósticos e uma galeria offline
+`index.html`. O gate fail-closed separa cobertura de browsers, paridade visual, dimensões, Axe,
+ARIA, conformidade comportamental, paridade comportamental, cobertura do contrato e estabilidade.
+Consulte o [guia completo do Anemoi Web](docs/guides/web.md) para flags, builds e interpretação do
+gate. A visão estrutural está em
 [Arquitetura](docs/architecture.md).
 
 ## Pacotes
 
 | Caminho | Responsabilidade |
 | --- | --- |
-| `packages/core` | Captura Playwright, matriz, diff, servidor estático e geração do bundle. |
-| `packages/web` | Configuração, integração Tangerina, stories, hosts WC/React/Angular, doctor e paridade. |
+| `packages/core` | Primitivas de captura, diff, acessibilidade, servidor estático e manifestos. |
+| `packages/web` | Preflight, Playwright Test, contratos, hosts WC/React/Angular, gate e publicação Web. |
+| `packages/service` | Serviço local Koba; mantém o pipeline legado de captura somente por compatibilidade. |
 | `anemoi-preset` | Runtime React Native/Detox preservado e separado; será movido para `packages/mobile`. |
 | `gol-adapter-detox` | Integração atual do GOL_APP_Mobile; será movida para `integrations/gol-app-mobile`. |
 
