@@ -484,6 +484,11 @@ git commit -m "feat(web): validate Tangerina browser support matrix"
   - `validateContract(contract, scenes): {required: string[], covered: string[], missing: string[]}`
   - exceções explícitas para IDs duplicados, Cena inexistente e comportamento desconhecido.
 
+`sceneId` é uma referência reutilizável: Roteiros distintos podem montar a mesma Cena para
+observar comportamentos diferentes. A unicidade vale para as definições (`Scene.id`,
+`requiredBehaviors`, `Route.id`) e para a atribuição de cada comportamento coberto, não para
+o número de Roteiros que referenciam uma Cena.
+
 - [ ] **Step 1: Escrever os testes que falham**
 
 Criar `packages/web/test/contracts.test.js`:
