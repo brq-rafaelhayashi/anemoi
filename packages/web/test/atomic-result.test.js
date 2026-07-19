@@ -54,17 +54,21 @@ test('writeAtomicResult grava cada tentativa em path exclusivo sem temporario re
   assert.equal(JSON.parse(fs.readFileSync(first, 'utf8')).status, 'failed');
 });
 
-test('writeAtomicResult nao remove lock pertencente a outro escritor', async t => {
-  const {atomicResultPath, writeAtomicResult} = await subject();
+test('writeAtomicResult publica mesmo com lock e temporario orfaos', async t => {
+  const {atomicResultPath, writeAtomicResult, readAtomicResults} = await subject();
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-result-lock-'));
   t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
   const file = atomicResultPath(dir, 'primary--chromium', 0);
   fs.mkdirSync(path.dirname(file), {recursive: true});
   fs.writeFileSync(`${file}.lock`, 'writer-a');
+  fs.writeFileSync(`${file}.dead-worker.tmp`, 'partial');
 
-  assert.throws(() => writeAtomicResult(dir, result()), /esta sendo publicado/);
+  assert.equal(writeAtomicResult(dir, result()), file);
   assert.equal(fs.readFileSync(`${file}.lock`, 'utf8'), 'writer-a');
-  assert.equal(fs.existsSync(file), false);
+  assert.equal(fs.readFileSync(`${file}.dead-worker.tmp`, 'utf8'), 'partial');
+  assert.equal(JSON.parse(fs.readFileSync(file, 'utf8')).status, 'failed');
+  assert.equal(readAtomicResults(dir).length, 1);
+  assert.throws(() => writeAtomicResult(dir, result()), /Resultado Atomico ja existe/);
 });
 
 test('resultado de emergencia interrompido e persistido como error', async t => {
@@ -105,16 +109,70 @@ test('consolidateAttempts mantem falha repetida identica como stable', async () 
 
 test('consolidateAttempts ignora paths exclusivos de cada tentativa', async () => {
   const {consolidateAttempts} = await subject();
-  const capture = relPath => ({
+  const capture = (attempt, relPath) => ({
     framework: 'wc',
     relPath,
-    a11y: {relPath: `${relPath}.a11y.json`, violations: []},
+    a11y: {
+      relPath: `${relPath}.a11y.json`,
+      ariaRelPath: `${relPath}.aria.yaml`,
+      violations: [],
+    },
+    parity: [{match: false, diffPath: `results/x/attempt-${attempt}/evidence/diff.png`}],
+    audit: {artifactPath: `results/x/attempt-${attempt}/evidence/axe.json`, violations: []},
   });
   const [logical] = consolidateAttempts([
-    result({captures: [capture('results/x/attempt-0/evidence/wc.png')]}),
-    result({attempt: 1, captures: [capture('results/x/attempt-1/evidence/wc.png')]}),
+    result({
+      captures: [capture(0, 'results/x/attempt-0/evidence/wc.png')],
+      diagnostics: {console: ['same'], pageErrors: [], attachments: ['results/x/attempt-0/trace.zip']},
+    }),
+    result({
+      attempt: 1,
+      captures: [capture(1, 'results/x/attempt-1/evidence/wc.png')],
+      diagnostics: {console: ['same'], pageErrors: [], attachments: ['results/x/attempt-1/trace.zip']},
+    }),
   ]);
   assert.equal(logical.stability, 'stable');
+});
+
+test('consolidateAttempts preserva diagnosticos substantivos na assinatura', async () => {
+  const {consolidateAttempts} = await subject();
+  const [logical] = consolidateAttempts([
+    result({
+      status: 'error',
+      diagnostics: {console: [], pageErrors: ['execution: timeout'], attachments: []},
+    }),
+    result({
+      attempt: 1,
+      status: 'error',
+      diagnostics: {console: [], pageErrors: ['execution: page crash'], attachments: []},
+    }),
+  ]);
+  assert.equal(logical.stability, 'flaky');
+});
+
+test('consolidateAttempts preserva campo path substantivo de diff', async () => {
+  const {consolidateAttempts} = await subject();
+  const route = pathValue => ({
+    routeId: 'activation',
+    covers: ['activate'],
+    frameworks: {},
+    parity: 'failed',
+    diff: [{path: pathValue, reference: 1, against: 2}],
+  });
+  const [logical] = consolidateAttempts([
+    result({routes: [route('events[0]')]}),
+    result({attempt: 1, routes: [route('events[1]')]}),
+  ]);
+  assert.equal(logical.stability, 'flaky');
+});
+
+test('consolidateAttempts preserva identidade do artefato fora do prefixo da tentativa', async () => {
+  const {consolidateAttempts} = await subject();
+  const [logical] = consolidateAttempts([
+    result({captures: [{relPath: 'results/x/attempt-0/evidence/wc.png'}]}),
+    result({attempt: 1, captures: [{relPath: 'results/x/attempt-1/evidence/react.png'}]}),
+  ]);
+  assert.equal(logical.stability, 'flaky');
 });
 
 test('consolidateAttempts rejeita tentativa duplicada do mesmo teste logico', async () => {
@@ -127,6 +185,7 @@ test('atomicResultPath rejeita traversal e attempt invalido', async () => {
   assert.throws(() => atomicResultPath('/tmp/run', '../escape', 0), /logicalTestId invalido/);
   assert.throws(() => atomicResultPath('/tmp/run', 'x\\y', 0), /logicalTestId invalido/);
   assert.throws(() => atomicResultPath('/tmp/run', 'x', -1), /attempt invalido/);
+  assert.throws(() => atomicResultPath('/tmp/run', 'x', Number.MAX_SAFE_INTEGER + 1), /attempt invalido/);
 });
 
 test('validateAtomicResult rejeita envelope, identidade e artifact paths invalidos', async () => {
@@ -136,6 +195,13 @@ test('validateAtomicResult rejeita envelope, identidade e artifact paths invalid
   assert.throws(() => validateAtomicResult(result({browser: 'edge'})), /browser invalido/);
   assert.throws(() => validateAtomicResult(result({logicalTestId: 'other--chromium'})), /identidade invalida/);
   assert.throws(() => validateAtomicResult(result({captures: {}})), /captures invalido/);
+  assert.throws(() => validateAtomicResult(result({captures: [null]})), /captures invalido/);
+  assert.throws(() => validateAtomicResult(result({proofs: {groups: [null]}})), /proofs invalido/);
+  assert.throws(() => validateAtomicResult(result({routes: [null]})), /routes invalido/);
+  assert.throws(() => validateAtomicResult(result({scene: {...result().scene, name: 42}})), /scene invalida/);
+  assert.throws(() => validateAtomicResult(result({scene: {...result().scene, args: []}})), /scene invalida/);
+  assert.throws(() => validateAtomicResult(result({scene: {...result().scene, width: Infinity}})), /scene invalida/);
+  assert.throws(() => validateAtomicResult(result({diagnostics: {console: [42], pageErrors: [], attachments: []}})), /diagnostics.console invalido/);
   assert.throws(() => validateAtomicResult(result({diagnostics: {console: [], pageErrors: [], attachments: ['../trace.zip']}})), /artifact path invalido/);
   assert.throws(() => validateAtomicResult(result({captures: [{relPath: '/tmp/outside.png'}]})), /artifact path invalido/);
   assert.throws(() => validateAtomicResult(result({captures: [{relPath: 'results\\..\\outside.png'}]})), /artifact path invalido/);
@@ -160,4 +226,16 @@ test('readAtomicResults ordena resultados e rejeita identidade divergente do dir
   fs.mkdirSync(path.dirname(file), {recursive: true});
   fs.writeFileSync(file, `${JSON.stringify(result())}\n`);
   assert.throws(() => readAtomicResults(dir), /identidade do path diverge/);
+});
+
+test('readAtomicResults rejeita alias nao canonico attempt-00', async t => {
+  const {atomicResultPath, readAtomicResults} = await subject();
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-result-attempt-'));
+  t.after(() => fs.rmSync(dir, {recursive: true, force: true}));
+  const canonical = atomicResultPath(dir, 'primary--chromium', 0);
+  const alias = canonical.replace(`${path.sep}attempt-0${path.sep}`, `${path.sep}attempt-00${path.sep}`);
+  fs.mkdirSync(path.dirname(alias), {recursive: true});
+  fs.writeFileSync(alias, `${JSON.stringify(result())}\n`);
+
+  assert.throws(() => readAtomicResults(dir), /Diretorio de tentativa invalido/);
 });
