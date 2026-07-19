@@ -114,6 +114,29 @@ test('computeParity isola diff no prefixo da tentativa', () => {
   assert.match(group.parity[0].diffPath, /^results\/primary--chromium\/attempt-1\/evidence\/diff\/chromium\//);
 });
 
+test('computeParity rejeita artifactPrefix inseguro antes de escrever', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-prefix-'));
+  t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+  const runDir = path.join(root, 'run', 'nested');
+  writeSolidPng(runDir, 'chromium/wc.png', 10);
+  writeSolidPng(runDir, 'chromium/react.png', 240);
+  const group = {
+    wc: 'chromium/wc.png',
+    react: 'chromium/react.png',
+    _cell: {browser: 'chromium', brand: 'gol', storyId: 'primary', viewport: 'sm', theme: 'light'},
+  };
+  const absolute = path.join(root, 'absolute');
+
+  for (const prefix of ['../../outside', absolute]) {
+    assert.throws(
+      () => computeParity([group], runDir, {artifactPrefix: prefix}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+  assert.equal(fs.existsSync(path.join(root, 'outside')), false);
+  assert.equal(fs.existsSync(absolute), false);
+});
+
 test('computeParity pairs: parity vazio quando falta um dos lados', () => {
   const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'parity-'));
   writeSolidPng(runDir, 'react.png', 10);

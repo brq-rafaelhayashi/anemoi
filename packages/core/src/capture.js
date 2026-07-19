@@ -2,19 +2,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {chromium} = require('playwright');
 const {runAxeAudit, captureAriaSnapshot} = require('./a11y');
-
-function assertSafePathSegment(value, label = 'segment') {
-  const segment = String(value ?? '');
-  if (
-    segment.length === 0 ||
-    segment === '.' ||
-    segment === '..' ||
-    /[\\/\u0000-\u001f\u007f]/.test(segment)
-  ) {
-    throw new Error(`${label}: segmento de caminho invalido: ${JSON.stringify(segment)}.`);
-  }
-  return segment;
-}
+const {
+  assertSafePathSegment,
+  assertSafeRelativePath,
+  resolveContainedPath,
+} = require('./path');
 
 function cellRelPath(cell) {
   const segments = [];
@@ -40,9 +32,12 @@ async function collectCellA11y(page, selector, destDir, pngRelPath) {
   try {
     const audit = await runAxeAudit(page, selector);
     const ariaSnapshot = await captureAriaSnapshot(page, selector);
-    fs.writeFileSync(path.join(destDir, relPath), JSON.stringify(audit, null, 2) + '\n');
     fs.writeFileSync(
-      path.join(destDir, ariaRelPath),
+      resolveContainedPath(destDir, relPath, 'a11y artifact path'),
+      JSON.stringify(audit, null, 2) + '\n',
+    );
+    fs.writeFileSync(
+      resolveContainedPath(destDir, ariaRelPath, 'aria artifact path'),
       ariaSnapshot.endsWith('\n') ? ariaSnapshot : ariaSnapshot + '\n',
     );
     return {
@@ -69,7 +64,7 @@ async function captureCellOnPage(
   {collectA11y = true} = {},
 ) {
   const relPath = cellRelPath(cell);
-  const outPath = path.join(destDir, relPath);
+  const outPath = resolveContainedPath(destDir, relPath, 'capture path');
   fs.mkdirSync(path.dirname(outPath), {recursive: true});
   await page.setViewportSize({width: cell.width, height: 900});
   await page.goto(host.urlFor(cell, baseUrl), {waitUntil: 'networkidle', timeout: 30000});
@@ -108,4 +103,11 @@ async function captureCells(cells, host, baseUrl, destDir, {onProgress, browserT
   return results;
 }
 
-module.exports = {captureCells, captureCellOnPage, cellRelPath, assertSafePathSegment};
+module.exports = {
+  captureCells,
+  captureCellOnPage,
+  cellRelPath,
+  assertSafePathSegment,
+  assertSafeRelativePath,
+  resolveContainedPath,
+};

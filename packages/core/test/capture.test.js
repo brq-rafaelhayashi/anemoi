@@ -8,6 +8,8 @@ const {
   assertSafePathSegment,
   captureCells,
   captureCellOnPage,
+  assertSafeRelativePath,
+  resolveContainedPath,
 } = require('../src/capture');
 
 test('cellRelPath organiza por framework/brand/story/viewport/theme', () => {
@@ -110,6 +112,47 @@ test('assertSafePathSegment bloqueia traversal e separadores', () => {
     assert.throws(() => assertSafePathSegment(value, 'story'), /segmento de caminho invalido/);
   }
   assert.equal(assertSafePathSegment('Primary state', 'story'), 'Primary state');
+});
+
+test('assertSafeRelativePath aceita vazio ou caminho relativo composto seguro', () => {
+  assert.equal(assertSafeRelativePath('', 'artifactPrefix', {allowEmpty: true}), '');
+  assert.equal(
+    assertSafeRelativePath('attempts/0', 'artifactPrefix', {allowEmpty: true}),
+    path.join('attempts', '0'),
+  );
+});
+
+test('assertSafeRelativePath rejeita absoluto, segmentos vazios e traversal', () => {
+  const invalid = [
+    '/absolute',
+    'C:/absolute',
+    '.',
+    '..',
+    'attempts//0',
+    'attempts/./0',
+    'attempts/../0',
+    'attempts\\0',
+    '%2e%2e/outside',
+    'attempts/%2foutside',
+  ];
+  for (const value of invalid) {
+    assert.throws(
+      () => assertSafeRelativePath(value, 'artifactPrefix', {allowEmpty: true}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+});
+
+test('resolveContainedPath mantem a escrita dentro da raiz', () => {
+  const root = path.resolve('/tmp/anemoi-containment');
+  assert.equal(
+    resolveContainedPath(root, 'attempts/0/diff.png', 'artifactPath'),
+    path.join(root, 'attempts', '0', 'diff.png'),
+  );
+  assert.throws(
+    () => resolveContainedPath(root, '../outside.png', 'artifactPath'),
+    /artifactPath.*caminho relativo invalido/,
+  );
 });
 
 test('cellRelPath rejeita eixo inseguro antes de compor o output', () => {

@@ -1,6 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
-const {writeDiff, assertSafePathSegment} = require('@gol-smiles/anemoi-core');
+const {
+  writeDiff,
+  assertSafePathSegment,
+  assertSafeRelativePath,
+  resolveContainedPath,
+} = require('@gol-smiles/anemoi-core');
 
 function keyOf(c) {
   return [c.browser || 'legacy', c.brand, c.storyId || c.sceneId, c.viewport, c.theme].join('|');
@@ -45,6 +50,11 @@ const DEFAULT_PAIRS = [
 // apenas um dos lados conta como divergencia, e sizeMatch registra se as
 // capturas tinham o mesmo tamanho.
 function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = ''} = {}) {
+  const safeArtifactPrefix = assertSafeRelativePath(
+    artifactPrefix,
+    'artifactPrefix',
+    {allowEmpty: true},
+  );
   return groups.map(g => {
     const parity = [];
     for (const {reference, against} of pairs) {
@@ -56,7 +66,7 @@ function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = 
         const browser = g._cell.browser
           ? assertSafePathSegment(g._cell.browser, 'browser')
           : null;
-        const diffSegments = artifactPrefix ? [artifactPrefix, 'diff'] : ['diff'];
+        const diffSegments = safeArtifactPrefix ? [safeArtifactPrefix, 'diff'] : ['diff'];
         if (browser) diffSegments.push(browser);
         diffSegments.push(
           `${against}-vs-${reference}`,
@@ -65,7 +75,7 @@ function computeParity(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = 
         const diffRel = path.join(...diffSegments);
         const {mismatch, width, height, sizeMatch, beforeSize, afterSize} = writeDiff(
           path.join(runDir, g[reference]), path.join(runDir, g[against]),
-          ensureDir(path.join(runDir, diffRel)),
+          ensureDir(resolveContainedPath(runDir, diffRel, 'diff artifact path')),
         );
         parity.push({
           against, mismatch, width, height, sizeMatch,

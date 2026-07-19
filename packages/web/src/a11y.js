@@ -7,7 +7,12 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const {WCAG_TAGS, assertSafePathSegment} = require('@gol-smiles/anemoi-core');
+const {
+  WCAG_TAGS,
+  assertSafePathSegment,
+  assertSafeRelativePath,
+  resolveContainedPath,
+} = require('@gol-smiles/anemoi-core');
 const {DEFAULT_PAIRS} = require('./parity');
 
 function auditOf(entry) {
@@ -22,6 +27,11 @@ function auditOf(entry) {
 }
 
 function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = ''} = {}) {
+  const safeArtifactPrefix = assertSafeRelativePath(
+    artifactPrefix,
+    'artifactPrefix',
+    {allowEmpty: true},
+  );
   return groups.map(g => {
     const {_a11y, _cell: cell, ...rest} = g;
     if (!_a11y) return rest;
@@ -47,11 +57,11 @@ function computeA11y(groups, runDir, {pairs = DEFAULT_PAIRS, artifactPrefix = ''
           assertSafePathSegment(cell.viewport, 'viewport'),
           assertSafePathSegment(cell.theme, 'theme'),
         ].join('-');
-        const parts = artifactPrefix ? [artifactPrefix, 'aria-diff'] : ['aria-diff'];
+        const parts = safeArtifactPrefix ? [safeArtifactPrefix, 'aria-diff'] : ['aria-diff'];
         if (cell.browser) parts.push(assertSafePathSegment(cell.browser, 'browser'));
         parts.push(`${against}-vs-${reference}`, `${fileBase}.txt`);
         const diffRel = path.join(...parts);
-        const abs = path.join(runDir, diffRel);
+        const abs = resolveContainedPath(runDir, diffRel, 'aria diff artifact path');
         fs.mkdirSync(path.dirname(abs), {recursive: true});
         fs.writeFileSync(abs, [
           `--- ${reference} (reference): ${ref.ariaRelPath}`,
