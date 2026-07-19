@@ -114,3 +114,17 @@ test('validateContract rejeita referencias de cena e comportamento vazias ou rep
     {id: 'x', sceneId: 'primary', covers: ['activate', 'activate']},
   ]}, scenes), /Roteiro x possui referencia de comportamento duplicada: activate/);
 });
+
+test('validateContract rejeita comportamento referenciado por roteiros distintos', async () => {
+  const {validateContract} = await subject();
+  const contract = {
+    schemaVersion: 1, consumer: 'tangerina', component: 'tgr-button',
+    requiredBehaviors: ['activate'],
+    routes: [
+      {id: 'r1', sceneId: 'primary', covers: ['activate']},
+      {id: 'r2', sceneId: 'primary', covers: ['activate']},
+    ],
+  };
+  assert.throws(() => validateContract(contract, scenes),
+    /Roteiro r2 possui referencia de comportamento duplicada: activate; ja referenciada pelo Roteiro r1/);
+});

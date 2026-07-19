@@ -30,6 +30,7 @@ export function validateContract(contract: ContractDefinition, scenes: SceneDefi
   const required = [...contract.requiredBehaviors].sort();
   const routeIds = new Set<string>();
   const coveredSet = new Set<string>();
+  const behaviorRouteIds = new Map<string, string>();
 
   for (const route of contract.routes) {
     if (invalidId(route.id)) throw new Error(`ID de Roteiro invalido: ${JSON.stringify(route.id)}.`);
@@ -52,6 +53,11 @@ export function validateContract(contract: ContractDefinition, scenes: SceneDefi
       if (!requiredSet.has(behavior)) {
         throw new Error(`Roteiro ${route.id} cobre comportamento nao declarado: ${behavior}.`);
       }
+      const firstRouteId = behaviorRouteIds.get(behavior);
+      if (firstRouteId) {
+        throw new Error(`Roteiro ${route.id} possui referencia de comportamento duplicada: ${behavior}; ja referenciada pelo Roteiro ${firstRouteId}.`);
+      }
+      behaviorRouteIds.set(behavior, route.id);
       coveredSet.add(behavior);
     }
   }
