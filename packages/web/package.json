@@ -10,10 +10,19 @@
   },
   "bin": {"anemoi-web": "bin/anemoi-web.js"},
   "files": ["bin", "src", "harness"],
-  "scripts": {"test": "node --test"},
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc --noEmit",
+    "test:browser": "playwright test --config playwright.config.ts"
+  },
   "engines": { "node": ">=24" },
   "dependencies": {
     "@gol-smiles/anemoi-core": "*",
     "@storybook/csf": "^0.1.11"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.61.1",
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
   }
 }
