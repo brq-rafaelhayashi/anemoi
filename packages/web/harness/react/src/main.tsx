@@ -38,6 +38,9 @@ const args = JSON.parse(decodeURIComponent(params.get('args') || '%7B%7D'));
 const slots: Record<string, string | { icon: string }> = JSON.parse(
   decodeURIComponent(params.get('slots') || '%7B%7D')
 );
+const context: {kind: 'form'; id: string} | null = JSON.parse(
+  decodeURIComponent(params.get('context') || 'null')
+);
 
 // Aplica brand/tema no <html> (convenção: gol = sem atributo, dark = data-theme="dark")
 const htmlEl = document.documentElement;
@@ -101,5 +104,16 @@ if (!Comp) {
       dangerouslySetInnerHTML: { __html: value ?? '' },
     });
   });
-  root.render(createElement(Comp, args as React.ComponentProps<typeof Comp>, ...slotChildren));
+  const componentNode = createElement(
+    Comp,
+    args as React.ComponentProps<typeof Comp>,
+    ...slotChildren
+  );
+  root.render(context?.kind === 'form'
+    ? createElement(
+      'form',
+      {id: context.id, onSubmit: event => event.preventDefault()},
+      componentNode
+    )
+    : componentNode);
 }

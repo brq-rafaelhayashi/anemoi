@@ -135,8 +135,9 @@ function urlFor(cell, baseUrl) {
   const viewport = encodeURIComponent(cell.viewport ?? 'sm');
   const args = encodeURIComponent(JSON.stringify(cell.args || {}));
   const slots = encodeURIComponent(JSON.stringify(cell.slots || {}));
+  const context = encodeURIComponent(JSON.stringify(cell.context || null));
   const background = encodeURIComponent(backgroundForCell(cell));
-  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}&background=${background}`;
+  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}&context=${context}&background=${background}`;
 }
 
 /** Seletor da raiz montada pelo Angular. */

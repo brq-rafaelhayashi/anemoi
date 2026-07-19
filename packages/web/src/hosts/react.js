@@ -51,8 +51,9 @@ function urlFor(cell, baseUrl) {
   const viewport = encodeURIComponent(cell.viewport ?? 'sm');
   const args = encodeURIComponent(JSON.stringify(cell.args || {}));
   const slots = encodeURIComponent(JSON.stringify(cell.slots || {}));
+  const context = encodeURIComponent(JSON.stringify(cell.context || null));
   const background = encodeURIComponent(backgroundForCell(cell));
-  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}&background=${background}`;
+  return `${baseUrl}/index.html?c=${c}&story=${story}&brand=${brand}&theme=${theme}&viewport=${viewport}&args=${args}&slots=${slots}&context=${context}&background=${background}`;
 }
 
 /** Seletor da raiz montada pelo React. */
@@ -61,11 +62,16 @@ function selectorFor(_cell) {
 }
 
 /**
- * Aguarda o React montar pelo menos um filho em #evidence-root.
- * Timeout de 15 s para cubrir cold-start do Vite-built JS.
+ * Aguarda o React montar um custom element hidratado dentro de #evidence-root.
+ * Timeout de 15 s para cobrir cold-start do Vite-built JS.
  */
 async function verify(page, _cell) {
-  await page.waitForSelector('#evidence-root > *', { timeout: 15000 });
+  await page.waitForFunction(() => {
+    const root = document.querySelector('#evidence-root');
+    const customElement = root && [...root.querySelectorAll('*')]
+      .find(element => element.tagName.includes('-'));
+    return Boolean(customElement && customElement.shadowRoot);
+  }, {timeout: 15000});
 }
 
 /**

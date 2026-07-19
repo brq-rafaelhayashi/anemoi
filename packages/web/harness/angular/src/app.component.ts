@@ -20,7 +20,13 @@ import * as TgrIcons from '@gol-smiles/tangerina-assets-angular/icons';
   template: `
     <div id="evidence-root">
       @if (Cmp) {
-        <ng-container *ngComponentOutlet="Cmp; inputs: args; environmentInjector: envInjector"></ng-container>
+        @if (context?.kind === 'form') {
+          <form [id]="context!.id" (submit)="$event.preventDefault()">
+            <ng-container *ngComponentOutlet="Cmp; inputs: args; environmentInjector: envInjector"></ng-container>
+          </form>
+        } @else {
+          <ng-container *ngComponentOutlet="Cmp; inputs: args; environmentInjector: envInjector"></ng-container>
+        }
       }
     </div>
   `,
@@ -30,6 +36,7 @@ export class AppComponent implements OnInit, AfterViewInit {
   args: Record<string, unknown> = {};
   // slots: mapa nome→HTML. Chave '' = default slot (HTML direto, sem <span slot>).
   slots: Record<string, string | { icon: string }> = {};
+  context: {kind: 'form'; id: string} | null = null;
   component = '';
   envInjector = inject(EnvironmentInjector);
 
@@ -42,6 +49,7 @@ export class AppComponent implements OnInit, AfterViewInit {
     const background = p.get('background') || '';
     this.args = JSON.parse(decodeURIComponent(p.get('args') || '%7B%7D'));
     this.slots = JSON.parse(decodeURIComponent(p.get('slots') || '%7B%7D'));
+    this.context = JSON.parse(decodeURIComponent(p.get('context') || 'null'));
 
     const html = document.documentElement;
     brand !== 'gol'
