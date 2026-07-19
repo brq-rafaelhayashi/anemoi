@@ -2,6 +2,7 @@ import type {
   BehaviorContext,
   BehaviorRouteDefinition,
   BehaviorScript,
+  BehaviorScripts,
   Framework,
   PlannedScene,
   RouteResult,
@@ -22,6 +23,14 @@ interface ExecuteInput {
   scene: PlannedScene;
   script: BehaviorScript;
   mount(framework: Framework, scene: PlannedScene): Promise<MountedContext>;
+}
+
+interface ExecuteRoutesInput {
+  routes: BehaviorRouteDefinition[];
+  scene: PlannedScene;
+  scripts: BehaviorScripts;
+  mount(framework: Framework, scene: PlannedScene): Promise<MountedContext>;
+  results: RouteResult[];
 }
 
 function errorMessage(error: unknown): string {
@@ -94,4 +103,19 @@ export async function executeBehaviorRoute({
         parity: 'failed',
         diff: failed,
       };
+}
+
+export async function executeBehaviorRoutes({
+  routes,
+  scene,
+  scripts,
+  mount,
+  results,
+}: ExecuteRoutesInput): Promise<RouteResult[]> {
+  for (const route of routes) {
+    const script = scripts[route.id];
+    if (!script) throw new Error(`Roteiro sem script: ${route.id}.`);
+    results.push(await executeBehaviorRoute({route, scene, script, mount}));
+  }
+  return results;
 }

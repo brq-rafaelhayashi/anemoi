@@ -3,7 +3,7 @@ import path from 'node:path';
 import {createRequire} from 'node:module';
 import {test as base, expect} from '@playwright/test';
 import {readRunPlan} from './runPlan.ts';
-import {executeBehaviorRoute} from './behavior.ts';
+import {executeBehaviorRoutes} from './behavior.ts';
 import {atomicResultPath, writeAtomicResult} from './atomicResult.ts';
 import type {AtomicResult, BehaviorScripts, ContractDefinition, Framework, PlannedScene} from './types.ts';
 
@@ -122,15 +122,16 @@ export const test = base.extend<{anemoi: AnemoiFixture}>({
             };
           };
 
-          const routes: AtomicResult['routes'] = [];
+          const routes = state.active!.routes;
           if (plan.contract.status === 'current') {
-            for (const route of contract.routes.filter(item => item.sceneId === scene.id)) {
-              const script = scripts[route.id];
-              if (!script) throw new Error(`Roteiro sem script: ${route.id}.`);
-              routes.push(await executeBehaviorRoute({route, scene, script, mount}));
-            }
+            await executeBehaviorRoutes({
+              routes: contract.routes.filter(item => item.sceneId === scene.id),
+              scene,
+              scripts,
+              mount,
+              results: routes,
+            });
           }
-          state.active!.routes = routes;
           const validCaptures = captures.filter(capture => !('error' in capture));
           const artifactPrefix = path.relative(plan.runDir, evidenceRoot);
           const parityGroups = computeParity(groupByCell(validCaptures), plan.runDir, {artifactPrefix});

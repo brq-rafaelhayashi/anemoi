@@ -165,3 +165,25 @@ test('envelope de observacao exige focus events visibility e state serializaveis
     /nao e serializavel/,
   );
 });
+
+test('acumulador preserva rota concluida quando a rota seguinte interrompe', async () => {
+  const {executeBehaviorRoutes} = await subject();
+  const completed = [];
+  const script = async () => ({
+    observation: observation(1),
+    assert: () => {},
+  });
+
+  await assert.rejects(
+    executeBehaviorRoutes({
+      routes: [route, {id: 'missing', sceneId: 'primary', covers: ['missing']}],
+      scene,
+      scripts: {activation: script},
+      mount: mountWith({wc: 1, react: 1, angular: 1}),
+      results: completed,
+    }),
+    /Roteiro sem script: missing/,
+  );
+
+  assert.deepEqual(completed.map(result => result.routeId), ['activation']);
+});
