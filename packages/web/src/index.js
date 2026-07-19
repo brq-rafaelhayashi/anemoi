@@ -9,7 +9,7 @@ const {writeFailureManifest} = require('./failure');
 const {VIEWPORT_WIDTHS} = require('./brands');
 const {readLocalConfig, resolveRepository} = require('./config');
 const {assertCaptureReady, runDoctor} = require('./doctor');
-const {makeWcHost} = require('./hosts/wc');
+const {makeWcHarnessHost} = require('./hosts/wc-harness');
 const {makeReactHost} = require('./hosts/react');
 const {makeAngularHost} = require('./hosts/angular');
 
@@ -27,7 +27,7 @@ module.exports = {
   resolveRepository,
   assertCaptureReady,
   runDoctor,
-  makeWcHost,
+  makeWcHost: makeWcHarnessHost,
   makeReactHost,
   makeAngularHost,
 };

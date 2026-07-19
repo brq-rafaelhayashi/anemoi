@@ -1,9 +1,0 @@
-{
-  "v": 5,
-  "entries": {
-    "action-button--primary": {"type": "story", "id": "action-button--primary", "name": "Primary", "title": "Action/Button", "importPath": "./src/components/tgr-button/tgr-button.stories.ts"},
-    "action-button--disabled": {"type": "story", "id": "action-button--disabled", "name": "Disabled", "title": "Action/Button", "importPath": "./src/components/tgr-button/tgr-button.stories.ts"},
-    "action-button--docs": {"type": "docs", "id": "action-button--docs", "name": "Docs", "title": "Action/Button", "importPath": "./src/components/tgr-button/tgr-button.mdx"},
-    "content-heading--sizes": {"type": "story", "id": "content-heading--sizes", "name": "Sizes", "title": "Content/Heading", "importPath": "./src/components/tgr-heading/tgr-heading.stories.ts"}
-  }
-}

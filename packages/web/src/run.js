@@ -2,8 +2,10 @@
 
 const fs = require('node:fs');
 const path = require('node:path');
-const legacy = require('./run-legacy');
-const {runDoctor} = require('./doctor');
+const {randomUUID} = require('node:crypto');
+const {assertSafePathSegment} = require('@gol-smiles/anemoi-core');
+const {runDoctor, assertCaptureReady} = require('./doctor');
+const {runTangerinaBuilds} = require('./tangerina');
 const {writeFailureManifest} = require('./failure');
 
 function list(value, fallback) {
@@ -32,23 +34,62 @@ async function defaultReview(options) {
   return reviewContract(options);
 }
 
+function createRunDir(repo, card, component, {
+  now = new Date(),
+  nonce = randomUUID().slice(0, 8),
+} = {}) {
+  const safeCard = assertSafePathSegment(card, 'card');
+  const safeComponent = assertSafePathSegment(component, 'component');
+  const safeNonce = assertSafePathSegment(nonce, 'nonce');
+  const timestamp = now.toISOString().replace(/[:.]/g, '-');
+  return path.join(repo, 'outputs', 'anemoi-web', safeCard, safeComponent, `${timestamp}-${safeNonce}`);
+}
+
+function prepareCapture(repo, {
+  skipBuild = false,
+  logDir,
+  runBuilds = runTangerinaBuilds,
+  assertReady = assertCaptureReady,
+} = {}) {
+  runBuilds(repo, {skipBuild, logDir});
+  return assertReady(repo);
+}
+
+function resolveExitCode(
+  {parityDiverged = false, a11yDiverged = false} = {},
+  {failOnDiff = false, failOnA11y = false} = {},
+) {
+  if (failOnDiff && parityDiverged) return 1;
+  if (failOnA11y && a11yDiverged) return 1;
+  return 0;
+}
+
+function resolveA11yFlags(args) {
+  const collectA11y = !args['no-a11y'];
+  const failOnA11y = Boolean(args['fail-on-a11y']);
+  if (!collectA11y && failOnA11y) {
+    throw new Error('flags incompativeis: --no-a11y desliga a coleta que --fail-on-a11y precisa para o gate.');
+  }
+  return {collectA11y, failOnA11y};
+}
+
 async function runPlaywrightState(args, cwd, overrides = {}) {
   if (!args.component) throw new Error('informe --component <nome> (ex.: tgr-button).');
   if (args['before-after']) {
     throw new Error('before/after ainda nao implementado. Use o modo estado-atual.');
   }
 
-  const a11y = legacy.resolveA11yFlags(args);
+  const a11y = resolveA11yFlags(args);
   const repo = args.repo || cwd;
   const component = args.component;
   const card = args.card || 'sem-card';
-  const createRunDir = overrides.createRunDir || legacy.createRunDir;
+  const createRunDirectory = overrides.createRunDir || createRunDir;
   const preflight = overrides.preflight || defaultPreflight;
   const invoke = overrides.invoke || defaultInvoke;
   const finalize = overrides.finalize || defaultFinalize;
   const setExitCode = overrides.setExitCode || (value => { process.exitCode = value; });
   const writeFailure = overrides.writeFailure || writeFailureManifest;
-  const runDir = createRunDir(repo, card, component);
+  const runDir = createRunDirectory(repo, card, component);
   fs.mkdirSync(runDir, {recursive: true});
 
   let stage = 'preflight';
@@ -96,26 +137,28 @@ async function runPlaywrightState(args, cwd, overrides = {}) {
   }
 }
 
-async function runCurrentState(args, cwd) {
+async function runCurrentState(args, cwd, overrides = {}) {
+  if (args.engine) {
+    throw new Error('--engine era temporario e foi removido; o Anemoi Web usa Playwright Test');
+  }
   if (args.doctor) return runDoctor(args.repo || cwd);
   if (args['review-contract']) {
     if (!args.component) throw new Error('--review-contract exige --component.');
     const repo = args.repo || cwd;
-    const reviewRunDir = legacy.createRunDir(repo, 'contract-review', args.component);
-    legacy.prepareCapture(repo, {
+    const reviewRunDir = createRunDir(repo, 'contract-review', args.component);
+    prepareCapture(repo, {
       logDir: path.join(reviewRunDir, 'logs', 'tangerina'),
     });
     return defaultReview({repo, consumer: 'tangerina', component: args.component});
   }
-  if (args.engine === 'playwright-test') return runPlaywrightState(args, cwd);
-  if (args.engine && args.engine !== 'legacy') {
-    throw new Error(`Engine desconhecida: ${args.engine}.`);
-  }
-  return legacy.runCurrentState(args, cwd);
+  return runPlaywrightState(args, cwd, overrides);
 }
 
 module.exports = {
-  ...legacy,
+  createRunDir,
+  prepareCapture,
+  resolveExitCode,
+  resolveA11yFlags,
   runCurrentState,
   runPlaywrightState,
 };

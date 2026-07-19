@@ -16,6 +16,10 @@ const {
 const {groupByCell, computeParity} = require('./parity');
 const {computeA11y, hasA11yDivergence, summarizeA11y} = require('./a11y');
 
+/**
+ * @deprecated API mantida apenas para o anemoi-service/Koba. A CLI Web usa
+ * Playwright Test e nao deve importar este pipeline.
+ */
 async function capturePipeline({
   cells,
   acquireHost,

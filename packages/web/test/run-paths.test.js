@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const path = require('node:path');
-const {createRunDir} = require('../src/run-legacy');
+const {createRunDir} = require('../src/run');
 
 test('createRunDir fica contido em outputs/anemoi-web', () => {
   const repo = '/tmp/tangerina';
