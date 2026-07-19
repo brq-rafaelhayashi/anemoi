@@ -25,7 +25,7 @@ function makeConsumerRepo(packageManager) {
 
 function collectWithPnpmResult(repoPath, result, calls = []) {
   return collectChecks(repoPath, {
-    playwrightInstalled: () => false,
+    browserChecks: () => [],
     pnpmRuntime: consumerPath => checkPnpmRuntime(consumerPath, {
       spawnSync: (command, args, options) => {
         calls.push({command, args, options});
@@ -39,7 +39,8 @@ test('collectChecks retorna checks com os ids esperados', () => {
   const checks = collectChecks(FAKE_REPO);
   const ids = checks.map(c => c.id);
   assert.ok(ids.includes('repo'), `esperava id "repo", encontrei: ${ids.join(',')}`);
-  assert.ok(ids.includes('storybook'), `esperava id "storybook", encontrei: ${ids.join(',')}`);
+  assert.ok(ids.includes('browser-support'), `esperava id "browser-support", encontrei: ${ids.join(',')}`);
+  assert.ok(ids.includes('custom-elements-manifest'), `esperava id "custom-elements-manifest", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('react-pkg'), `esperava id "react-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('angular-pkg'), `esperava id "angular-pkg", encontrei: ${ids.join(',')}`);
   assert.ok(ids.includes('components'), `esperava id "components", encontrei: ${ids.join(',')}`);
@@ -146,7 +147,7 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
   }));
 
   const checks = collectChecks(repo, {
-    playwrightInstalled: () => false,
+    browserChecks: () => [],
     pnpmRuntime: () => ({
       id: 'pnpm-runtime',
       label: 'pnpm runtime >=9 (`pnpm --version`)',
@@ -168,7 +169,7 @@ test('collectChecks exige package.json#name e todos os scripts da cadeia Tangeri
 
   fs.writeFileSync(path.join(repo, 'package.json'), JSON.stringify({name: 'outro-repo', scripts: {}}));
   const invalidChecks = collectChecks(repo, {
-    playwrightInstalled: () => false,
+    browserChecks: () => [],
     pnpmRuntime: () => ({id: 'pnpm-runtime', label: 'pnpm runtime >=9', ok: true, detail: 'injetado'}),
   });
   assert.equal(invalidChecks.find(check => check.id === 'repo').ok, false);
@@ -211,4 +212,26 @@ test('doctor verifica dists dos assets-react e assets-angular', () => {
   assert.ok(angularAssets, 'check angular-assets ausente');
   assert.equal(reactAssets.ok, false);
   assert.equal(angularAssets.ok, false);
+});
+
+test('doctor verifica Chromium Firefox e WebKit separadamente', () => {
+  const {playwrightBrowserChecks} = require('../src/doctor');
+  const fake = name => ({executablePath: () => `/browsers/${name}`});
+  const checks = playwrightBrowserChecks({
+    browserTypes: {chromium: fake('chromium'), firefox: fake('firefox'), webkit: fake('webkit')},
+    exists: value => !value.endsWith('/webkit'),
+  });
+  assert.deepEqual(checks.map(check => [check.id, check.ok]), [
+    ['playwright-chromium', true],
+    ['playwright-firefox', true],
+    ['playwright-webkit', false],
+  ]);
+});
+
+test('doctor exige contratos publicados e nao exige Storybook', () => {
+  const fs = require('node:fs');
+  const source = fs.readFileSync(path.resolve(__dirname, '../src/doctor.js'), 'utf8');
+  assert.doesNotMatch(source, /id: 'storybook'/);
+  assert.match(source, /browser-support\.json/);
+  assert.match(source, /custom-elements\.json/);
 });

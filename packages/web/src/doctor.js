@@ -5,6 +5,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const childProcess = require('node:child_process');
+const {chromium, firefox, webkit} = require('@playwright/test');
 const {BUILD_SCRIPTS, checkPnpmRequirement} = require('./tangerina');
 
 const PNPM_ACTION = 'Instale/ative pnpm >=9 e confirme com `pnpm --version` antes de executar os builds';
@@ -70,7 +71,7 @@ function checkPnpmRuntime(repoPath, {spawnSync = childProcess.spawnSync} = {}) {
 function collectChecks(
   repoPath,
   {
-    playwrightInstalled = playwrightChromiumInstalled,
+    browserChecks = playwrightBrowserChecks,
     pnpmRuntime = checkPnpmRuntime,
   } = {},
 ) {
@@ -98,10 +99,17 @@ function collectChecks(
   checks.push(pnpmRuntime(repoPath));
 
   checks.push({
-    id: 'storybook',
-    label: 'Storybook configurado (.storybook + script build-storybook)',
-    ok: exists('.storybook') && Boolean(pkg?.scripts?.['build-storybook']),
-    detail: '.storybook/ e package.json#scripts["build-storybook"]',
+    id: 'browser-support',
+    label: 'Matriz de browsers publicada (packages/components/browser-support.json)',
+    ok: exists('packages/components/browser-support.json'),
+    detail: 'publique packages/components/browser-support.json no build do consumidor',
+  });
+
+  checks.push({
+    id: 'custom-elements-manifest',
+    label: 'Custom Elements Manifest publicado (packages/components/custom-elements.json)',
+    ok: exists('packages/components/custom-elements.json'),
+    detail: 'rode pnpm build:components para publicar custom-elements.json',
   });
 
   checks.push({
@@ -139,12 +147,7 @@ function collectChecks(
     detail: 'rode pnpm build:assets-angular',
   });
 
-  checks.push({
-    id: 'playwright',
-    label: 'Browser Chromium do Playwright instalado',
-    ok: playwrightInstalled(),
-    detail: 'rode `npx playwright install chromium` no motor se faltar',
-  });
+  checks.push(...browserChecks());
 
   return checks;
 }
@@ -156,7 +159,7 @@ function assertCaptureReady(repoPath, {collect = collectChecks} = {}) {
 
   const details = failed.map(check => `- ${check.label}: ${check.detail}`).join('\n');
   const error = new Error(
-    `Pre-flight bloqueou a captura. Corrija os itens abaixo antes de Storybook/captura:\n${details}\n\n` +
+    `Pre-flight bloqueou a captura. Corrija os itens abaixo antes da captura Web:\n${details}\n\n` +
     'Execute anemoi-web --doctor para ver o diagnostico completo.'
   );
   error.checks = checks;
@@ -172,21 +175,22 @@ function readPackage(repoPath) {
   }
 }
 
-function playwrightChromiumInstalled() {
-  // playwright é dependência do @gol-smiles/anemoi-core (usado por captureCells),
-  // não do Web — resolve a partir do dir do core para detectar o chromium do mesmo jeito.
-  let cwd = __dirname;
-  try {
-    cwd = path.dirname(require.resolve('@gol-smiles/anemoi-core/package.json'));
-  } catch (e) {
-    // mantém __dirname como fallback
-  }
-  const result = childProcess.spawnSync(
-    'node',
-    ['-e', "const {chromium}=require('playwright'); process.stdout.write(require('node:fs').existsSync(chromium.executablePath())?'1':'0')"],
-    {cwd, encoding: 'utf8'}
-  );
-  return result.stdout === '1';
+function playwrightBrowserChecks({
+  browserTypes = {chromium, firefox, webkit},
+  exists = fs.existsSync,
+} = {}) {
+  return Object.entries(browserTypes).map(([name, browserType]) => {
+    const executable = browserType.executablePath();
+    const installed = exists(executable);
+    return {
+      id: `playwright-${name}`,
+      label: `Browser ${name} do Playwright instalado`,
+      ok: installed,
+      detail: installed
+        ? executable
+        : 'rode `npx playwright install chromium firefox webkit` no motor',
+    };
+  });
 }
 
 function runDoctor(repoPath, {collect = collectChecks, write = console.log} = {}) {
@@ -204,4 +208,10 @@ function runDoctor(repoPath, {collect = collectChecks, write = console.log} = {}
   return checks;
 }
 
-module.exports = {collectChecks, assertCaptureReady, runDoctor, checkPnpmRuntime};
+module.exports = {
+  collectChecks,
+  assertCaptureReady,
+  runDoctor,
+  checkPnpmRuntime,
+  playwrightBrowserChecks,
+};

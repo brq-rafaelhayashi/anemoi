@@ -1,7 +1,7 @@
 'use strict';
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const {resolveExitCode, resolveA11yFlags} = require('../src/run');
+const {resolveExitCode, resolveA11yFlags} = require('../src/run-legacy');
 
 test('resolveExitCode: 1 somente quando um gate ligado divergiu', () => {
   assert.equal(resolveExitCode({parityDiverged: true}, {failOnDiff: true}), 1);

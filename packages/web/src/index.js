@@ -4,7 +4,7 @@
 
 const {groupByCell, computeParity} = require('./parity');
 const {capturePipeline} = require('./pipeline');
-const {createRunDir, prepareCapture, runCurrentState} = require('./run');
+const {createRunDir, prepareCapture, runCurrentState, runPlaywrightState} = require('./run');
 const {writeFailureManifest} = require('./failure');
 const {VIEWPORT_WIDTHS} = require('./brands');
 const {readLocalConfig, resolveRepository} = require('./config');
@@ -20,6 +20,7 @@ module.exports = {
   createRunDir,
   prepareCapture,
   runCurrentState,
+  runPlaywrightState,
   writeFailureManifest,
   VIEWPORT_WIDTHS,
   readLocalConfig,

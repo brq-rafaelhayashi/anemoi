@@ -6,7 +6,7 @@ test('barrel publica a interface consumida pelo service e pelo CLI', () => {
   const api = require('../src/index');
   const fns = [
     'capturePipeline', 'groupByCell', 'computeParity',
-    'createRunDir', 'prepareCapture', 'runCurrentState',
+    'createRunDir', 'prepareCapture', 'runCurrentState', 'runPlaywrightState',
     'writeFailureManifest',
     'readLocalConfig', 'resolveRepository',
     'assertCaptureReady', 'runDoctor',
