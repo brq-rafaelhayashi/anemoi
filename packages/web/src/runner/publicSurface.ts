@@ -82,12 +82,31 @@ function angularOutputAliases(node: ts.TypeNode, className: string) {
     throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
   }
   return node.members.map(member => {
-    if (!ts.isPropertySignature(member) || !member.type
+    const internalName = propertyName(member.name);
+    if (!internalName || !ts.isPropertySignature(member) || !member.type
       || !ts.isLiteralTypeNode(member.type) || !ts.isStringLiteral(member.type.literal)) {
       throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
     }
-    return member.type.literal.text;
-  }).sort();
+    return {internalName, publicName: member.type.literal.text};
+  });
+}
+
+function angularEventEmitters(source: ts.SourceFile, className: string) {
+  const outputs = new Set<string>();
+  source.forEachChild(node => {
+    if (!ts.isInterfaceDeclaration(node) || node.name.text !== className) return;
+    for (const member of node.members) {
+      if (!ts.isPropertySignature(member) || !member.type
+        || !ts.isTypeReferenceNode(member.type) || !ts.isIdentifier(member.type.typeName)
+        || member.type.typeName.text !== 'EventEmitter') continue;
+      const name = propertyName(member.name);
+      if (!name || member.type.typeArguments?.length !== 1) {
+        throw new Error(`Wrapper Angular ${className} possui declaracao de output nao reconhecida.`);
+      }
+      outputs.add(name);
+    }
+  });
+  return outputs;
 }
 
 function reactSurface(file: string, exportName: string) {
@@ -155,6 +174,7 @@ function reactSurface(file: string, exportName: string) {
 
 function angularSurface(file: string, className: string, component: string) {
   const source = parseTypes(file);
+  const eventEmitters = angularEventEmitters(source, className);
   let selector = '';
   let inputs: string[] = [];
   let outputs: string[] = [];
@@ -174,7 +194,17 @@ function angularSurface(file: string, className: string, component: string) {
         if (!args[4]) {
           throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
         }
-        outputs = angularOutputAliases(args[4], className);
+        const outputAliases = angularOutputAliases(args[4], className);
+        if (outputAliases.length === 0) {
+          outputs = [...eventEmitters];
+        } else {
+          for (const {internalName} of outputAliases) {
+            if (!eventEmitters.has(internalName)) {
+              throw new Error(`Wrapper Angular ${className} referencia output interno nao declarado: ${internalName}.`);
+            }
+          }
+          outputs = outputAliases.map(output => output.publicName);
+        }
         if (args[6] && ts.isTupleTypeNode(args[6])) {
           projectableSlots = args[6].elements
             .filter(ts.isLiteralTypeNode)

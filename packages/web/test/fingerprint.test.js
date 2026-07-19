@@ -181,6 +181,32 @@ test('readPublicSurface usa alias publico do output Angular e altera fingerprint
   assert.notEqual(createFingerprint(aliased).digest, createFingerprint(current).digest);
 });
 
+test('readPublicSurface aceita proxy Angular sem outputs', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {}, {}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton extends Components.TgrButton {}',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.deepEqual(readPublicSurface('/unused', 'tgr-button', overrides).angular.outputs, []);
+});
+
+test('readPublicSurface rejeita alias Angular sem EventEmitter interno correspondente', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {},',
+    '    {"internalChange": "publicChange"}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton extends Components.TgrButton {}',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper Angular TgrButton referencia output interno nao declarado: internalChange/);
+});
+
 test('readPublicSurface rejeita mapping de outputs Angular desconhecido', async t => {
   const [{readPublicSurface}] = await modules();
   const overrides = withOverride(t, 'angular.d.ts', [
