@@ -6,11 +6,10 @@ import {
   Type,
   EnvironmentInjector,
   inject,
-  createComponent,
 } from '@angular/core';
 import { NgComponentOutlet } from '@angular/common';
 import { DIRECTIVES } from '@gol-smiles/tangerina-angular';
-import * as TgrIcons from '@gol-smiles/tangerina-assets-angular/icons';
+import {iconTag, parseSceneQuery} from '../../scene-query';
 
 @Component({
   selector: 'app-root',
@@ -34,7 +33,7 @@ import * as TgrIcons from '@gol-smiles/tangerina-assets-angular/icons';
 export class AppComponent implements OnInit, AfterViewInit {
   Cmp: Type<any> | null = null;
   args: Record<string, unknown> = {};
-  // slots: mapa nome→HTML. Chave '' = default slot (HTML direto, sem <span slot>).
+  // slots: texto ou referencia declarativa de icone; toda entrada usa <span>.
   slots: Record<string, string | { icon: string }> = {};
   context: {kind: 'form'; id: string} | null = null;
   component = '';
@@ -47,9 +46,10 @@ export class AppComponent implements OnInit, AfterViewInit {
     const brand = p.get('brand') || 'gol';
     const theme = p.get('theme') || 'light';
     const background = p.get('background') || '';
-    this.args = JSON.parse(decodeURIComponent(p.get('args') || '%7B%7D'));
-    this.slots = JSON.parse(decodeURIComponent(p.get('slots') || '%7B%7D'));
-    this.context = JSON.parse(decodeURIComponent(p.get('context') || 'null'));
+    const scene = parseSceneQuery(p);
+    this.args = scene.args;
+    this.slots = scene.slots;
+    this.context = scene.context;
 
     const html = document.documentElement;
     brand !== 'gol'
@@ -78,42 +78,21 @@ export class AppComponent implements OnInit, AfterViewInit {
   }
 
   ngAfterViewInit() {
-    // Projeta os slots na light DOM do custom element ja renderizado pelo outlet.
-    // string = HTML bruto (comportamento original); {icon} = standalone component
-    // dos assets-angular localizado pelo seletor tgr-icon-<nome>.
+    // Projeta uma light DOM uniforme: <span> por slot, com texto ou custom element.
     if (!this.Cmp || Object.keys(this.slots).length === 0) return;
     const host = document.querySelector(`#evidence-root ${this.component}`) as HTMLElement | null;
     if (!host) return;
-    host.innerHTML = '';
+    host.replaceChildren();
     for (const [name, value] of Object.entries(this.slots)) {
-      if (value !== null && typeof value === 'object') {
-        const selector = `tgr-icon-${value.icon}`;
-        const IconCls = (Object.values(TgrIcons) as Type<any>[]).find((cls: any) => {
-          const meta = cls?.ɵcmp;
-          if (!meta?.selectors) return false;
-          return (meta.selectors as string[][]).some((s: string[]) => s[0] === selector);
-        });
-        if (!IconCls) {
-          host.insertAdjacentHTML(
-            'beforeend',
-            `<span${name ? ` slot="${name}"` : ''}>Ícone não encontrado: ${value.icon}</span>`
-          );
-          continue;
-        }
-        const el = document.createElement(selector);
-        if (name) el.setAttribute('slot', name);
-        host.appendChild(el);
-        const ref = createComponent(IconCls, {
-          environmentInjector: this.envInjector,
-          hostElement: el,
-        });
-        ref.changeDetectorRef.detectChanges();
-      } else {
-        host.insertAdjacentHTML(
-          'beforeend',
-          name ? `<span slot="${name}">${value ?? ''}</span>` : String(value ?? '')
-        );
+      const slot = document.createElement('span');
+      if (name) slot.setAttribute('slot', name);
+      if (typeof value === 'string') slot.textContent = value;
+      else {
+        const icon = document.createElement(iconTag(value.icon));
+        icon.setAttribute('aria-hidden', 'true');
+        slot.appendChild(icon);
       }
+      host.appendChild(slot);
     }
   }
 }

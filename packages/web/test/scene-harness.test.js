@@ -9,6 +9,11 @@ const {makeReactHost} = require('../src/hosts/react');
 const {makeAngularHost} = require('../src/hosts/angular');
 
 const ROOT = path.resolve(__dirname, '..');
+const HARNESS_SOURCES = [
+  'harness/wc/src/main.ts',
+  'harness/react/src/main.tsx',
+  'harness/angular/src/app.component.ts',
+];
 const cell = {
   component: 'tgr-button',
   sceneId: 'submit',
@@ -35,6 +40,67 @@ test('os tres hosts serializam a mesma Cena declarativa', () => {
       id: 'button-form',
     });
     assert.equal(host.selectorFor(cell), '#evidence-root');
+  }
+});
+
+test('query declarativa preserva percentuais sem segunda decodificacao', async () => {
+  const {parseSceneQuery} = await import('../harness/scene-query.ts');
+  const percentCell = {
+    ...cell,
+    args: {label: 'Economize 50%'},
+    slots: {'': 'Oferta 100%', suffix: '20% off'},
+    context: {kind: 'form', id: 'sale-50%-form'},
+  };
+
+  for (const host of [
+    makeWcHarnessHost('/repo'),
+    makeReactHost('/repo'),
+    makeAngularHost('/repo'),
+  ]) {
+    const url = new URL(host.urlFor(percentCell, 'http://127.0.0.1:3000'));
+    const parsed = parseSceneQuery(url.searchParams);
+    assert.deepEqual(parsed.args, percentCell.args);
+    assert.deepEqual(parsed.slots, percentCell.slots);
+    assert.deepEqual(parsed.context, percentCell.context);
+  }
+});
+
+test('slots aceitam somente texto inerte ou icone com identificadores seguros', async () => {
+  const {parseSceneQuery} = await import('../harness/scene-query.ts');
+  const activeMarkup = '<img src=x onerror=alert(1)>';
+  const parsed = parseSceneQuery(new URLSearchParams({
+    args: '{}',
+    slots: JSON.stringify({
+      label: activeMarkup,
+      icon: {icon: 'add'},
+      rotation: {icon: '360-rotation'},
+    }),
+    context: JSON.stringify({kind: 'form', id: 'safe-form'}),
+  }));
+
+  assert.equal(parsed.slots.label, activeMarkup);
+  assert.deepEqual(parsed.slots.icon, {icon: 'add'});
+  assert.deepEqual(parsed.slots.rotation, {icon: '360-rotation'});
+  assert.deepEqual(parsed.context, {kind: 'form', id: 'safe-form'});
+  assert.throws(
+    () => parseSceneQuery(new URLSearchParams({
+      slots: JSON.stringify({'bad slot': 'texto'}),
+    })),
+    /Nome de slot invalido/
+  );
+  assert.throws(
+    () => parseSceneQuery(new URLSearchParams({
+      slots: JSON.stringify({icon: {icon: 'add><script'}}),
+    })),
+    /Nome de icone invalido/
+  );
+
+  for (const relativePath of HARNESS_SOURCES) {
+    const source = fs.readFileSync(path.join(ROOT, relativePath), 'utf8');
+    assert.doesNotMatch(source, /decodeURIComponent/);
+    assert.doesNotMatch(source, /dangerouslySetInnerHTML|innerHTML|insertAdjacentHTML/);
+    assert.match(source, /createElement\(\s*['"]span['"]\s*[,)]/);
+    assert.match(source, /aria-hidden/);
   }
 });
 

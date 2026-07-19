@@ -1,6 +1,7 @@
 import '@gol-smiles/tangerina-token/dist/tokens.css';
 import '@gol-smiles/tangerina-fonts/dist/fonts.css';
 import {defineCustomElements} from '@gol-smiles/tangerina-web-core/dist/components';
+import {iconTag, parseSceneQuery} from '../../scene-query';
 
 defineCustomElements();
 
@@ -9,15 +10,7 @@ const component = params.get('c') || '';
 const brand = params.get('brand') || 'gol';
 const theme = params.get('theme') || 'light';
 const background = params.get('background') || '';
-const args = JSON.parse(params.get('args') || '{}') as Record<string, unknown>;
-const slots = JSON.parse(params.get('slots') || '{}') as Record<
-  string,
-  string | {icon: string}
->;
-const context = JSON.parse(params.get('context') || 'null') as {
-  kind: 'form';
-  id: string;
-} | null;
+const {args, slots, context} = parseSceneQuery(params);
 
 document.documentElement.toggleAttribute('data-theme', theme === 'dark');
 if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
@@ -38,8 +31,12 @@ Object.assign(element, args);
 for (const [name, value] of Object.entries(slots)) {
   const slot = document.createElement('span');
   if (name) slot.setAttribute('slot', name);
-  if (typeof value === 'string') slot.innerHTML = value;
-  else slot.appendChild(document.createElement(`tgr-icon-${value.icon}`));
+  if (typeof value === 'string') slot.textContent = value;
+  else {
+    const icon = document.createElement(iconTag(value.icon));
+    icon.setAttribute('aria-hidden', 'true');
+    slot.appendChild(icon);
+  }
   element.appendChild(slot);
 }
 container.appendChild(element);

@@ -961,6 +961,7 @@ git commit -m "feat(web): fingerprint component public surface"
 - Create: `packages/web/harness/wc/index.html`
 - Create: `packages/web/harness/wc/src/main.ts`
 - Create: `packages/web/harness/wc/vite.config.ts`
+- Create: `packages/web/harness/scene-query.ts`
 - Create: `packages/web/src/hosts/wc-harness.js`
 - Modify: `packages/web/harness/react/src/main.tsx`
 - Modify: `packages/web/harness/angular/src/app.component.ts`
@@ -972,6 +973,7 @@ git commit -m "feat(web): fingerprint component public surface"
 **Interfaces:**
 - Consumes: `SceneDefinition.args`, `slots` e `context` da Task 2.
 - Produces: três harnesses que aceitam os mesmos query params `c`, `brand`, `theme`, `args`, `slots`, `context`, `background`; host novo `makeWcHarnessHost(repo)`.
+- Política vinculante: `URLSearchParams.get()` já entrega o valor decodificado; o JSON é parseado uma única vez, sem `decodeURIComponent`. Slot string é sempre texto inerte e toda entrada usa um `<span>` uniforme; `{icon}` aceita somente identificador lowercase seguro (`a-z`, `0-9`, `_`, `-`) e cria um custom element validado. Nomes de slots também falham fechado fora desse identificador (com `''` reservado ao slot default).
 
 - [ ] **Step 1: Escrever os testes estruturais e de URL que falham**
 
@@ -1075,6 +1077,7 @@ Criar `packages/web/harness/wc/src/main.ts`:
 import '@gol-smiles/tangerina-token/dist/tokens.css';
 import '@gol-smiles/tangerina-fonts/dist/fonts.css';
 import {defineCustomElements} from '@gol-smiles/tangerina-web-core/dist/components';
+import {iconTag, parseSceneQuery} from '../../scene-query';
 
 defineCustomElements();
 
@@ -1083,9 +1086,7 @@ const component = params.get('c') || '';
 const brand = params.get('brand') || 'gol';
 const theme = params.get('theme') || 'light';
 const background = params.get('background') || '';
-const args = JSON.parse(params.get('args') || '{}') as Record<string, unknown>;
-const slots = JSON.parse(params.get('slots') || '{}') as Record<string, string | {icon: string}>;
-const context = JSON.parse(params.get('context') || 'null') as {kind: 'form'; id: string} | null;
+const {args, slots, context} = parseSceneQuery(params);
 
 document.documentElement.toggleAttribute('data-theme', theme === 'dark');
 if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
@@ -1104,8 +1105,12 @@ Object.assign(element, args);
 for (const [name, value] of Object.entries(slots)) {
   const slot = document.createElement('span');
   if (name) slot.setAttribute('slot', name);
-  if (typeof value === 'string') slot.innerHTML = value;
-  else slot.appendChild(document.createElement(`tgr-icon-${value.icon}`));
+  if (typeof value === 'string') slot.textContent = value;
+  else {
+    const icon = document.createElement(iconTag(value.icon));
+    icon.setAttribute('aria-hidden', 'true');
+    slot.appendChild(icon);
+  }
   element.appendChild(slot);
 }
 container.appendChild(element);
@@ -1205,12 +1210,12 @@ async function verify(page) {
 
 - [ ] **Step 6: Montar contexto `form` nos wrappers**
 
-No React, ler `context` e substituir a chamada final de `root.render` por:
+Nos três harnesses, importar `parseSceneQuery` de `harness/scene-query.ts` e ler `args`, `slots` e `context` diretamente do retorno. O helper usa `JSON.parse(params.get(name) ?? fallback)`: nunca aplicar `decodeURIComponent` ao resultado de `URLSearchParams.get()`.
+
+No React, cada entrada de slot deve produzir um `<span>`; string entra como child textual e `{icon}` cria somente `createElement(iconTag(value.icon))`. Substituir a chamada final de `root.render` por:
 
 ```tsx
-const context: {kind: 'form'; id: string} | null = JSON.parse(
-  decodeURIComponent(params.get('context') || 'null')
-);
+const {args, slots, context} = parseSceneQuery(params);
 const componentNode = createElement(Comp, args as React.ComponentProps<typeof Comp>, ...slotChildren);
 root.render(context?.kind === 'form'
   ? createElement('form', {id: context.id, onSubmit: event => event.preventDefault()}, componentNode)
@@ -1242,8 +1247,13 @@ context: {kind: 'form'; id: string} | null = null;
 e a leitura em `ngOnInit`:
 
 ```ts
-this.context = JSON.parse(decodeURIComponent(p.get('context') || 'null'));
+const scene = parseSceneQuery(p);
+this.args = scene.args;
+this.slots = scene.slots;
+this.context = scene.context;
 ```
+
+Na projeção Angular, usar exclusivamente APIs DOM: `replaceChildren()`, `document.createElement('span')`, `slot.setAttribute('slot', name)`, `slot.textContent = value` e `document.createElement(iconTag(value.icon))`; o custom element de ícone é decorativo com `aria-hidden="true"` nos três harnesses. Não usar `innerHTML`, `insertAdjacentHTML` ou interpolação de nome/conteúdo em markup.
 
 - [ ] **Step 7: Instalar o novo harness no setup raiz**
 
