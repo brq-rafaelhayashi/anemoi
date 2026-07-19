@@ -112,6 +112,7 @@ test('assertSafePathSegment bloqueia traversal e separadores', () => {
     assert.throws(() => assertSafePathSegment(value, 'story'), /segmento de caminho invalido/);
   }
   assert.equal(assertSafePathSegment('Primary state', 'story'), 'Primary state');
+  assert.equal(assertSafePathSegment('card%20name', 'story'), 'card%20name');
 });
 
 test('assertSafeRelativePath aceita vazio ou caminho relativo composto seguro', () => {
@@ -132,10 +133,21 @@ test('assertSafeRelativePath rejeita absoluto, segmentos vazios e traversal', ()
     'attempts/./0',
     'attempts/../0',
     'attempts\\0',
-    '%2e%2e/outside',
-    'attempts/%2foutside',
   ];
   for (const value of invalid) {
+    assert.throws(
+      () => assertSafeRelativePath(value, 'artifactPrefix', {allowEmpty: true}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+});
+
+test('assertSafeRelativePath rejeita qualquer percent encoding, simples ou 5x', () => {
+  const encodedTraversal = [
+    '%2e%2e/outside',
+    '%252525252e%252525252e/outside',
+  ];
+  for (const value of encodedTraversal) {
     assert.throws(
       () => assertSafeRelativePath(value, 'artifactPrefix', {allowEmpty: true}),
       /artifactPrefix.*caminho relativo invalido/,

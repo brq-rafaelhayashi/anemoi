@@ -17,27 +17,6 @@ function invalidRelativePath(value, label) {
   return new Error(`${label}: caminho relativo invalido: ${JSON.stringify(value)}.`);
 }
 
-function assertNoEncodedTraversal(segment, value, label) {
-  let decoded = segment;
-  for (let i = 0; i < 4; i += 1) {
-    let next;
-    try {
-      next = decodeURIComponent(decoded);
-    } catch {
-      throw invalidRelativePath(value, label);
-    }
-    if (
-      next === '.' ||
-      next === '..' ||
-      /[\\/\u0000-\u001f\u007f]/.test(next)
-    ) {
-      throw invalidRelativePath(value, label);
-    }
-    if (next === decoded) return;
-    decoded = next;
-  }
-}
-
 function assertSafeRelativePath(value, label = 'path', {allowEmpty = false} = {}) {
   const relativePath = String(value ?? '');
   if (relativePath === '' && allowEmpty) return '';
@@ -51,20 +30,23 @@ function assertSafeRelativePath(value, label = 'path', {allowEmpty = false} = {}
   }
 
   const segments = relativePath.split('/');
-  try {
-    for (const segment of segments) {
+  for (const segment of segments) {
+    // Prefixos de artefato sao internos e nao precisam representar `%`.
+    // Rejeitar o caractere elimina qualquer profundidade de percent encoding.
+    if (segment.includes('%')) throw invalidRelativePath(relativePath, label);
+    try {
       assertSafePathSegment(segment, label);
-      assertNoEncodedTraversal(segment, relativePath, label);
+    } catch {
+      throw invalidRelativePath(relativePath, label);
     }
-  } catch (error) {
-    if (error.message.includes('caminho relativo invalido')) throw error;
-    throw invalidRelativePath(relativePath, label);
   }
   return path.join(...segments);
 }
 
 function resolveContainedPath(rootDir, relativePath, label = 'path') {
   const safeRelativePath = assertSafeRelativePath(relativePath, label);
+  // Trust boundary: rootDir e um diretorio novo e exclusivo criado pelo Anemoi.
+  // A garantia aqui e containment lexical, nao defesa fisica contra symlink/TOCTOU.
   const root = path.resolve(rootDir);
   const target = path.resolve(root, safeRelativePath);
   const relativeToRoot = path.relative(root, target);
