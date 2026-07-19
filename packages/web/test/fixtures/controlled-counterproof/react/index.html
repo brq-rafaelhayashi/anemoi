@@ -1,0 +1,11 @@
+<!doctype html><html lang="pt-BR"><body><div id="evidence-root"><tgr-button></tgr-button></div><script>
+customElements.define('tgr-button', class extends HTMLElement {
+  constructor() {
+    super();
+    const root = this.attachShadow({mode: 'open'});
+    const button = document.createElement('button');
+    button.textContent = 'Salvar';
+    root.appendChild(button);
+  }
+});
+</script></body></html>
