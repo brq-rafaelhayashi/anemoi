@@ -10,6 +10,7 @@ const RUNNER_DIR = path.dirname(fileURLToPath(import.meta.url));
 interface InvokeOptions {
   planPath: string;
   logPath: string;
+  env?: NodeJS.ProcessEnv;
   spawn?: typeof childProcess.spawn;
   mkdir?: typeof fs.mkdirSync;
   writeFile?: typeof fs.writeFileSync;
@@ -18,6 +19,7 @@ interface InvokeOptions {
 export function invokePlaywright({
   planPath,
   logPath,
+  env = {},
   spawn = childProcess.spawn,
   mkdir = fs.mkdirSync,
   writeFile = fs.writeFileSync,
@@ -31,7 +33,7 @@ export function invokePlaywright({
       [cli, 'test', '--config', path.resolve(RUNNER_DIR, '../../playwright.config.ts')],
       {
         cwd: path.resolve(RUNNER_DIR, '../..'),
-        env: {...process.env, ANEMOI_RUN_PLAN: planPath},
+        env: {...process.env, ...env, ANEMOI_RUN_PLAN: planPath},
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
       },

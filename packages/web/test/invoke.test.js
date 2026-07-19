@@ -1,5 +1,6 @@
 const {test} = require('node:test');
 const assert = require('node:assert/strict');
+const childProcess = require('node:child_process');
 const {EventEmitter} = require('node:events');
 const path = require('node:path');
 const {pathToFileURL} = require('node:url');
@@ -30,6 +31,47 @@ test('invokePlaywright passa o run plan e devolve exit do runner sem bloquear se
   assert.equal(captured.options.env.ANEMOI_RUN_PLAN, '/tmp/run/run-plan.json');
   assert.equal(captured.options.shell, false);
   assert.equal(result.exitCode, 1);
+});
+
+test('invokePlaywright sobrescreve CI truthy do processo pai sem mutar process.env', () => {
+  const invokeUrl = pathToFileURL(path.resolve(__dirname, '../src/runner/invoke.ts')).href;
+  const source = `
+    import {EventEmitter} from 'node:events';
+    import {invokePlaywright} from ${JSON.stringify(invokeUrl)};
+    let captured;
+    const spawn = (_command, _args, options) => {
+      captured = options.env;
+      const child = new EventEmitter();
+      child.stdout = new EventEmitter();
+      child.stderr = new EventEmitter();
+      queueMicrotask(() => child.emit('close', 0, null));
+      return child;
+    };
+    await invokePlaywright({
+      planPath: '/tmp/run/run-plan.json',
+      logPath: '/tmp/run/playwright.log',
+      env: {CI: ''},
+      spawn,
+      writeFile: () => {},
+    });
+    process.stdout.write(JSON.stringify({
+      parentCI: process.env.CI,
+      childCI: captured.CI,
+      planPath: captured.ANEMOI_RUN_PLAN,
+    }));
+  `;
+  const result = childProcess.spawnSync(process.execPath, ['--input-type=module', '--eval', source], {
+    encoding: 'utf8',
+    env: {...process.env, CI: 'true'},
+    shell: false,
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), {
+    parentCI: 'true',
+    childCI: '',
+    planPath: '/tmp/run/run-plan.json',
+  });
 });
 
 test('invokePlaywright rejeita falha de mkdir como infraestrutura acionavel', async () => {

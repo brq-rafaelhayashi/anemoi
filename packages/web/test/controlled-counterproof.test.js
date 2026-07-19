@@ -59,7 +59,11 @@ test('Contraprova Controlada aprova baseline e reprova divergencia React nos tre
     };
     const planPath = path.join(runDir, 'run-plan.json');
     writeRunPlan(planPath, plan);
-    const execution = await invokePlaywright({planPath, logPath: path.join(runDir, 'playwright.log')});
+    const execution = await invokePlaywright({
+      planPath,
+      logPath: path.join(runDir, 'playwright.log'),
+      env: {CI: ''},
+    });
     const manifest = finalizeRun(planPath);
     assertPublishedRun(runDir, manifest);
     return {execution, manifest};
