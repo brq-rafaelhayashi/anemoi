@@ -77,36 +77,61 @@ function angularInputAliases(node: ts.TypeNode, className: string) {
   }).sort();
 }
 
+function angularOutputAliases(node: ts.TypeNode, className: string) {
+  if (!ts.isTypeLiteralNode(node)) {
+    throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
+  }
+  return node.members.map(member => {
+    if (!ts.isPropertySignature(member) || !member.type
+      || !ts.isLiteralTypeNode(member.type) || !ts.isStringLiteral(member.type.literal)) {
+      throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
+    }
+    return member.type.literal.text;
+  }).sort();
+}
+
 function reactSurface(file: string, exportName: string) {
   const source = parseTypes(file);
-  let declarationType: ts.TypeNode | undefined;
-  let inlineExport = false;
-  let eventTypeName = '';
   const aliases = new Map<string, ts.TypeAliasDeclaration>();
-  const namedExports = new Set<string>();
+  const declarations = new Map<string, ts.VariableDeclaration>();
+  const inlineExports = new Set<string>();
+  const namedExportTargets = new Map<string, string>();
   source.forEachChild(node => {
     if (ts.isTypeAliasDeclaration(node)) aliases.set(node.name.text, node);
     if (ts.isExportDeclaration(node) && !node.isTypeOnly && !node.moduleSpecifier
       && node.exportClause && ts.isNamedExports(node.exportClause)) {
       for (const element of node.exportClause.elements) {
-        if (!element.isTypeOnly) namedExports.add(element.name.text);
+        if (!element.isTypeOnly) {
+          namedExportTargets.set(element.name.text, element.propertyName?.text || element.name.text);
+        }
       }
     }
     if (!ts.isVariableStatement(node)) return;
     for (const declaration of node.declarationList.declarations) {
-      if (!ts.isIdentifier(declaration.name) || declaration.name.text !== exportName) continue;
-      declarationType = declaration.type;
-      inlineExport = node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword) || false;
-      if (declarationType && ts.isTypeReferenceNode(declarationType)) {
-        const eventType = declarationType.typeArguments?.[1];
-        if (eventType && ts.isTypeReferenceNode(eventType) && ts.isIdentifier(eventType.typeName)) {
-          eventTypeName = eventType.typeName.text;
-        }
+      if (!ts.isIdentifier(declaration.name)) continue;
+      declarations.set(declaration.name.text, declaration);
+      if (node.modifiers?.some(modifier => modifier.kind === ts.SyntaxKind.ExportKeyword)) {
+        inlineExports.add(declaration.name.text);
       }
     }
   });
-  if (!declarationType || (!inlineExport && !namedExports.has(exportName))) {
+  const localName = inlineExports.has(exportName)
+    ? exportName
+    : namedExportTargets.get(exportName);
+  if (!localName) {
     throw new Error(`Wrapper React nao exporta ${exportName}.`);
+  }
+  const localDeclaration = declarations.get(localName);
+  if (!localDeclaration) {
+    throw new Error(`Wrapper React exporta ${exportName} sem declarar ${localName}.`);
+  }
+  const declarationType = localDeclaration.type;
+  let eventTypeName = '';
+  if (declarationType && ts.isTypeReferenceNode(declarationType)) {
+    const eventType = declarationType.typeArguments?.[1];
+    if (eventType && ts.isTypeReferenceNode(eventType) && ts.isIdentifier(eventType.typeName)) {
+      eventTypeName = eventType.typeName.text;
+    }
   }
   const alias = aliases.get(eventTypeName);
   if (!eventTypeName || !alias || !ts.isTypeLiteralNode(alias.type)) {
@@ -123,8 +148,8 @@ function angularSurface(file: string, className: string, component: string) {
   const source = parseTypes(file);
   let selector = '';
   let inputs: string[] = [];
+  let outputs: string[] = [];
   let projectableSlots: string[] = [];
-  const outputs: string[] = [];
   source.forEachChild(node => {
     if (ts.isClassDeclaration(node) && node.name?.text === className) {
       const cmp = node.members.find(member => propertyName(member.name) === 'ɵcmp');
@@ -137,21 +162,16 @@ function angularSurface(file: string, className: string, component: string) {
           throw new Error(`Wrapper Angular ${className} possui mapping de inputs nao reconhecido.`);
         }
         inputs = angularInputAliases(args[3], className);
+        if (!args[4]) {
+          throw new Error(`Wrapper Angular ${className} possui mapping de outputs nao reconhecido.`);
+        }
+        outputs = angularOutputAliases(args[4], className);
         if (args[6] && ts.isTupleTypeNode(args[6])) {
           projectableSlots = args[6].elements
             .filter(ts.isLiteralTypeNode)
             .map(item => ts.isStringLiteral(item.literal) ? item.literal.text : '')
             .filter(Boolean)
             .sort();
-        }
-      }
-    }
-    if (ts.isInterfaceDeclaration(node) && node.name.text === className) {
-      for (const member of node.members) {
-        if (ts.isPropertySignature(member)
-          && member.type
-          && member.type.getText(source).startsWith('EventEmitter<')) {
-          outputs.push(propertyName(member.name));
         }
       }
     }

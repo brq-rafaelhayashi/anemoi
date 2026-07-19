@@ -72,6 +72,36 @@ test('readPublicSurface rejeita formato React sem event map reconhecivel', async
     /Wrapper React TgrButton possui formato de eventos nao reconhecido/);
 });
 
+test('readPublicSurface aceita export declare const React direto', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type DirectEvents = {onDirect: EventName<CustomEvent>};',
+    'export declare const TgrButton: StencilReactComponent<TgrButtonElement, DirectEvents>;',
+  ].join('\n'));
+  assert.deepEqual(readPublicSurface('/unused', 'tgr-button', overrides).react,
+    {exportName: 'TgrButton', events: ['onDirect']});
+});
+
+test('readPublicSurface resolve o local de export React com alias', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type WrongEvents = {onWrong: EventName<CustomEvent>};',
+    'type OtherEvents = {onRight: EventName<CustomEvent>};',
+    'declare const TgrButton: StencilReactComponent<TgrButtonElement, WrongEvents>;',
+    'declare const Other: StencilReactComponent<TgrButtonElement, OtherEvents>;',
+    'export {Other as TgrButton};',
+  ].join('\n'));
+  assert.deepEqual(readPublicSurface('/unused', 'tgr-button', overrides).react,
+    {exportName: 'TgrButton', events: ['onRight']});
+});
+
+test('readPublicSurface rejeita alias React cujo local nao existe', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', 'export {Missing as TgrButton};');
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React exporta TgrButton sem declarar Missing/);
+});
+
 test('readPublicSurface usa alias publico Angular e altera o fingerprint', async t => {
   const [{readPublicSurface}, {createFingerprint}] = await modules();
   const current = readPublicSurface('/unused', 'tgr-button', {
@@ -106,6 +136,42 @@ test('readPublicSurface rejeita mapping de inputs Angular desconhecido', async t
   ].join('\n'));
   assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
     /Wrapper Angular TgrButton possui mapping de inputs nao reconhecido/);
+});
+
+test('readPublicSurface usa alias publico do output Angular e altera fingerprint', async t => {
+  const [{readPublicSurface}, {createFingerprint}] = await modules();
+  const current = readPublicSurface('/unused', 'tgr-button', {
+    cemPath: path.join(FIXTURE, 'custom-elements.json'),
+    reactPath: path.join(FIXTURE, 'react.d.ts'),
+    angularPath: path.join(FIXTURE, 'angular.d.ts'),
+  });
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {',
+    '    "disabled": {"alias": "disabled"; "required": false};',
+    '  }, {"internalChange": "publicChange"}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton { internalChange: EventEmitter<CustomEvent>; }',
+    'export {TgrButton};',
+  ].join('\n'));
+  const aliased = readPublicSurface('/unused', 'tgr-button', overrides);
+  assert.deepEqual(aliased.angular.outputs, ['publicChange']);
+  assert.notEqual(createFingerprint(aliased).digest, createFingerprint(current).digest);
+});
+
+test('readPublicSurface rejeita mapping de outputs Angular desconhecido', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'angular.d.ts', [
+    'declare class TgrButton {',
+    '  static ɵcmp: i0.ɵɵComponentDeclaration<TgrButton, "tgr-button", never, {',
+    '    "disabled": {"alias": "disabled"; "required": false};',
+    '  }, {"internalChange": boolean}, never, ["*"], true, never>;',
+    '}',
+    'declare interface TgrButton { internalChange: EventEmitter<CustomEvent>; }',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper Angular TgrButton possui mapping de outputs nao reconhecido/);
 });
 
 for (const [collection, label, itemName] of [
