@@ -93,6 +93,7 @@
 - Modify: `packages/web/package.json`
 - Modify: `package-lock.json`
 - Create: `packages/web/tsconfig.json`
+- Create: `packages/web/src/runner/types.ts` (sentinel compilável; preenchido na Task 2)
 - Test: `packages/web/test/typescript-boundary.test.js`
 
 **Interfaces:**
@@ -123,6 +124,7 @@ test('workspace web declara Playwright Test e typecheck sem emissao', () => {
   assert.equal(tsconfig.compilerOptions.noEmit, true);
   assert.equal(tsconfig.compilerOptions.module, 'ESNext');
   assert.equal(tsconfig.compilerOptions.moduleResolution, 'Bundler');
+  assert.ok(fs.existsSync(path.join(ROOT, 'src', 'runner', 'types.ts')));
 });
 ```
 
@@ -153,6 +155,15 @@ Deixar `packages/web/package.json#scripts` assim:
   "test:browser": "playwright test --config playwright.config.ts"
 }
 ```
+
+Criar `packages/web/src/runner/types.ts` como módulo sentinel:
+
+```ts
+export {};
+```
+
+O sentinel garante que o `tsc` valide a fronteira desde a primeira task, sem `allowJs` e sem
+falhar com `TS18003` antes de a Task 2 preencher os tipos do domínio.
 
 Criar `packages/web/tsconfig.json`:
 
@@ -189,7 +200,7 @@ Expected: PASS; `tsc` termina com exit `0`.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add packages/web/package.json packages/web/tsconfig.json packages/web/test/typescript-boundary.test.js package-lock.json
+git add packages/web/package.json packages/web/tsconfig.json packages/web/src/runner/types.ts packages/web/test/typescript-boundary.test.js package-lock.json
 git commit -m "build(web): add Playwright Test TypeScript boundary"
 ```
 
@@ -198,7 +209,7 @@ git commit -m "build(web): add Playwright Test TypeScript boundary"
 ### Task 2: Tipos do domínio e Matriz de Suporte do consumidor
 
 **Files:**
-- Create: `packages/web/src/runner/types.ts`
+- Modify: `packages/web/src/runner/types.ts`
 - Create: `packages/web/src/runner/supportMatrix.ts`
 - Test: `packages/web/test/support-matrix.test.js`
 
