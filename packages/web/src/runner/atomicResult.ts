@@ -12,6 +12,10 @@ export interface LogicalResult {
 
 const BROWSERS = new Set(['chromium', 'firefox', 'webkit']);
 const STATUSES = new Set(['passed', 'failed', 'error']);
+const FRAMEWORKS = ['wc', 'react', 'angular'] as const;
+const FRAMEWORK_SET = new Set(FRAMEWORKS);
+const EXECUTIONS = new Set(['passed', 'error']);
+const PROOF_VERDICTS = new Set(['passed', 'failed', 'not-run', 'not-comparable']);
 
 function safeId(value: unknown): string {
   if (typeof value !== 'string'
@@ -108,10 +112,194 @@ function assertScene(value: unknown): asserts value is AtomicResult['scene'] {
   }
 }
 
-function assertRecordArray(value: unknown, label: string) {
-  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
-    throw new Error(`Resultado Atomico ${label} invalido.`);
+function assertFiniteDimension(value: unknown, label: string) {
+  if (!Number.isFinite(value) || (value as number) < 0) throw new Error(`${label} invalido.`);
+}
+
+function assertOptionalPath(value: Record<string, unknown>, key: string) {
+  if (key in value) assertArtifactPath(value[key]);
+}
+
+function assertCaptureA11y(value: unknown) {
+  if (!isRecord(value)) throw new Error('Resultado Atomico capture a11y invalido.');
+  for (const key of ['relPath', 'ariaRelPath']) assertOptionalPath(value, key);
+  if ('error' in value && !isNonEmptyString(value.error)) {
+    throw new Error('Resultado Atomico capture a11y invalido.');
   }
+  for (const key of ['violations', 'needsReview', 'ruleset']) {
+    if (key in value && !Array.isArray(value[key])) {
+      throw new Error('Resultado Atomico capture a11y invalido.');
+    }
+  }
+  if ('ariaSnapshot' in value && typeof value.ariaSnapshot !== 'string') {
+    throw new Error('Resultado Atomico capture a11y invalido.');
+  }
+}
+
+function assertCapture(
+  value: Record<string, unknown>,
+  browser: AtomicResult['browser'],
+  scene: AtomicResult['scene'],
+) {
+  if (!FRAMEWORK_SET.has(value.framework as typeof FRAMEWORKS[number])) {
+    throw new Error('Resultado Atomico capture framework invalido.');
+  }
+  if (!BROWSERS.has(value.browser as string) || value.browser !== browser) {
+    throw new Error('Resultado Atomico capture browser invalido.');
+  }
+  if ('error' in value) {
+    if (!isNonEmptyString(value.error)) throw new Error('Resultado Atomico capture error invalido.');
+    return;
+  }
+  if (!isNonEmptyString(value.brand)
+    || !(isNonEmptyString(value.storyId) || isNonEmptyString(value.sceneId))
+    || !isNonEmptyString(value.viewport)
+    || !isNonEmptyString(value.theme)) {
+    throw new Error('Resultado Atomico capture invalido.');
+  }
+  const sceneId = isNonEmptyString(value.storyId) ? value.storyId : value.sceneId;
+  if (value.brand !== scene.brand
+    || sceneId !== scene.id
+    || value.viewport !== scene.viewport
+    || value.theme !== scene.theme) {
+    throw new Error('Resultado Atomico capture scene invalida.');
+  }
+  assertArtifactPath(value.relPath);
+  if ('a11y' in value) assertCaptureA11y(value.a11y);
+}
+
+function assertCaptures(value: unknown, browser: AtomicResult['browser'], scene: AtomicResult['scene']) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico captures invalido.');
+  }
+  value.forEach(item => assertCapture(item, browser, scene));
+}
+
+function assertSize(value: unknown, label: string) {
+  if (!isRecord(value)) throw new Error(`${label} invalido.`);
+  assertFiniteDimension(value.width, label);
+  assertFiniteDimension(value.height, label);
+}
+
+function assertProofParity(value: unknown) {
+  if (!isRecord(value)
+    || !FRAMEWORK_SET.has(value.against as typeof FRAMEWORKS[number])
+    || typeof value.sizeMatch !== 'boolean') {
+    throw new Error('Resultado Atomico proof parity invalido.');
+  }
+  assertFiniteDimension(value.mismatch, 'Resultado Atomico proof parity');
+  assertFiniteDimension(value.width, 'Resultado Atomico proof parity');
+  assertFiniteDimension(value.height, 'Resultado Atomico proof parity');
+  assertOptionalPath(value, 'diffPath');
+  if ('referenceSize' in value) assertSize(value.referenceSize, 'Resultado Atomico proof parity referenceSize');
+  if ('againstSize' in value) assertSize(value.againstSize, 'Resultado Atomico proof parity againstSize');
+}
+
+function assertProofA11y(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.audits) || !Array.isArray(value.ariaParity)) {
+    throw new Error('Resultado Atomico proof a11y invalido.');
+  }
+  for (const audit of Object.values(value.audits)) {
+    if (!isRecord(audit)) throw new Error('Resultado Atomico proof a11y invalido.');
+    if ('error' in audit) {
+      if (!isNonEmptyString(audit.error)) throw new Error('Resultado Atomico proof a11y invalido.');
+    } else if (!Array.isArray(audit.violations)) {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    if ('needsReview' in audit && !Array.isArray(audit.needsReview)) {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    assertOptionalPath(audit, 'artifactPath');
+  }
+  for (const comparison of value.ariaParity) {
+    if (!isRecord(comparison)
+      || !FRAMEWORK_SET.has(comparison.against as typeof FRAMEWORKS[number])
+      || typeof comparison.match !== 'boolean') {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    assertOptionalPath(comparison, 'diffPath');
+  }
+}
+
+function assertProofGroup(
+  value: Record<string, unknown>,
+  browser: AtomicResult['browser'],
+  scene: AtomicResult['scene'],
+) {
+  if (!BROWSERS.has(value.browser as string) || value.browser !== browser) {
+    throw new Error('Resultado Atomico proof group browser invalido.');
+  }
+  if (!isNonEmptyString(value.brand)
+    || !(isNonEmptyString(value.storyId) || isNonEmptyString(value.sceneId))
+    || !isNonEmptyString(value.viewport)
+    || !isNonEmptyString(value.theme)
+    || !isNonEmptyString(value.label)
+    || !Array.isArray(value.parity)) {
+    throw new Error('Resultado Atomico proof group invalido.');
+  }
+  const sceneId = isNonEmptyString(value.storyId) ? value.storyId : value.sceneId;
+  if (value.brand !== scene.brand
+    || sceneId !== scene.id
+    || value.viewport !== scene.viewport
+    || value.theme !== scene.theme) {
+    throw new Error('Resultado Atomico proof group scene invalida.');
+  }
+  value.parity.forEach(assertProofParity);
+  for (const framework of FRAMEWORKS) assertOptionalPath(value, framework);
+  if ('a11y' in value) assertProofA11y(value.a11y);
+}
+
+function assertProofGroups(value: unknown, browser: AtomicResult['browser'], scene: AtomicResult['scene']) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico proofs invalido.');
+  }
+  value.forEach(item => assertProofGroup(item, browser, scene));
+}
+
+function assertObservation(value: unknown) {
+  if (!isRecord(value)
+    || !('focus' in value)
+    || !Array.isArray(value.events)
+    || value.events.some(event => !isRecord(event) || !isNonEmptyString(event.name))
+    || !isRecord(value.visibility)
+    || Object.values(value.visibility).some(visible => typeof visible !== 'boolean')
+    || !isRecord(value.state)) {
+    throw new Error('Resultado Atomico route observation invalida.');
+  }
+}
+
+function assertFrameworkResult(value: unknown) {
+  if (!isRecord(value)) throw new Error('Resultado Atomico route framework invalido.');
+  if (!EXECUTIONS.has(value.execution as string)) {
+    throw new Error('Resultado Atomico route framework execution invalido.');
+  }
+  if (!PROOF_VERDICTS.has(value.conformance as string)) {
+    throw new Error('Resultado Atomico route framework conformance invalido.');
+  }
+  if ('observation' in value) assertObservation(value.observation);
+  if ('error' in value && !isNonEmptyString(value.error)) {
+    throw new Error('Resultado Atomico route framework error invalido.');
+  }
+}
+
+function assertRoute(value: Record<string, unknown>) {
+  if (!isNonEmptyString(value.routeId)
+    || !Array.isArray(value.covers)
+    || value.covers.some(item => !isNonEmptyString(item))
+    || !isRecord(value.frameworks)) {
+    throw new Error('Resultado Atomico route invalida.');
+  }
+  if (!PROOF_VERDICTS.has(value.parity as string)) {
+    throw new Error('Resultado Atomico route parity invalido.');
+  }
+  for (const framework of FRAMEWORKS) assertFrameworkResult(value.frameworks[framework]);
+}
+
+function assertRoutes(value: unknown) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico routes invalido.');
+  }
+  value.forEach(assertRoute);
 }
 
 export function validateAtomicResult(result: AtomicResult): AtomicResult {
@@ -131,12 +319,12 @@ export function validateAtomicResult(result: AtomicResult): AtomicResult {
   if (logicalTestId !== `${result.scene.cellId}--${result.browser}`) {
     throw new Error(`Resultado Atomico identidade invalida: ${logicalTestId}.`);
   }
-  assertRecordArray(result.captures, 'captures');
+  assertCaptures(result.captures, result.browser, result.scene);
   if (!isRecord(result.proofs)) {
     throw new Error('Resultado Atomico proofs invalido.');
   }
-  assertRecordArray(result.proofs.groups, 'proofs');
-  assertRecordArray(result.routes, 'routes');
+  assertProofGroups(result.proofs.groups, result.browser, result.scene);
+  assertRoutes(result.routes);
   if (!isRecord(result.diagnostics)) throw new Error('Resultado Atomico diagnostics invalido.');
   assertStringArray(result.diagnostics.console, 'diagnostics.console');
   assertStringArray(result.diagnostics.pageErrors, 'diagnostics.pageErrors');
