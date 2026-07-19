@@ -74,6 +74,60 @@ test('buildRunPlan produz IDs deterministas e resistentes a colisoes de slug', a
   assert.equal(new Set(first.scenes.map(item => item.cellId)).size, 2);
 });
 
+test('buildRunPlan canonicaliza permutacoes equivalentes sem alterar a entrada', async () => {
+  const {buildRunPlan} = await subject();
+  const secondary = {...scene, id: 'secondary', name: 'Secondary'};
+  const policy = {
+    schemaVersion: 1,
+    required: ['webkit', 'chromium', 'firefox'],
+    optional: [],
+  };
+  const permuted = planInput({
+    support: policy,
+    selectedBrowsers: ['firefox', 'webkit', 'chromium'],
+    scenes: [secondary, scene],
+    brands: ['smiles', 'gol'],
+    themes: ['contrast', 'dark', 'light'],
+    viewports: ['lg', 'sm', 'md'],
+    viewportWidths: {lg: 1024, sm: 360, md: 768},
+  });
+  const canonical = planInput({
+    support: policy,
+    selectedBrowsers: ['webkit', 'chromium', 'firefox'],
+    scenes: [scene, secondary],
+    brands: ['gol', 'smiles'],
+    themes: ['light', 'dark', 'contrast'],
+    viewports: ['sm', 'md', 'lg'],
+    viewportWidths: {md: 768, lg: 1024, sm: 360},
+  });
+  const original = structuredClone(permuted);
+
+  const fromPermutation = buildRunPlan(permuted);
+  const fromCanonical = buildRunPlan(canonical);
+
+  assert.deepEqual(permuted, original);
+  assert.deepEqual(fromPermutation.browsers, ['webkit', 'chromium', 'firefox']);
+  assert.deepEqual(fromPermutation.requiredBrowsers, ['webkit', 'chromium', 'firefox']);
+  assert.deepEqual(
+    fromPermutation.scenes.slice(0, 12).map(item => [item.id, item.brand, item.theme, item.viewport]),
+    [
+      ['primary', 'gol', 'light', 'sm'],
+      ['primary', 'gol', 'light', 'md'],
+      ['primary', 'gol', 'light', 'lg'],
+      ['primary', 'gol', 'dark', 'sm'],
+      ['primary', 'gol', 'dark', 'md'],
+      ['primary', 'gol', 'dark', 'lg'],
+      ['primary', 'gol', 'contrast', 'sm'],
+      ['primary', 'gol', 'contrast', 'md'],
+      ['primary', 'gol', 'contrast', 'lg'],
+      ['primary', 'smiles', 'light', 'sm'],
+      ['primary', 'smiles', 'light', 'md'],
+      ['primary', 'smiles', 'light', 'lg'],
+    ],
+  );
+  assert.equal(JSON.stringify(fromPermutation), JSON.stringify(fromCanonical));
+});
+
 test('filtro de browser reduz execucao mas marca plano diagnostico', async () => {
   const {buildRunPlan} = await subject();
   const plan = buildRunPlan(planInput({selectedBrowsers: ['chromium'], themes: ['light']}));
@@ -86,6 +140,11 @@ test('buildRunPlan rejeita selecao vazia, duplicada ou fora da matriz', async ()
   assert.throws(() => buildRunPlan(planInput({selectedBrowsers: []})), /vazia ou duplicada/);
   assert.throws(() => buildRunPlan(planInput({selectedBrowsers: ['chromium', 'chromium']})), /vazia ou duplicada/);
   assert.throws(() => buildRunPlan(planInput({selectedBrowsers: ['chrome']})), /fora da Matriz de Suporte/);
+  assert.throws(() => buildRunPlan(planInput({support: {
+    schemaVersion: 1,
+    required: ['chromium', 'firefox', 'webkit'],
+    optional: ['chromium'],
+  }})), /Matriz de Suporte invalida/);
 });
 
 test('buildRunPlan rejeita eixos vazios ou duplicados antes de gerar IDs', async () => {

@@ -25,6 +25,7 @@ interface BuildInput {
 }
 
 const REQUIRED_BROWSERS = new Set<BrowserName>(['chromium', 'firefox', 'webkit']);
+const THEME_ORDER = new Map([['light', 0], ['dark', 1]]);
 
 function cellId(parts: string[]) {
   const slug = parts.join('--').replace(/[^a-zA-Z0-9._-]/g, '-');
@@ -34,6 +35,7 @@ function cellId(parts: string[]) {
 
 function hasInitialRequiredBrowsers(support: SupportMatrix) {
   return support.required.length === REQUIRED_BROWSERS.size
+    && new Set(support.required).size === REQUIRED_BROWSERS.size
     && support.required.every(browser => REQUIRED_BROWSERS.has(browser));
 }
 
@@ -43,31 +45,65 @@ function assertUniqueAxis(label: string, values: string[]) {
   }
 }
 
+function lexical(left: string, right: string) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function compareThemes(left: string, right: string) {
+  const leftRank = THEME_ORDER.get(left) ?? THEME_ORDER.size;
+  const rightRank = THEME_ORDER.get(right) ?? THEME_ORDER.size;
+  return leftRank - rightRank || lexical(left, right);
+}
+
 export function buildRunPlan(input: BuildInput): RunPlan {
   if (!input.support || !hasInitialRequiredBrowsers(input.support)) {
     throw new Error('Matriz de Suporte deve exigir chromium, firefox e webkit.');
   }
-  const browsers = input.selectedBrowsers ?? input.support.required;
-  if (browsers.length === 0 || new Set(browsers).size !== browsers.length) {
+  const requiredBrowsers = [...input.support.required];
+  const optionalBrowsers = [...input.support.optional];
+  const policyOrder = [...requiredBrowsers, ...optionalBrowsers];
+  if (input.support.schemaVersion !== 1
+    || optionalBrowsers.some(browser => !REQUIRED_BROWSERS.has(browser))
+    || new Set(policyOrder).size !== policyOrder.length) {
+    throw new Error('Matriz de Suporte invalida: browsers desconhecidos ou duplicados.');
+  }
+  const selectedBrowsers = [...(input.selectedBrowsers ?? requiredBrowsers)];
+  const sceneDefinitions = input.scenes.map(scene => structuredClone(scene));
+  const brands = [...input.brands];
+  const themes = [...input.themes];
+  const viewports = [...input.viewports];
+  const viewportWidths = {...input.viewportWidths};
+
+  if (selectedBrowsers.length === 0 || new Set(selectedBrowsers).size !== selectedBrowsers.length) {
     throw new Error('Selecao de browsers vazia ou duplicada.');
   }
-  const supported = new Set([...input.support.required, ...input.support.optional]);
-  for (const browser of browsers) {
+  const supported = new Set(policyOrder);
+  for (const browser of selectedBrowsers) {
     if (!supported.has(browser)) {
       throw new Error(`Browser fora da Matriz de Suporte: ${browser}.`);
     }
   }
-  assertUniqueAxis('scenes', input.scenes.map(scene => scene.id));
-  assertUniqueAxis('brands', input.brands);
-  assertUniqueAxis('themes', input.themes);
-  assertUniqueAxis('viewports', input.viewports);
+  assertUniqueAxis('scenes', sceneDefinitions.map(scene => scene.id));
+  assertUniqueAxis('brands', brands);
+  assertUniqueAxis('themes', themes);
+  assertUniqueAxis('viewports', viewports);
+  for (const viewport of viewports) {
+    const width = viewportWidths[viewport];
+    if (!Number.isFinite(width) || width <= 0) {
+      throw new Error(`Viewport desconhecido: ${viewport}.`);
+    }
+  }
 
-  const scenes = input.scenes.flatMap(scene => input.brands.flatMap(brand =>
-    input.themes.flatMap(theme => input.viewports.map(viewport => {
-      const width = input.viewportWidths[viewport];
-      if (!Number.isFinite(width) || width <= 0) {
-        throw new Error(`Viewport desconhecido: ${viewport}.`);
-      }
+  const selectedSet = new Set(selectedBrowsers);
+  const browsers = policyOrder.filter(browser => selectedSet.has(browser));
+  const scenes = sceneDefinitions.sort((left, right) => lexical(left.id, right.id));
+  brands.sort(lexical);
+  themes.sort(compareThemes);
+  viewports.sort((left, right) => viewportWidths[left] - viewportWidths[right] || lexical(left, right));
+
+  const plannedScenes = scenes.flatMap(scene => brands.flatMap(brand =>
+    themes.flatMap(theme => viewports.map(viewport => {
+      const width = viewportWidths[viewport];
       return {
         ...scene,
         brand,
@@ -80,7 +116,7 @@ export function buildRunPlan(input: BuildInput): RunPlan {
   const collectA11y = input.collectA11y !== false;
   const diagnostic = Boolean(input.forceDiagnostic)
     || !collectA11y
-    || input.support.required.some(browser => !browsers.includes(browser));
+    || requiredBrowsers.some(browser => !selectedSet.has(browser));
 
   return {
     schemaVersion: 1,
@@ -93,12 +129,12 @@ export function buildRunPlan(input: BuildInput): RunPlan {
     diagnostic,
     collectA11y,
     browsers: [...browsers],
-    requiredBrowsers: [...input.support.required],
+    requiredBrowsers,
     frameworks: ['wc', 'react', 'angular'],
     specPath: input.specPath,
     hostsPath: input.hostsPath,
-    scenes,
-    contract: input.contractState,
+    scenes: plannedScenes,
+    contract: structuredClone(input.contractState),
   };
 }
 
