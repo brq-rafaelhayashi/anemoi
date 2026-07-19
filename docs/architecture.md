@@ -82,9 +82,10 @@ compartilhado quando os contratos dos dois runtimes forem equivalentes.
 Cada execução grava um diretório próprio em
 `<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/`. O identificador
 aleatório evita colisões entre execuções iniciadas no mesmo instante. O preflight publica uma única
-vez `run-plan.json`; workers nunca escrevem o manifesto compartilhado. Cada tentativa grava por
-rename atômico `results/<teste-logico>/attempt-<n>/result.json` junto das evidências e attachments da
-própria tentativa. O finalizador exige exatamente a matriz planejada, consolida retries como
+vez `run-plan.json`; workers nunca escrevem o manifesto compartilhado. Cada tentativa publica de
+forma atômica e exclusiva `results/<teste-logico>/attempt-<n>/result.json` junto das evidências e
+attachments da própria tentativa. A publicação usa hard link para impedir sobrescrita concorrente. O
+finalizador exige exatamente a matriz planejada, consolida retries como
 `stable` ou `flaky` e só então publica `summary.md`, `index.html` e `manifest.json` v2.
 
 O Gate de Confiabilidade é fail-closed: dimensão obrigatória reprovada ou indisponível impede

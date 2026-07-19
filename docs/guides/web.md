@@ -95,7 +95,7 @@ preflight -> run-plan.json -> Playwright Test -> Resultados Atômicos -> finaliz
 3. Constrói os harnesses isolados de WC, React e Angular e publica `run-plan.json` uma única vez.
 4. Playwright Test expande os projetos Chromium, Firefox e WebKit. Cada teste lógico representa uma
    Cena, ambiente e viewport em um browser; WC, React e Angular são steps internos.
-5. Cada tentativa grava seu próprio Resultado Atômico por rename em
+5. Cada tentativa publica seu próprio Resultado Atômico de forma atômica e exclusiva em
    `results/<teste-logico>/attempt-<n>/result.json`. Evidências, traces e screenshots diagnósticos
    ficam escopados à mesma tentativa; workers não atualizam o manifesto.
 6. O finalizador valida a completude exata contra o plano, consolida retries e publica o manifesto
