@@ -268,3 +268,31 @@ test('finalizeRun chama o publicador do manifest somente com os artefatos humano
   value.finalizeRun(value.planPath, dependencies(value.runDir, {writeManifest}));
   assert.equal(fs.existsSync(path.join(value.runDir, 'manifest.json')), true);
 });
+
+test('finalizeRun trata manifest existente como marcador imutavel sem tocar no bundle', async t => {
+  const value = await setup(t);
+  value.writeAtomicResult(value.runDir, result(value.scene));
+  const sentinels = {
+    'manifest.json': Buffer.from([0, 1, 2, 3, 255]),
+    'summary.md': Buffer.from('summary sentinel\n', 'utf8'),
+    'index.html': Buffer.from('<p>gallery sentinel</p>\n', 'utf8'),
+  };
+  for (const [file, content] of Object.entries(sentinels)) {
+    fs.writeFileSync(path.join(value.runDir, file), content);
+  }
+  const never = label => () => { throw new Error(`${label} invoked`); };
+  const deps = dependencies(value.runDir, {
+    renderSummaryV2: never('summary renderer'),
+    renderHtmlV2: never('html renderer'),
+    writeManifest: never('manifest writer'),
+  });
+
+  assert.throws(
+    () => value.finalizeRun(value.planPath, deps),
+    /manifest\.json.*(?:imutavel|finalizad)/i,
+  );
+  for (const [file, content] of Object.entries(sentinels)) {
+    assert.deepEqual(fs.readFileSync(path.join(value.runDir, file)), content);
+  }
+  assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
+});

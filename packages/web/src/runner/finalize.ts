@@ -15,6 +15,8 @@ const {collectProvenance} = require('../provenance');
 interface FinalizeDependencies {
   summarizeA11y: typeof summarizeA11y;
   buildManifestV2: typeof buildManifestV2;
+  renderSummaryV2: typeof renderSummaryV2;
+  renderHtmlV2: typeof renderHtmlV2;
   writeManifest: typeof writeManifest;
   collectProvenance: typeof collectProvenance;
 }
@@ -27,6 +29,8 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
   const dependencies: FinalizeDependencies = {
     summarizeA11y,
     buildManifestV2,
+    renderSummaryV2,
+    renderHtmlV2,
     writeManifest,
     collectProvenance,
     ...overrides,
@@ -178,8 +182,12 @@ export function finalizeRun(planPath: string, overrides: Partial<FinalizeDepende
     runDir: plan.runDir,
   });
 
-  const summary = renderSummaryV2(manifest);
-  const html = renderHtmlV2(manifest);
+  const manifestPath = path.join(plan.runDir, 'manifest.json');
+  if (fs.existsSync(manifestPath)) {
+    throw new Error(`manifest.json ja existe; run finalizado e imutavel: ${manifestPath}.`);
+  }
+  const summary = dependencies.renderSummaryV2(manifest);
+  const html = dependencies.renderHtmlV2(manifest);
   writeTextAtomic(path.join(plan.runDir, 'summary.md'), summary);
   writeTextAtomic(path.join(plan.runDir, 'index.html'), html);
   dependencies.writeManifest(plan.runDir, manifest);
