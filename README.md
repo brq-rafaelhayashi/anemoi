@@ -63,5 +63,12 @@ gate. A visão estrutural está em
 npm test
 ```
 
-O Web concluiu sua aceitação real. A modularização Mobile permanece pendente e está especificada no
-[plano de implementação Mobile](docs/superpowers/plans/2026-07-13-anemoi-mobile-modularization.md).
+Evidência do cutover em 2026-07-19: o pipeline foi exercitado em Chromium, Firefox e WebKit, com
+156 Resultados Atômicos `stable`, 468 capturas, zero `flaky` e galeria offline com 684 referências
+validadas sem falha. O gate real do consumidor **não foi aprovado** (`status: "failed"`, `trusted: false`):
+144 falhas Axe `color-contrast` no tema dark, 12 falhas `behavioralConformance` no roteiro `loading`
+e 60 falhas finais em `stability`; paridades e cobertura passaram. Consulte o
+[registro do cutover](docs/migration/2026-07-18-playwright-test-tgr-button-cutover.md).
+
+A modularização Mobile permanece pendente e está especificada no [plano de implementação
+Mobile](docs/superpowers/plans/2026-07-13-anemoi-mobile-modularization.md).
