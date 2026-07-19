@@ -72,6 +72,28 @@ test('readPublicSurface rejeita formato React sem event map reconhecivel', async
     /Wrapper React TgrButton possui formato de eventos nao reconhecido/);
 });
 
+test('readPublicSurface rejeita wrapper React arbitrario mesmo com event map', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type Events = {onFake: EventName<CustomEvent>};',
+    'declare const TgrButton: UnknownWrapper<X, Events>;',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React TgrButton possui formato de eventos nao reconhecido/);
+});
+
+test('readPublicSurface rejeita member React que nao e PropertySignature EventName', async t => {
+  const [{readPublicSurface}] = await modules();
+  const overrides = withOverride(t, 'react.d.ts', [
+    'type Events = {onFake(): void};',
+    'declare const TgrButton: StencilReactComponent<X, Events>;',
+    'export {TgrButton};',
+  ].join('\n'));
+  assert.throws(() => readPublicSurface('/unused', 'tgr-button', overrides),
+    /Wrapper React TgrButton possui formato de eventos nao reconhecido/);
+});
+
 test('readPublicSurface aceita export declare const React direto', async t => {
   const [{readPublicSurface}] = await modules();
   const overrides = withOverride(t, 'react.d.ts', [

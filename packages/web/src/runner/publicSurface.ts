@@ -126,21 +126,30 @@ function reactSurface(file: string, exportName: string) {
     throw new Error(`Wrapper React exporta ${exportName} sem declarar ${localName}.`);
   }
   const declarationType = localDeclaration.type;
-  let eventTypeName = '';
-  if (declarationType && ts.isTypeReferenceNode(declarationType)) {
-    const eventType = declarationType.typeArguments?.[1];
-    if (eventType && ts.isTypeReferenceNode(eventType) && ts.isIdentifier(eventType.typeName)) {
-      eventTypeName = eventType.typeName.text;
-    }
+  if (!declarationType || !ts.isTypeReferenceNode(declarationType)
+    || !ts.isIdentifier(declarationType.typeName)
+    || declarationType.typeName.text !== 'StencilReactComponent'
+    || declarationType.typeArguments?.length !== 2) {
+    throw new Error(`Wrapper React ${exportName} possui formato de eventos nao reconhecido.`);
   }
+  const eventType = declarationType.typeArguments[1];
+  if (!ts.isTypeReferenceNode(eventType) || !ts.isIdentifier(eventType.typeName)) {
+    throw new Error(`Wrapper React ${exportName} possui formato de eventos nao reconhecido.`);
+  }
+  const eventTypeName = eventType.typeName.text;
   const alias = aliases.get(eventTypeName);
-  if (!eventTypeName || !alias || !ts.isTypeLiteralNode(alias.type)) {
+  if (!alias || !ts.isTypeLiteralNode(alias.type)) {
     throw new Error(`Wrapper React ${exportName} possui formato de eventos nao reconhecido.`);
   }
-  const events = alias.type.members.map(member => propertyName(member.name));
-  if (events.some(name => !name)) {
-    throw new Error(`Wrapper React ${exportName} possui formato de eventos nao reconhecido.`);
-  }
+  const events = alias.type.members.map(member => {
+    const name = propertyName(member.name);
+    if (!name || !ts.isPropertySignature(member) || !member.type
+      || !ts.isTypeReferenceNode(member.type) || !ts.isIdentifier(member.type.typeName)
+      || member.type.typeName.text !== 'EventName' || member.type.typeArguments?.length !== 1) {
+      throw new Error(`Wrapper React ${exportName} possui formato de eventos nao reconhecido.`);
+    }
+    return name;
+  });
   return {exportName, events: events.sort()};
 }
 
