@@ -487,7 +487,8 @@ git commit -m "feat(web): validate Tangerina browser support matrix"
 `sceneId` é uma referência reutilizável: Roteiros distintos podem montar a mesma Cena para
 observar comportamentos diferentes. A unicidade vale para as definições (`Scene.id`,
 `requiredBehaviors`, `Route.id`) e para a atribuição de cada comportamento coberto, não para
-o número de Roteiros que referenciam uma Cena.
+o número de Roteiros que referenciam uma Cena. Um Roteiro com `covers: []` é inválido:
+sem comportamento declarado ele não produz evidência e indica um contrato incompleto.
 
 - [ ] **Step 1: Escrever os testes que falham**
 

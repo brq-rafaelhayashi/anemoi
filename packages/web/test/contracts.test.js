@@ -25,6 +25,25 @@ test('validateContract calcula cobertura integral', async () => {
   });
 });
 
+test('validateContract permite roteiros distintos reutilizarem a mesma cena', async () => {
+  const {validateContract} = await subject();
+  const contract = {
+    schemaVersion: 1,
+    consumer: 'tangerina',
+    component: 'tgr-button',
+    requiredBehaviors: ['activate', 'focus'],
+    routes: [
+      {id: 'activate', sceneId: 'primary', covers: ['activate']},
+      {id: 'focus', sceneId: 'primary', covers: ['focus']},
+    ],
+  };
+  assert.deepEqual(validateContract(contract, scenes), {
+    required: ['activate', 'focus'],
+    covered: ['activate', 'focus'],
+    missing: [],
+  });
+});
+
 test('validateContract informa lacuna sem transformar ausencia em aprovacao', async () => {
   const {validateContract} = await subject();
   const contract = {
