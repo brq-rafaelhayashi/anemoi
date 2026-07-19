@@ -128,6 +128,27 @@ test('buildRunPlan canonicaliza permutacoes equivalentes sem alterar a entrada',
   assert.equal(JSON.stringify(fromPermutation), JSON.stringify(fromCanonical));
 });
 
+test('buildRunPlan isola profundamente cada celula, Cena e contrato de entrada', async () => {
+  const {buildRunPlan} = await subject();
+  const nestedScene = {
+    ...scene,
+    args: {config: {label: 'Original'}},
+    slots: {icon: {icon: 'download'}},
+  };
+  const input = planInput({scenes: [nestedScene]});
+  const original = structuredClone(input);
+  const plan = buildRunPlan(input);
+  assert.equal(plan.scenes.length, 2);
+
+  plan.scenes[0].args.config.label = 'Changed';
+  plan.scenes[0].slots.icon.icon = 'upload';
+  plan.contract.routes[0].covers.push('changed');
+
+  assert.deepEqual(plan.scenes[1].args, {config: {label: 'Original'}});
+  assert.deepEqual(plan.scenes[1].slots, {icon: {icon: 'download'}});
+  assert.deepEqual(input, original);
+});
+
 test('filtro de browser reduz execucao mas marca plano diagnostico', async () => {
   const {buildRunPlan} = await subject();
   const plan = buildRunPlan(planInput({selectedBrowsers: ['chromium'], themes: ['light']}));

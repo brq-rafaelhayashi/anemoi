@@ -105,7 +105,7 @@ export function buildRunPlan(input: BuildInput): RunPlan {
     themes.flatMap(theme => viewports.map(viewport => {
       const width = viewportWidths[viewport];
       return {
-        ...scene,
+        ...structuredClone(scene),
         brand,
         theme,
         viewport,
