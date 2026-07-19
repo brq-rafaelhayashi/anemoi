@@ -1,0 +1,14 @@
+{
+  "modules": [{
+    "declarations": [{
+      "kind": "class",
+      "customElement": true,
+      "tagName": "tgr-button",
+      "name": "TgrButton",
+      "attributes": [{"name": "disabled", "type": {"text": "boolean"}}],
+      "members": [{"kind": "field", "name": "disabled", "type": {"text": "boolean"}}],
+      "events": [{"name": "tgrClick", "type": {"text": "CustomEvent<{clicked: true}>"}}],
+      "slots": [{"name": ""}, {"name": "icon"}]
+    }]
+  }]
+}
