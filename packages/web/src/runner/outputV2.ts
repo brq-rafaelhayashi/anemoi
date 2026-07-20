@@ -358,7 +358,7 @@ function renderStateVisual(state: StateReportGroup, browsers: string[]) {
       }).join('');
       return `<tr><td>${escapeHtml(group.label)}</td>${frameworkCells}</tr>`;
     }).join('');
-    return `<details class="browser-evidence" data-browser="${escapeHtml(browser)}"><summary>${escapeHtml(titleCase(String(browser)))}</summary><table><thead><tr><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+    return `<details class="browser-evidence" data-browser="${escapeHtml(browser)}"><summary>${escapeHtml(titleCase(String(browser)))}</summary><div class="table-scroll"><table><thead><tr><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
   }).join('');
   return `<details class="state-section visual-evidence"><summary>Evidencia visual</summary>${browserSections}</details>`;
 }
@@ -390,7 +390,7 @@ function renderStateBehavior(state: StateReportGroup) {
     return `<tr><td>${escapeHtml(result.logicalTestId)}</td><td>${escapeHtml(result.stability)}</td><td>${escapeHtml(route.routeId)}</td><td>${escapeHtml(route.parity)}</td>${conformance}</tr>`;
   }).join('');
   const open = (state.issues.behaviorFailed > 0 || state.issues.behaviorUnavailable > 0) ? ' open' : '';
-  return `<details class="state-section behavior-evidence"${open}><summary>Comportamento</summary><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+  return `<details class="state-section behavior-evidence"${open}><summary>Comportamento</summary><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
 }
 
 function renderStateAttempts(state: StateReportGroup) {
@@ -412,7 +412,7 @@ function renderStateAttempts(state: StateReportGroup) {
       : 'indisponível';
     return `<tr><td>${escapeHtml(logical.logicalTestId)}</td><td>${escapeHtml(logical.stability)}</td><td>${escapeHtml(attempt.attempt)}</td><td>${escapeHtml(attempt.status)}</td><td>${resultLink}</td><td>${attachments}</td></tr>`;
   }).join('');
-  return `<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+  return `<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
 }
 
 function renderStateGroup(state: StateReportGroup, manifest: ManifestV2) {
@@ -487,16 +487,43 @@ export function renderHtmlV2(manifest: ManifestV2) {
     `<tr><td>${escapeHtml(name)}</td><td class="${escapeHtml(value.status)}">${escapeHtml(value.status)}</td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
   const states = projectStateReport(manifest);
   const stateGroups = states.map(state => renderStateGroup(state, manifest)).join('');
+  const browserButtons = manifest.axes.browsers.map(browser =>
+    `<button type="button" data-browser-filter="${escapeHtml(browser)}">${escapeHtml(titleCase(browser))}</button>`).join('');
+  const reportControls = `<div class="report-controls">
+<button type="button" data-action="open-failed">Abrir estados com falha</button>
+<button type="button" data-action="close-all">Fechar todos</button>
+<span class="browser-filters">${browserButtons}<button type="button" data-browser-filter="all">Todos os browsers</button></span>
+</div>`;
 
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(manifest.component)} — confiança</title>
-<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}.state-badges .state-badge{margin-right:6px;padding:2px 6px;border-radius:10px;background:#fee4e2;color:#b42318;font-size:12px}.state-badges.ok .state-badge,.state-badges.ok{color:#167044}</style></head><body>
+<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}.state-badges .state-badge{margin-right:6px;padding:2px 6px;border-radius:10px;background:#fee4e2;color:#b42318;font-size:12px}.state-badges.ok .state-badge,.state-badges.ok{color:#167044}.report-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}.state-shell{margin:10px 0}.state-group{background:#fff;border:1px solid #d8dce3;border-left:4px solid #167044;border-radius:8px;padding:0}.state-group.failed{border-left-color:#b42318}.state-group.unavailable{border-left-color:#b54708}.state-group>summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;cursor:pointer}.state-title{font-size:16px;font-weight:700;margin-right:auto}.state-body{padding:0 12px 12px}.table-scroll{overflow-x:auto;max-width:100%}.table-scroll table{min-width:720px}.browser-evidence[hidden]{display:none}</style></head><body>
 <h1>${escapeHtml(manifest.component)}</h1><p>Gate: <strong>${escapeHtml(manifest.gate.status)}</strong> · confiável: ${manifest.gate.trusted ? 'sim' : 'não'}</p>
 <h2>Dimensões do gate</h2><table><thead><tr><th>Dimensão</th><th>Status</th><th>Falhas</th><th>Indisponíveis</th></tr></thead><tbody>${dimensionRows}</tbody></table>
 ${renderAxeGlobalSummary(axeDiagnostics)}
 <h2>Estados do componente</h2>
-<div class="report-controls"></div>
+${reportControls}
 <div id="state-report">${stateGroups}</div>
+<script>
+document.querySelector('.report-controls').addEventListener('click', event => {
+  const button = event.target.closest('button');
+  if (!button) return;
+  if (button.dataset.action === 'open-failed') {
+    document.querySelectorAll('.state-group').forEach(state => {
+      state.open = state.dataset.status !== 'passed';
+    });
+  }
+  if (button.dataset.action === 'close-all') {
+    document.querySelectorAll('.state-group').forEach(state => { state.open = false; });
+  }
+  if (button.dataset.browserFilter) {
+    document.querySelectorAll('.browser-evidence').forEach(group => {
+      group.hidden = button.dataset.browserFilter !== 'all'
+        && group.dataset.browser !== button.dataset.browserFilter;
+    });
+  }
+});
+</script>
 </body></html>`;
 }

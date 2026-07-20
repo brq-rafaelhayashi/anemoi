@@ -403,6 +403,28 @@ test('fixture usa diagnostico causal como custom message sem alterar a assercao'
   assert.match(source, /expect\(result\.status,\s*formatAttemptFailure\(result\)\)\.toBe\(['"]passed['"]\)/);
 });
 
+test('galeria oferece controles globais e filtro por browser sobre grupos locais', async () => {
+  const {renderHtmlV2} = await subject();
+  const html = renderHtmlV2(manifest);
+
+  assert.match(html, /data-action="open-failed"[^>]*>Abrir estados com falha/);
+  assert.match(html, /data-action="close-all"[^>]*>Fechar todos/);
+  assert.match(html, /data-browser-filter="firefox"/);
+  assert.match(html, /querySelectorAll\('\.state-group'\)/);
+  assert.match(html, /querySelectorAll\('\.browser-evidence'\)/);
+});
+
+test('galeria usa details nativo e contem tabelas em wrappers responsivos', async () => {
+  const {renderHtmlV2} = await subject();
+  const html = renderHtmlV2(manifest);
+
+  assert.match(html, /<details class="state-group/);
+  assert.match(html, /<summary>/);
+  assert.match(html, /class="table-scroll"/);
+  assert.match(html, /\.table-scroll\{overflow-x:auto/);
+  assert.doesNotMatch(html, /role="button"|tabindex="0"/);
+});
+
 test('galeria v2 escapa HTML e recusa caminhos externos ou fora da tentativa', async () => {
   const {renderHtmlV2} = await subject();
   const unsafe = structuredClone(manifest);
