@@ -12,7 +12,7 @@ function group(overrides = {}) {
     browser: 'chromium',
     brand: 'gol',
     storyId: 'primary',
-    storyName: 'Primary',
+    story: 'Primary',
     viewport: 'sm',
     theme: 'light',
     label: 'chromium · gol · Primary · sm · light',
@@ -122,7 +122,6 @@ test('processa shapes desconhecidos sem lancar e ordena regras e evidencias', as
           wc: {
             violations: [
               violation([node('#z', 'summary z')], {id: 'z-rule', impact: 'minor'}),
-              null,
               violation([node('#a', 'summary a')], {id: 'a-rule', impact: 'critical'}),
             ],
             needsReview: [{id: 'manual-review'}, null],
@@ -144,6 +143,109 @@ test('processa shapes desconhecidos sem lancar e ordena regras e evidencias', as
   assert.equal(first.unavailableAudits, 3);
   assert.equal(first.needsReview, 1);
   assert.deepEqual(first.rules.map(rule => rule.id), ['a-rule', 'z-rule']);
+});
+
+test('conta auditorias afetadas por regra sem reutilizar o total global', async () => {
+  const {aggregateAxeDiagnostics, formatAttemptFailure} = await subject();
+  const groups = [
+    group({
+      a11y: {
+        audits: {wc: {violations: [
+          violation([node('#a', 'summary a')], {id: 'a-rule'}),
+          violation([node('#b', 'summary b')], {id: 'b-rule'}),
+        ]}},
+        ariaParity: [],
+      },
+    }),
+    group({
+      browser: 'firefox',
+      a11y: {
+        audits: {wc: {violations: [violation([node('#a', 'summary a')], {id: 'a-rule'})]}},
+        ariaParity: [],
+      },
+    }),
+  ];
+
+  const diagnostics = aggregateAxeDiagnostics(groups);
+  const formatted = formatAttemptFailure({
+    logicalTestId: 'primary--chromium',
+    captures: [],
+    proofs: {groups},
+    routes: [],
+  });
+
+  assert.equal(diagnostics.failedAudits, 2);
+  assert.equal(diagnostics.rules.find(rule => rule.id === 'a-rule').affectedAudits, 2);
+  assert.equal(diagnostics.rules.find(rule => rule.id === 'b-rule').affectedAudits, 1);
+  assert.match(formatted, /a-rule.*2 auditorias afetadas/);
+  assert.match(formatted, /b-rule.*1 auditoria afetada/);
+});
+
+test('classifica audit com violation malformada como indisponivel sem causa parcial', async () => {
+  const {aggregateAxeDiagnostics} = await subject();
+  const diagnostics = aggregateAxeDiagnostics([group({
+    a11y: {
+      audits: {wc: {violations: [violation([node('#a', 'summary a')]), null]}},
+      ariaParity: [],
+    },
+  })]);
+
+  assert.deepEqual(
+    {
+      totalAudits: diagnostics.totalAudits,
+      failedAudits: diagnostics.failedAudits,
+      passedAudits: diagnostics.passedAudits,
+      unavailableAudits: diagnostics.unavailableAudits,
+      uniqueRules: diagnostics.uniqueRules,
+      ruleOccurrences: diagnostics.ruleOccurrences,
+      affectedNodes: diagnostics.affectedNodes,
+    },
+    {
+      totalAudits: 1,
+      failedAudits: 0,
+      passedAudits: 0,
+      unavailableAudits: 1,
+      uniqueRules: 0,
+      ruleOccurrences: 0,
+      affectedNodes: 0,
+    },
+  );
+});
+
+test('usa group.story real antes dos fallbacks de nome e id', async () => {
+  const {aggregateAxeDiagnostics} = await subject();
+  const [rule] = aggregateAxeDiagnostics([group({
+    story: 'Real Story',
+    storyName: 'Legacy Story',
+    a11y: {
+      audits: {wc: {violations: [violation([node('button', 'sem nome')])]}},
+      ariaParity: [],
+    },
+  })]).rules;
+
+  assert.equal(rule.axes[0].story, 'Real Story');
+  assert.equal(rule.evidence[0].axes[0].story, 'Real Story');
+});
+
+test('ordena causas de captura totalmente mesmo quando frameworks empatam', async () => {
+  const {formatAttemptFailure} = await subject();
+  const base = {
+    logicalTestId: 'primary--chromium',
+    proofs: {groups: []},
+    routes: [],
+  };
+  const captures = [
+    {framework: 'react', error: 'zeta failure'},
+    {framework: 'react', error: 'alpha failure'},
+    {framework: 'angular', error: 'middle failure'},
+  ];
+
+  const first = formatAttemptFailure({...base, captures});
+  const reversed = formatAttemptFailure({...base, captures: [...captures].reverse()});
+
+  assert.equal(first, reversed);
+  assert.ok(first.indexOf('angular: middle failure') < first.indexOf('react: alpha failure'));
+  assert.ok(first.indexOf('react: alpha failure') < first.indexOf('react: zeta failure'));
 });
 
 test('formatter lista somente as causas presentes e detalha Axe', async () => {

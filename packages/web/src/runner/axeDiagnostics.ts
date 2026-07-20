@@ -20,6 +20,7 @@ export interface AxeEvidence {
 export interface AxeRuleDiagnostic {
   id: string;
   impact: string | null;
+  affectedAudits: number;
   occurrences: number;
   affectedNodes: number;
   axes: AxeAxes[];
@@ -50,6 +51,7 @@ interface MutableEvidence {
 interface MutableRule {
   id: string;
   impacts: Set<string>;
+  auditIds: Set<number>;
   occurrences: number;
   affectedNodes: number;
   axes: Map<string, AxeAxes>;
@@ -87,7 +89,7 @@ function axesFrom(group: UnknownRecord, framework: string): AxeAxes {
     browser: normalizedText(group.browser),
     framework: normalizedText(framework),
     brand: normalizedText(group.brand),
-    story: normalizedText(group.storyName || group.storyId || group.sceneId),
+    story: normalizedText(group.story || group.storyName || group.storyId || group.sceneId),
     viewport: normalizedText(group.viewport),
     theme: normalizedText(group.theme),
   };
@@ -130,6 +132,7 @@ function mutableRule(rules: Map<string, MutableRule>, id: string) {
     rule = {
       id,
       impacts: new Set(),
+      auditIds: new Set(),
       occurrences: 0,
       affectedNodes: 0,
       axes: new Map(),
@@ -139,6 +142,13 @@ function mutableRule(rules: Map<string, MutableRule>, id: string) {
     rules.set(id, rule);
   }
   return rule;
+}
+
+function isValidViolation(value: unknown): value is UnknownRecord {
+  return isRecord(value)
+    && Boolean(normalizedText(value.id))
+    && Array.isArray(value.nodes)
+    && value.nodes.every(isRecord);
 }
 
 function mutableEvidence(rule: MutableRule, target: string, failureSummary: string) {
@@ -177,9 +187,11 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
     }
     for (const [framework, auditCandidate] of Object.entries(candidate.a11y.audits)) {
       result.totalAudits += 1;
+      const auditId = result.totalAudits;
       if (!isRecord(auditCandidate)
         || normalizedText(auditCandidate.error)
-        || !Array.isArray(auditCandidate.violations)) {
+        || !Array.isArray(auditCandidate.violations)
+        || !auditCandidate.violations.every(isValidViolation)) {
         result.unavailableAudits += 1;
         continue;
       }
@@ -193,10 +205,9 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
 
       const axes = axesFrom(candidate, framework);
       for (const violationCandidate of violations) {
-        if (!isRecord(violationCandidate)) continue;
         const id = normalizedText(violationCandidate.id);
-        if (!id) continue;
         const rule = mutableRule(rules, id);
+        rule.auditIds.add(auditId);
         rule.occurrences += 1;
         result.ruleOccurrences += 1;
         const impact = normalizedText(violationCandidate.impact);
@@ -224,6 +235,7 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
     .map(rule => ({
       id: rule.id,
       impact: impactOf(rule.impacts),
+      affectedAudits: rule.auditIds.size,
       occurrences: rule.occurrences,
       affectedNodes: rule.affectedNodes,
       axes: [...rule.axes.values()].sort(compareAxes),
@@ -264,7 +276,8 @@ function formatCaptureCauses(result: UnknownRecord) {
   const captures = Array.isArray(result.captures) ? result.captures.filter(isRecord) : [];
   return captures
     .filter(capture => normalizedText(capture.error))
-    .sort((left, right) => compareText(normalizedText(left.framework), normalizedText(right.framework)))
+    .sort((left, right) => compareText(normalizedText(left.framework), normalizedText(right.framework))
+      || compareText(normalizedText(left.error), normalizedText(right.error)))
     .map(capture => `- ${normalizedText(capture.framework) || 'framework desconhecido'}: ${normalizedText(capture.error)}`);
 }
 
@@ -311,7 +324,7 @@ function formatAxeCauses(groups: UnknownRecord[]) {
     const label = rule.impact ? `${rule.id} (impacto: ${rule.impact})` : rule.id;
     const details = [
       [
-        plural(diagnostics.failedAudits, 'auditoria afetada', 'auditorias afetadas'),
+        plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'),
         plural(rule.occurrences, 'ocorrencia', 'ocorrencias'),
         plural(rule.affectedNodes, 'no afetado', 'nos afetados'),
       ].join(', '),
