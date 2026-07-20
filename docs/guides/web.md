@@ -157,6 +157,7 @@ Cada run cria um diretório próprio:
         └── attempt-<n>/
             ├── result.json
             ├── evidence/
+            │   └── <browser>/<framework>/<brand>/<story>/<viewport>/<theme>.a11y.json
             └── attachments/
 ```
 
@@ -185,6 +186,27 @@ célula capturada; qualquer diferença fica no artefato de diff daquela tentativ
 
 Axe e ARIA são provas independentes da visual. Falha de coleta não significa acessibilidade e deixa
 a dimensão indisponível. `--no-a11y` serve apenas para diagnóstico e nunca produz confiança.
+
+Quando há coleta Axe, `summary.md` inclui a seção `Diagnostico Axe` para triagem e `index.html`
+detalha regra, impacto, WCAG, distribuição por eixos, alvo, HTML afetado e `failureSummary`. A
+galeria também aponta, por links relativos, para o resultado completo de cada auditoria gravada
+com sucesso em
+`results/<teste-logico>/attempt-<n>/evidence/<browser>/<framework>/<brand>/<story>/<viewport>/<theme>.a11y.json`.
+
+As contagens do diagnóstico têm unidades diferentes:
+
+- **auditoria afetada**: uma combinação de Cena, browser e framework cuja auditoria contém ao menos
+  uma violação;
+- **regra distinta**: um ID Axe único, como `color-contrast`, independentemente de quantas
+  auditorias o repetem;
+- **ocorrência de regra**: uma aparição da regra dentro de uma auditoria; a mesma regra em 144
+  auditorias representa 144 ocorrências, mas apenas uma regra distinta;
+- **nó afetado**: uma entrada de elemento em `nodes` da ocorrência; uma ocorrência pode afetar mais
+  de um nó, portanto essa contagem pode ser maior que a de ocorrências.
+
+Use `summary.md` para localizar rapidamente a causa representativa e `index.html` para navegar por
+regra e evidência. Consulte o `.a11y.json` vinculado quando precisar de todos os nós e metadados
+originais daquela auditoria.
 
 Os Roteiros remontam a Cena antes de cada comportamento. Eventos preservam ordem e quantidade;
 observações são normalizadas e comparadas por igualdade profunda exata. Uma falha localizada em um

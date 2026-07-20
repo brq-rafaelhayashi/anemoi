@@ -151,6 +151,39 @@ test('finalizeRun publica v2 aprovado quando todas as provas estao presentes', a
   assert.deepEqual(fs.readdirSync(value.runDir).filter(file => file.endsWith('.tmp')), []);
 });
 
+test('finalizeRun publica a causa Axe nos artefatos humanos finais', async t => {
+  const value = await setup(t);
+  const atomic = result(value.scene);
+  atomic.proofs.groups[0].a11y.audits.wc = {
+    violations: [{
+      id: 'color-contrast',
+      impact: 'serious',
+      wcag: ['wcag2aa', 'wcag143'],
+      description: 'Elementos devem atender ao contraste minimo',
+      nodes: [{
+        target: 'tgr-button,.label',
+        html: '<tgr-button><span class="label">Comprar</span></tgr-button>',
+        failureSummary: [
+          'Fix any of the following: Element has insufficient color contrast of 2.7',
+          '(foreground color: #fefcfb, background color: #ff7020, font size: 12.0pt (16px), font weight: normal).',
+          'Expected contrast ratio of 4.5:1',
+        ].join(' '),
+      }],
+    }],
+    artifactPath: 'results/primary-gol-light-sm--chromium/attempt-0/evidence/wc.a11y.json',
+  };
+  value.writeAtomicResult(value.runDir, atomic);
+  value.finalizeRun(value.planPath, dependencies(value.runDir));
+
+  const summary = fs.readFileSync(path.join(value.runDir, 'summary.md'), 'utf8');
+  const html = fs.readFileSync(path.join(value.runDir, 'index.html'), 'utf8');
+  for (const output of [summary, html]) {
+    assert.match(output, /color-contrast/);
+    assert.match(output, /tgr-button,\.label/);
+    assert.match(output, /contrast of 2\.7.*4\.5:1/s);
+  }
+});
+
 test('finalizeRun preserva retries e reprova qualquer flaky', async t => {
   const value = await setup(t);
   value.writeAtomicResult(value.runDir, result(value.scene, {status: 'failed'}));
