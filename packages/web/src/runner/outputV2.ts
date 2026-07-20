@@ -311,8 +311,9 @@ function renderIssueBadges(state: StateReportGroup) {
     state.issues.stabilityFailed > 0 ? plural(state.issues.stabilityFailed, 'falha de estabilidade', 'falhas de estabilidade') : '',
     state.issues.stabilityUnavailable > 0 ? plural(state.issues.stabilityUnavailable, 'tentativa indisponível', 'tentativas indisponíveis') : '',
   ].filter(Boolean);
-  if (badges.length === 0) return '<span class="state-badges ok">Sem pendências.</span>';
-  return `<span class="state-badges">${badges.map(text => `<span class="state-badge">${escapeHtml(text)}</span>`).join('')}</span>`;
+  if (badges.length === 0) return '<span class="chips"><span class="chip ok">Sem pendências.</span></span>';
+  return `<span class="chips">${badges.map(text =>
+    `<span class="chip ${/indispon/i.test(text) ? 'warn' : 'fail'}">${escapeHtml(text)}</span>`).join('')}</span>`;
 }
 
 function renderStateAxe(state: StateReportGroup, frameworks: string[]) {
@@ -325,24 +326,30 @@ function renderStateAxe(state: StateReportGroup, frameworks: string[]) {
     hasObservedAudit ? {expectedFrameworks: frameworks} : {},
   );
   if (diagnostics.totalAudits === 0 && diagnostics.structuralUnavailable === 0) {
-    return '<section class="state-section axe-evidence"><h3>Axe do estado</h3><p>Sem evidência aplicável.</p></section>';
+    return '<details class="state-section axe-evidence"><summary><span class="slabel">Axe do estado</span></summary><div class="body"><p class="muted">Sem evidência aplicável.</p></div></details>';
   }
   const dominantRule = [...diagnostics.rules].sort((left, right) => right.affectedNodes - left.affectedNodes)[0];
   const dominantEvidence = dominantRule ? dominantAxeEvidence(dominantRule) : undefined;
   const summaryLine = dominantRule
-    ? `Regra dominante: <strong>${escapeHtml(dominantRule.id)}</strong>${dominantRule.impact ? ` (impacto: ${escapeHtml(dominantRule.impact)})` : ''} · ${escapeHtml(plural(dominantRule.affectedNodes, 'no afetado', 'nos afetados'))}${dominantEvidence?.target ? ` · alvo: ${escapeHtml(dominantEvidence.target)}` : ''}.`
+    ? `Regra dominante: <span class="dom-rule">${escapeHtml(dominantRule.id)}</span>${dominantRule.impact ? ` · impacto ${escapeHtml(dominantRule.impact)}` : ''} · ${escapeHtml(plural(dominantRule.affectedNodes, 'no afetado', 'nos afetados'))}${dominantEvidence?.target ? ` · alvo: ${escapeHtml(dominantEvidence.target)}` : ''}.`
     : 'Nenhuma regra dominante confirmada.';
-  return `<section class="state-section axe-evidence">
-<h3>Diagnostico Axe do estado</h3>
+  const tag = diagnostics.failedAudits > 0
+    ? `<span class="tag fail">${escapeHtml(plural(diagnostics.failedAudits, 'falha', 'falhas'))}</span>`
+    : diagnostics.unavailableAudits > 0 || diagnostics.structuralUnavailable > 0
+      ? '<span class="tag warn">indisponível</span>'
+      : '';
+  return `<details class="state-section axe-evidence">
+<summary><span class="slabel">Diagnostico Axe do estado</span>${tag}</summary>
+<div class="body">
 <p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis.</p>
 <p>${summaryLine}</p>
 <details class="axe-evidence-detail"><summary>Detalhes completos por regra e artefato</summary>${renderAxeHtml(diagnostics)}</details>
-</section>`;
+</div></details>`;
 }
 
 function renderStateVisual(state: StateReportGroup, browsers: string[]) {
   if (state.groups.length === 0) {
-    return '<details class="state-section visual-evidence"><summary>Evidencia visual</summary><p>Sem evidência aplicável.</p></details>';
+    return '<details class="state-section visual-evidence"><summary><span class="slabel">Evidencia visual</span></summary><div class="body"><p class="muted">Sem evidência aplicável.</p></div></details>';
   }
   const orderedBrowsers = [
     ...browsers.filter(browser => state.axes.browsers.includes(browser)),
@@ -360,7 +367,7 @@ function renderStateVisual(state: StateReportGroup, browsers: string[]) {
     }).join('');
     return `<details class="browser-evidence" data-browser="${escapeHtml(browser)}"><summary>${escapeHtml(titleCase(String(browser)))}</summary><div class="table-scroll"><table><thead><tr><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
   }).join('');
-  return `<details class="state-section visual-evidence"><summary>Evidencia visual</summary>${browserSections}</details>`;
+  return `<details class="state-section visual-evidence"><summary><span class="slabel">Evidencia visual</span><span class="tag">${escapeHtml(plural(orderedBrowsers.length, 'browser', 'browsers'))}</span></summary><div class="body">${browserSections}</div></details>`;
 }
 
 function routeSeverity(route: Record<string, unknown>) {
@@ -377,7 +384,7 @@ function renderStateBehavior(state: StateReportGroup) {
   const entries = state.behavior.flatMap(result =>
     (Array.isArray(result.routes) ? result.routes : []).map((route: Record<string, unknown>) => ({result, route})));
   if (entries.length === 0) {
-    return '<details class="state-section behavior-evidence"><summary>Comportamento</summary><p>Sem evidência aplicável.</p></details>';
+    return '<details class="state-section behavior-evidence"><summary><span class="slabel">Comportamento</span></summary><div class="body"><p class="muted">Sem evidência aplicável.</p></div></details>';
   }
   const ordered = entries
     .map((entry, index) => ({...entry, index}))
@@ -389,16 +396,24 @@ function renderStateBehavior(state: StateReportGroup) {
     }).join('');
     return `<tr><td>${escapeHtml(result.logicalTestId)}</td><td>${escapeHtml(result.stability)}</td><td>${escapeHtml(route.routeId)}</td><td>${escapeHtml(route.parity)}</td>${conformance}</tr>`;
   }).join('');
-  const open = (state.issues.behaviorFailed > 0 || state.issues.behaviorUnavailable > 0) ? ' open' : '';
-  return `<details class="state-section behavior-evidence"${open}><summary>Comportamento</summary><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+  const failing = state.issues.behaviorFailed + state.issues.behaviorUnavailable;
+  const open = failing > 0 ? ' open' : '';
+  const tag = failing > 0
+    ? `<span class="tag fail">${escapeHtml(plural(failing, 'falha', 'falhas'))}</span>`
+    : '<span class="tag">estável</span>';
+  return `<details class="state-section behavior-evidence"${open}><summary><span class="slabel">Comportamento</span>${tag}</summary><div class="body"><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
 }
 
 function renderStateAttempts(state: StateReportGroup) {
   const entries = state.attempts.flatMap(logical =>
     (Array.isArray(logical.attempts) ? logical.attempts : []).map((attempt: Record<string, unknown>) => ({logical, attempt})));
   if (entries.length === 0) {
-    return '<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><p>Sem evidência aplicável.</p></details>';
+    return '<details class="state-section attempt-evidence"><summary><span class="slabel">Tentativas e diagnosticos</span></summary><div class="body"><p class="muted">Sem evidência aplicável.</p></div></details>';
   }
+  const flaky = state.issues.stabilityFailed + state.issues.stabilityUnavailable;
+  const tag = flaky > 0
+    ? `<span class="tag fail">${escapeHtml(plural(flaky, 'falha', 'falhas'))}</span>`
+    : `<span class="tag">${escapeHtml(plural(entries.length, 'tentativa', 'tentativas'))}</span>`;
   const rows = entries.map(({logical, attempt}) => {
     const candidateResultHref = safeRelativeHref(attempt.resultPath);
     const expectedHref = expectedResultHref(logical.logicalTestId, attempt.attempt);
@@ -412,14 +427,14 @@ function renderStateAttempts(state: StateReportGroup) {
       : 'indisponível';
     return `<tr><td>${escapeHtml(logical.logicalTestId)}</td><td>${escapeHtml(logical.stability)}</td><td>${escapeHtml(attempt.attempt)}</td><td>${escapeHtml(attempt.status)}</td><td>${resultLink}</td><td>${attachments}</td></tr>`;
   }).join('');
-  return `<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+  return `<details class="state-section attempt-evidence"><summary><span class="slabel">Tentativas e diagnosticos</span>${tag}</summary><div class="body"><div class="table-scroll"><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${rows}</tbody></table></div></div></details>`;
 }
 
 function renderStateGroup(state: StateReportGroup, manifest: ManifestV2) {
   const open = state.open ? ' open' : '';
   return `<section class="state-shell">
 <details class="state-group ${escapeHtml(state.status)}" data-state="${escapeHtml(state.id)}" data-status="${escapeHtml(state.status)}"${open}>
-<summary><span class="state-title">${escapeHtml(state.name)}</span><span>${escapeHtml(plural(state.groups.length, 'combinação', 'combinações'))}</span>${renderIssueBadges(state)}</summary>
+<summary><span class="dot"></span><span class="state-id"><span class="name">${escapeHtml(state.name)}</span><span class="meta">${escapeHtml(plural(state.groups.length, 'combinação', 'combinações'))}</span></span>${renderIssueBadges(state)}<span class="caret">▸</span></summary>
 <div class="state-body">
 ${renderStateAxe(state, manifest.axes.frameworks || FRAMEWORKS)}
 ${renderStateVisual(state, manifest.axes.browsers)}
@@ -481,10 +496,133 @@ export function renderSummaryV2(manifest: ManifestV2) {
   ].join('\n');
 }
 
+const DIMENSION_LABELS: Record<string, string> = {
+  axe: 'Axe',
+  behavioralConformance: 'Comportamento',
+  behavioralParity: 'Paridade comp.',
+  visualParity: 'Visual',
+  ariaParity: 'ARIA',
+  stability: 'Estabilidade',
+  browserCoverage: 'Browsers',
+  contractCoverage: 'Contrato',
+  dimensions: 'Dimensões',
+};
+
+function renderReportHead(manifest: ManifestV2, stateCount: number) {
+  const failing = Object.entries(manifest.gate.dimensions)
+    .filter(([, value]) => value.status === 'failed');
+  const metrics = [
+    ...failing.map(([name, value]) =>
+      `<div class="metric fail"><div class="n">${escapeHtml(value.failed)}</div><div class="l">${escapeHtml(DIMENSION_LABELS[name] || name)}</div></div>`),
+    `<div class="metric pass"><div class="n">${escapeHtml(manifest.cellCount)}</div><div class="l">Células</div></div>`,
+    `<div class="metric"><div class="n">${escapeHtml(stateCount)}</div><div class="l">Estados</div></div>`,
+  ].join('');
+  const passed = manifest.gate.status === 'passed';
+  return `<header class="report-head">
+<p class="eyebrow">${escapeHtml(manifest.tool)} · confiança</p>
+<h1>${escapeHtml(manifest.component)} <span class="verdict ${passed ? 'pass' : 'fail'}">Gate ${passed ? 'aprovado' : 'reprovado'}</span></h1>
+<p class="head-note">Gate confiável: ${manifest.gate.trusted ? 'sim' : 'não'}</p>
+<div class="summary-strip">${metrics}</div>
+</header>`;
+}
+
+const REPORT_STYLES = `
+:root{--bg:#f5f6f8;--surface:#fff;--ink:#1b2432;--muted:#69727f;--hair:#e6e9ee;--fail:#c23b30;--fail-bg:#fbecea;--warn:#a2620a;--warn-bg:#faf1e1;--pass:#137a52;--pass-bg:#e7f4ee;--action:#3a5ad9;--action-bg:#eef1fd;--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+*{box-sizing:border-box}
+body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;margin:0;background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased}
+.wrap{max-width:1080px;margin:0 auto;padding:32px 20px 72px}
+a{color:var(--action);text-decoration:none}a:hover{text-decoration:underline}
+.report-head{margin-bottom:24px}
+.report-head .eyebrow{font:600 12px/1 system-ui;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.report-head h1{font:700 30px/1.1 system-ui;letter-spacing:-.02em;margin:0;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+.report-head .head-note{margin:8px 0 0;font-size:13px;color:var(--muted)}
+.verdict{font:700 12px/1 system-ui;letter-spacing:.06em;text-transform:uppercase;padding:7px 12px;border-radius:999px}
+.verdict.fail{background:var(--fail-bg);color:var(--fail)}
+.verdict.pass{background:var(--pass-bg);color:var(--pass)}
+.summary-strip{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.metric{background:var(--surface);border:1px solid var(--hair);border-radius:10px;padding:12px 16px;min-width:118px}
+.metric .n{font:700 22px/1 system-ui;letter-spacing:-.02em}
+.metric .l{font:500 12px/1 system-ui;color:var(--muted);margin-top:7px;text-transform:uppercase;letter-spacing:.05em}
+.metric.fail .n{color:var(--fail)}.metric.pass .n{color:var(--pass)}
+details.gate-detail{border:1px solid var(--hair);border-radius:10px;background:var(--surface);margin-bottom:24px}
+details.gate-detail>summary{font:600 13px/1 system-ui;padding:13px 16px;cursor:pointer;color:var(--muted);list-style:none}
+details.gate-detail>summary::-webkit-details-marker{display:none}
+details.gate-detail>summary::before{content:"▸  ";color:var(--muted)}
+details.gate-detail[open]>summary::before{content:"▾  "}
+.gate-detail .inner{padding:2px 16px 16px}
+.gate-detail .axe{border:0;padding:0;margin:8px 0 0}
+.gate-detail .axe h2{font:600 14px/1 system-ui;margin:14px 0 6px}
+table{border-collapse:collapse;width:100%;font-size:13.5px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--hair);vertical-align:top}
+th{font:600 12px/1 system-ui;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.pill{display:inline-block;font:600 11.5px/1 system-ui;padding:4px 9px;border-radius:999px}
+.pill.failed{background:var(--fail-bg);color:var(--fail)}
+.pill.passed{background:var(--pass-bg);color:var(--pass)}
+.pill.unavailable{background:var(--warn-bg);color:var(--warn)}
+.section-label{font:600 12px/1 system-ui;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin:0 0 14px}
+.report-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 18px}
+.report-controls button{font:600 13px/1 system-ui;padding:9px 13px;border-radius:8px;border:1px solid var(--hair);background:var(--surface);color:var(--ink);cursor:pointer}
+.report-controls button[data-action]{border-color:transparent;background:var(--action-bg);color:var(--action)}
+.report-controls button:hover{border-color:var(--action)}
+.report-controls .browser-filters{display:inline-flex;margin-left:auto;border:1px solid var(--hair);border-radius:8px;overflow:hidden;background:var(--surface)}
+.report-controls .browser-filters button{border:0;border-left:1px solid var(--hair);border-radius:0}
+.report-controls .browser-filters button:first-child{border-left:0}
+.report-controls .browser-filters button.on{background:var(--action);color:#fff}
+.state-shell{margin:0 0 12px}
+.state-group{background:var(--surface);border:1px solid var(--hair);border-radius:12px;overflow:hidden}
+.state-group.failed{border-left:3px solid var(--fail)}
+.state-group.unavailable{border-left:3px solid var(--warn)}
+.state-group.passed{border-left:3px solid transparent}
+.state-group>summary{list-style:none;cursor:pointer;padding:16px 18px;display:flex;align-items:center;gap:13px}
+.state-group>summary::-webkit-details-marker{display:none}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.state-group.failed .dot{background:var(--fail)}.state-group.unavailable .dot{background:var(--warn)}.state-group.passed .dot{background:var(--pass)}
+.state-id{display:flex;flex-direction:column;gap:3px;margin-right:auto;min-width:0}
+.state-id .name{font:650 17px/1.2 system-ui;letter-spacing:-.01em}
+.state-id .meta{font:500 12.5px/1 system-ui;color:var(--muted)}
+.chips{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end}
+.chip{font:600 12px/1 system-ui;padding:5px 9px;border-radius:7px;white-space:nowrap}
+.chip.fail{background:var(--fail-bg);color:var(--fail)}
+.chip.warn{background:var(--warn-bg);color:var(--warn)}
+.chip.ok{background:var(--pass-bg);color:var(--pass)}
+.caret{color:var(--muted);font-size:12px;flex:none;transition:transform .15s}
+.state-group[open]>summary .caret{transform:rotate(90deg)}
+.state-body{padding:2px 18px 16px;border-top:1px solid var(--hair)}
+.state-section{border:1px solid var(--hair);border-radius:9px;margin-top:12px;background:#fcfcfd}
+.state-section>summary{list-style:none;cursor:pointer;padding:12px 14px;display:flex;align-items:center;gap:10px;font:600 14px/1 system-ui}
+.state-section>summary::-webkit-details-marker{display:none}
+.state-section>summary::before{content:"▸";color:var(--muted);font-size:12px}
+.state-section[open]>summary::before{content:"▾"}
+.state-section>summary .slabel{margin-right:auto}
+.tag{font:600 11px/1 system-ui;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);border:1px solid var(--hair);padding:4px 8px;border-radius:6px}
+.tag.fail{color:var(--fail);border-color:var(--fail-bg);background:var(--fail-bg)}
+.tag.warn{color:var(--warn);border-color:var(--warn-bg);background:var(--warn-bg)}
+.state-section .body{padding:2px 14px 14px}
+.state-section .body>p{margin:8px 0;font-size:13.5px}
+.muted{color:var(--muted)}
+.dom-rule{font-family:var(--mono);font-size:12.5px;background:#f2f4f7;padding:2px 6px;border-radius:5px}
+.table-scroll{overflow-x:auto;max-width:100%;margin:6px 0}
+.table-scroll table{min-width:640px}
+.state-section .body td,.state-section .body th{font-size:13px}
+.browser-evidence{border:1px solid var(--hair);border-radius:8px;margin:8px 0;background:#fff}
+.browser-evidence>summary{list-style:none;cursor:pointer;padding:10px 12px;font:600 13px/1 system-ui}
+.browser-evidence>summary::before{content:"▸  ";color:var(--muted)}
+.browser-evidence[open]>summary::before{content:"▾  "}
+.browser-evidence img{max-width:210px;border:1px solid var(--hair);border-radius:6px}
+.browser-evidence[hidden]{display:none}
+.axe-rule,.axe-evidence,.axe-artifacts,.axe-evidence-detail{border:1px solid var(--hair);border-radius:8px;margin:8px 0;background:#fff;padding:0}
+.axe-rule>summary,.axe-evidence>summary,.axe-artifacts>summary,.axe-evidence-detail>summary{cursor:pointer;padding:10px 12px;font-size:13px}
+.axe-rule>*:not(summary),.axe-evidence>*:not(summary),.axe-artifacts>*:not(summary),.axe-evidence-detail>*:not(summary){padding-left:12px;padding-right:12px}
+.axe-axis-distribution{display:flex;flex-wrap:wrap;gap:6px 18px;margin:6px 0}
+.axe-axis-distribution dt{font-weight:600;color:var(--muted);font-size:12px}
+pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f2f4f7;padding:10px;border-radius:6px;font-size:12px}
+@media (max-width:640px){.chips{justify-content:flex-start}.state-group>summary{flex-wrap:wrap}.report-controls .browser-filters{margin-left:0}}
+`;
+
 export function renderHtmlV2(manifest: ManifestV2) {
   const axeDiagnostics = axeDiagnosticsFor(manifest);
   const dimensionRows = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
-    `<tr><td>${escapeHtml(name)}</td><td class="${escapeHtml(value.status)}">${escapeHtml(value.status)}</td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
+    `<tr><td>${escapeHtml(name)}</td><td><span class="pill ${escapeHtml(value.status)}">${escapeHtml(value.status)}</span></td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
   const states = projectStateReport(manifest);
   const stateGroups = states.map(state => renderStateGroup(state, manifest)).join('');
   const browserButtons = manifest.axes.browsers.map(browser =>
@@ -492,19 +630,20 @@ export function renderHtmlV2(manifest: ManifestV2) {
   const reportControls = `<div class="report-controls">
 <button type="button" data-action="open-failed">Abrir estados com falha</button>
 <button type="button" data-action="close-all">Fechar todos</button>
-<span class="browser-filters">${browserButtons}<button type="button" data-browser-filter="all">Todos os browsers</button></span>
+<span class="browser-filters">${browserButtons}<button type="button" data-browser-filter="all" class="on">Todos</button></span>
 </div>`;
 
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(manifest.component)} — confiança</title>
-<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}.state-badges .state-badge{margin-right:6px;padding:2px 6px;border-radius:10px;background:#fee4e2;color:#b42318;font-size:12px}.state-badges.ok .state-badge,.state-badges.ok{color:#167044}.report-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:16px 0}.state-shell{margin:10px 0}.state-group{background:#fff;border:1px solid #d8dce3;border-left:4px solid #167044;border-radius:8px;padding:0}.state-group.failed{border-left-color:#b42318}.state-group.unavailable{border-left-color:#b54708}.state-group>summary{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px;cursor:pointer}.state-title{font-size:16px;font-weight:700;margin-right:auto}.state-body{padding:0 12px 12px}.table-scroll{overflow-x:auto;max-width:100%}.table-scroll table{min-width:720px}.browser-evidence[hidden]{display:none}</style></head><body>
-<h1>${escapeHtml(manifest.component)}</h1><p>Gate: <strong>${escapeHtml(manifest.gate.status)}</strong> · confiável: ${manifest.gate.trusted ? 'sim' : 'não'}</p>
-<h2>Dimensões do gate</h2><table><thead><tr><th>Dimensão</th><th>Status</th><th>Falhas</th><th>Indisponíveis</th></tr></thead><tbody>${dimensionRows}</tbody></table>
-${renderAxeGlobalSummary(axeDiagnostics)}
-<h2>Estados do componente</h2>
+<style>${REPORT_STYLES}</style></head><body>
+<div class="wrap">
+${renderReportHead(manifest, states.length)}
+<details class="gate-detail"><summary>Dimensões do gate e resumo Axe global</summary><div class="inner"><div class="table-scroll"><table><thead><tr><th>Dimensão</th><th>Status</th><th>Falhas</th><th>Indisponíveis</th></tr></thead><tbody>${dimensionRows}</tbody></table></div>${renderAxeGlobalSummary(axeDiagnostics)}</div></details>
+<p class="section-label">Estados do componente · falhas primeiro</p>
 ${reportControls}
 <div id="state-report">${stateGroups}</div>
+</div>
 <script>
 document.querySelector('.report-controls').addEventListener('click', event => {
   const button = event.target.closest('button');
@@ -518,6 +657,8 @@ document.querySelector('.report-controls').addEventListener('click', event => {
     document.querySelectorAll('.state-group').forEach(state => { state.open = false; });
   }
   if (button.dataset.browserFilter) {
+    button.parentElement.querySelectorAll('button').forEach(other => other.classList.remove('on'));
+    button.classList.add('on');
     document.querySelectorAll('.browser-evidence').forEach(group => {
       group.hidden = button.dataset.browserFilter !== 'all'
         && group.dataset.browser !== button.dataset.browserFilter;
