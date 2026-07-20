@@ -361,6 +361,32 @@ test('formatter lista somente as causas presentes e detalha Axe', async () => {
   assert.doesNotMatch(formatted, /Comportamento/);
 });
 
+test('formatter escolhe evidencia Axe com mais nos, nao a primeira lexical', async () => {
+  const {formatAttemptFailure} = await subject();
+  const dominant = node('tgr-button, .label', 'razao dominante com 3 nos');
+  const formatted = formatAttemptFailure({
+    logicalTestId: 'primary--chromium',
+    captures: [],
+    proofs: {groups: [group({
+      a11y: {
+        audits: {wc: {violations: [violation([
+          node('span', 'razao lexical com 1 no'),
+          dominant,
+          structuredClone(dominant),
+          structuredClone(dominant),
+        ])]}},
+        ariaParity: [],
+      },
+    })]},
+    routes: [],
+  });
+
+  assert.match(formatted, /alvo: tgr-button, \.label/);
+  assert.match(formatted, /failureSummary: razao dominante com 3 nos/);
+  assert.doesNotMatch(formatted, /alvo: span/);
+  assert.doesNotMatch(formatted, /razao lexical com 1 no/);
+});
+
 test('formatter preserva contagens quando impacto Axe esta ausente', async () => {
   const {formatAttemptFailure} = await subject();
   const formatted = formatAttemptFailure({

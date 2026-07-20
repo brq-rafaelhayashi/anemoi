@@ -313,6 +313,13 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
   return result;
 }
 
+export function dominantAxeEvidence(rule: AxeRuleDiagnostic): AxeEvidence | undefined {
+  return [...rule.evidence].sort((left, right) =>
+    right.affectedNodes - left.affectedNodes
+    || compareText(left.target, right.target)
+    || compareText(left.failureSummary, right.failureSummary))[0];
+}
+
 function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
@@ -378,7 +385,7 @@ function formatAxeCauses(groups: UnknownRecord[]) {
   const diagnostics = aggregateAxeDiagnostics(groups);
   if (diagnostics.failedAudits === 0 && diagnostics.unavailableAudits === 0) return [];
   const lines = diagnostics.rules.map(rule => {
-    const evidence = rule.evidence[0];
+    const evidence = dominantAxeEvidence(rule);
     const label = rule.impact ? `${rule.id} (impacto: ${rule.impact})` : rule.id;
     const details = [
       [

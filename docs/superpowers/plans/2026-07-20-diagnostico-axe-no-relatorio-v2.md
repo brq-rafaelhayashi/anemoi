@@ -127,4 +127,3 @@ Renderizar em memoria o `manifest.json` real e verificar 468/144/324 auditorias,
 
 Run: `npm test && npm run typecheck -w packages/web && git diff --check`
 Expected: PASS sem falhas.
-

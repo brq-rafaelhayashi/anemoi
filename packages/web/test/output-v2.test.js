@@ -137,6 +137,33 @@ test('summary v2 inclui contagens e evidencia representativa do diagnostico Axe'
   assert.match(summary, /erros de coleta: 1/);
 });
 
+test('summary v2 escolhe evidencia Axe com mais nos, nao a primeira lexical', async () => {
+  const {renderSummaryV2} = await subject();
+  const dominant = {
+    target: 'tgr-button, .label',
+    html: '<span class="label">Salvar</span>',
+    failureSummary: 'razao dominante com 3 nos',
+  };
+  const withDominantEvidence = structuredClone(manifest);
+  withDominantEvidence.groups[0].a11y.audits.wc.violations[0].nodes = [
+    {
+      target: 'span',
+      html: '<span>decorativo</span>',
+      failureSummary: 'razao lexical com 1 no',
+    },
+    dominant,
+    structuredClone(dominant),
+    structuredClone(dominant),
+  ];
+
+  const summary = renderSummaryV2(withDominantEvidence);
+
+  assert.match(summary, /alvo: tgr-button, \.label/);
+  assert.match(summary, /failureSummary: razao dominante com 3 nos/);
+  assert.doesNotMatch(summary, /alvo: span/);
+  assert.doesNotMatch(summary, /razao lexical com 1 no/);
+});
+
 test('summary v2 neutraliza HTML e quebras de linha em campos dinamicos', async () => {
   const {renderSummaryV2} = await subject();
   const unsafe = structuredClone(manifest);

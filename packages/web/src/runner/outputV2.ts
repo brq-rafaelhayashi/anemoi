@@ -1,4 +1,4 @@
-import {aggregateAxeDiagnostics} from './axeDiagnostics.ts';
+import {aggregateAxeDiagnostics, dominantAxeEvidence} from './axeDiagnostics.ts';
 import type {AxeAxes, AxeDiagnostics, AxeRuleDiagnostic} from './axeDiagnostics.ts';
 
 type Dimension = {
@@ -139,7 +139,7 @@ function renderAxeSummary(diagnostics: AxeDiagnostics) {
     plural(diagnostics.unavailableAudits, 'indisponivel', 'indisponiveis'),
   ].join('; ');
   const rules = diagnostics.rules.map(rule => {
-    const evidence = rule.evidence[0];
+    const evidence = dominantAxeEvidence(rule);
     const details = [
       plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'),
       plural(rule.occurrences, 'ocorrencia', 'ocorrencias'),

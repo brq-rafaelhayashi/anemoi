@@ -44,4 +44,3 @@ galeria autocontida. Manifestos sem A11y continuam renderizando normalmente.
 No bundle real do `tgr-button`, a saida deve explicar: 468 auditorias, 144 auditorias com violacao,
 324 auditorias sem violacao, uma regra `color-contrast`, 144 ocorrencias e 162 nos afetados. A causa
 deve mostrar contraste `2.7:1`, esperado `4.5:1`, no alvo `tgr-button,.label`.
-
