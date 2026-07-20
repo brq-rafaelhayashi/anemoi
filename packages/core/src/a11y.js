@@ -5,6 +5,7 @@
 // Tags axe correspondentes a WCAG A + AA (2.0, 2.1 e 2.2). Exportadas para a
 // proveniencia registrar exatamente a regua aplicada no manifesto.
 const WCAG_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'];
+const PT_BR_LOCALE = require('axe-core/locales/pt_BR.json');
 
 function axeCoreVersion() {
   try {
@@ -44,6 +45,7 @@ function normalizeViolations(axeResults) {
 // verdadeiro canal de falso-negativos.
 async function runAxeAudit(page, selector, {tags = WCAG_TAGS} = {}) {
   await page.addScriptTag({path: require.resolve('axe-core')});
+  await page.evaluate(locale => window.axe.configure({locale}), PT_BR_LOCALE);
   const results = await page.evaluate(
     ([sel, runTags]) => window.axe.run(sel, {
       runOnly: {type: 'tag', values: runTags},

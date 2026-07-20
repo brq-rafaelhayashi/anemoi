@@ -44,6 +44,15 @@ test('runAxeAudit acusa botao sem nome acessivel com regua WCAG A/AA', async () 
   assert.match(violation.nodes[0].html, /<button/);
 });
 
+test('runAxeAudit usa mensagens Axe em portugues do Brasil', async () => {
+  const audit = await withPage(VIOLATION_HTML, page => runAxeAudit(page, '#evidence-root'));
+  const violation = audit.violations.find(v => v.id === 'button-name');
+  assert.ok(violation);
+  assert.match(violation.description, /botões/i);
+  assert.doesNotMatch(violation.description, /buttons must/i);
+  assert.doesNotMatch(violation.nodes[0].failureSummary, /fix any of the following/i);
+});
+
 test('runAxeAudit em html limpo nao acusa violacoes', async () => {
   const audit = await withPage(CLEAN_HTML, page => runAxeAudit(page, '#evidence-root'));
   assert.deepEqual(audit.violations, []);
