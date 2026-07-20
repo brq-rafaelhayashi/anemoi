@@ -207,6 +207,18 @@ test('galeria v2 compacta eixos e nao duplica links Axe entre regra e evidencia'
   assert.doesNotMatch(html, /<li>browser=/);
 });
 
+test('galeria v2 cria no maximo um href global por artefato compartilhado entre violation e needsReview', async () => {
+  const {renderHtmlV2} = await subject();
+  const html = renderHtmlV2(manifest);
+  const artifact = 'results/primary--firefox/attempt-0/evidence/wc.a11y.json';
+  const href = `href="${artifact}"`;
+
+  assert.equal(html.split(href).length - 1, 1);
+  assert.ok(html.split(artifact).length - 1 >= 2, 'associacoes subsequentes devem preservar o path como texto');
+  assert.match(html, /color-contrast/);
+  assert.match(html, /já listado/);
+});
+
 test('galeria v2 explica needsReview inconclusivo quando detalhes estao indisponiveis', async () => {
   const {renderHtmlV2} = await subject();
   const partial = structuredClone(manifest);
@@ -222,6 +234,17 @@ test('galeria v2 explica needsReview inconclusivo quando detalhes estao indispon
   assert.match(html, /needsReview.*inconclusivo.*não altera o gate/is);
   assert.match(html, /1 item.*detalhes.*metadados.*indisponíveis/is);
   assert.doesNotMatch(html, /Nenhum item requer revisão/);
+});
+
+test('galeria v2 informa saldo needsReview sem metadados em cenario misto', async () => {
+  const {renderHtmlV2} = await subject();
+  const mixed = structuredClone(manifest);
+  mixed.groups[0].a11y.audits.wc.needsReview.push({id: 'manual-review-sem-nodes'});
+  const html = renderHtmlV2(mixed);
+
+  assert.match(html, /color-contrast/);
+  assert.match(html, /Há 1 item em needsReview com detalhes e metadados indisponíveis/);
+  assert.doesNotMatch(html, /Há 2 itens em needsReview com detalhes e metadados indisponíveis/);
 });
 
 test('galeria v2 escapa diagnostico Axe e aceita somente artefato local a11y', async () => {

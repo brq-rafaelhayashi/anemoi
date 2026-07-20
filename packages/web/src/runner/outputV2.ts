@@ -164,12 +164,18 @@ function renderAxeSummary(diagnostics: AxeDiagnostics) {
   ];
 }
 
-function renderAxeEvidenceArtifacts(artifacts: string[]) {
+function renderAxeEvidenceArtifacts(artifacts: string[], linkedArtifacts: Set<string>) {
   const links = artifacts.map(safeAxeArtifactHref).filter((href): href is string => Boolean(href));
   if (links.length === 0) return '';
-  const link = (href: string) => `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`;
-  if (links.length === 1) return `<p>Artefato JSON: ${link(links[0])}</p>`;
-  return `<details class="axe-artifacts"><summary>Artefatos JSON (${escapeHtml(links.length)})</summary><ul>${links.map(href => `<li>${link(href)}</li>`).join('')}</ul></details>`;
+  const references = links.map(href => {
+    if (linkedArtifacts.has(href)) {
+      return `<span class="axe-artifact-reference">${escapeHtml(href)} (já listado)</span>`;
+    }
+    linkedArtifacts.add(href);
+    return `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`;
+  });
+  if (references.length === 1) return `<p>Artefato JSON: ${references[0]}</p>`;
+  return `<details class="axe-artifacts"><summary>Artefatos JSON (${escapeHtml(references.length)})</summary><ul>${references.map(reference => `<li>${reference}</li>`).join('')}</ul></details>`;
 }
 
 function renderAxeAxes(axes: AxeAxes[]) {
@@ -188,13 +194,17 @@ function renderAxeAxes(axes: AxeAxes[]) {
     : '';
 }
 
-function renderAxeRule(rule: AxeRuleDiagnostic, kind: 'violation' | 'review') {
+function renderAxeRule(
+  rule: AxeRuleDiagnostic,
+  kind: 'violation' | 'review',
+  linkedArtifacts: Set<string>,
+) {
   const impact = rule.impact || 'sem impacto';
   const evidence = rule.evidence.map(item => `<details class="axe-evidence"><summary>Alvo: ${escapeHtml(item.target || 'indisponivel')} · ${escapeHtml(plural(item.affectedNodes, 'no', 'nos'))}</summary>
 <p><strong>Alvo:</strong> ${escapeHtml(item.target || 'indisponivel')}</p>
 <p><strong>HTML afetado:</strong></p><pre><code>${escapeHtml(item.html || 'indisponivel')}</code></pre>
 <p><strong>failureSummary:</strong> ${escapeHtml(item.failureSummary || 'indisponivel')}</p>
-${renderAxeEvidenceArtifacts(item.artifacts)}</details>`).join('');
+${renderAxeEvidenceArtifacts(item.artifacts, linkedArtifacts)}</details>`).join('');
   return `<details class="axe-rule ${kind}"><summary><strong>${escapeHtml(rule.id)}</strong> · impacto: ${escapeHtml(impact)} · ${escapeHtml(plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'))} · ${escapeHtml(plural(rule.affectedNodes, 'no afetado', 'nos afetados'))}</summary>
 ${rule.description ? `<p>${escapeHtml(rule.description)}</p>` : ''}
 ${rule.wcag.length ? `<p>WCAG: ${rule.wcag.map(escapeHtml).join(', ')}</p>` : ''}
@@ -204,11 +214,19 @@ ${renderAxeAxes(rule.axes)}${evidence}</details>`;
 
 function renderAxeHtml(diagnostics: AxeDiagnostics) {
   if (diagnostics.totalAudits === 0) return '';
-  const rules = diagnostics.rules.map(rule => renderAxeRule(rule, 'violation')).join('');
-  const review = diagnostics.reviewRules.map(rule => renderAxeRule(rule, 'review')).join('');
-  const reviewState = review || (diagnostics.needsReview > 0
-    ? `<p>Há ${escapeHtml(plural(diagnostics.needsReview, 'item', 'itens'))} em needsReview com detalhes e metadados indisponíveis.</p>`
-    : '<p>Nenhum item requer revisão.</p>');
+  const linkedArtifacts = new Set<string>();
+  const rules = diagnostics.rules.map(rule => renderAxeRule(rule, 'violation', linkedArtifacts)).join('');
+  const review = diagnostics.reviewRules
+    .map(rule => renderAxeRule(rule, 'review', linkedArtifacts)).join('');
+  const detailedReviewItems = diagnostics.reviewRules
+    .reduce((total, rule) => total + rule.occurrences, 0);
+  const unavailableReviewItems = Math.max(0, diagnostics.needsReview - detailedReviewItems);
+  const unavailableReview = unavailableReviewItems > 0
+    ? `<p>Há ${escapeHtml(plural(unavailableReviewItems, 'item', 'itens'))} em needsReview com detalhes e metadados indisponíveis.</p>`
+    : '';
+  const reviewState = (review || unavailableReview)
+    ? `${review}${unavailableReview}`
+    : '<p>Nenhum item requer revisão.</p>';
   const errors = diagnostics.errors.map(item =>
     `<li>${escapeHtml(axesText(item.axes))}: ${escapeHtml(item.error)}</li>`).join('');
   return `<section class="axe"><h2>Diagnostico Axe</h2>

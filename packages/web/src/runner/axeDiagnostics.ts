@@ -307,7 +307,8 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
   result.rules = finalizedRules(rules);
   result.reviewRules = finalizedRules(reviewRules);
   result.errors.sort((left, right) => compareAxes(left.axes, right.axes)
-    || compareText(left.error, right.error));
+    || compareText(left.error, right.error)
+    || compareText(left.artifact || '', right.artifact || ''));
   result.uniqueRules = result.rules.length;
   return result;
 }

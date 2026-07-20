@@ -196,6 +196,27 @@ test('preserva metadados de triagem, needsReview e erros de coleta', async () =>
   }]);
 });
 
+test('ordena erros Axe por artefato quando eixos e mensagem empatam', async () => {
+  const {aggregateAxeDiagnostics} = await subject();
+  const withArtifact = artifactPath => group({
+    a11y: {
+      audits: {wc: {error: 'axe timeout', artifactPath}},
+      ariaParity: [],
+    },
+  });
+  const alpha = withArtifact('results/primary--chromium/attempt-0/evidence/alpha.a11y.json');
+  const zeta = withArtifact('results/primary--chromium/attempt-0/evidence/zeta.a11y.json');
+
+  const first = aggregateAxeDiagnostics([zeta, alpha]).errors;
+  const second = aggregateAxeDiagnostics([alpha, zeta]).errors;
+
+  assert.deepEqual(first, second);
+  assert.deepEqual(first.map(error => error.artifact), [
+    'results/primary--chromium/attempt-0/evidence/alpha.a11y.json',
+    'results/primary--chromium/attempt-0/evidence/zeta.a11y.json',
+  ]);
+});
+
 test('conta auditorias afetadas por regra sem reutilizar o total global', async () => {
   const {aggregateAxeDiagnostics, formatAttemptFailure} = await subject();
   const groups = [
