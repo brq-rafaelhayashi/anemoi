@@ -358,6 +358,32 @@ test('formatter preserva contagens quando impacto Axe esta ausente', async () =>
   assert.match(formatted, /unknown-impact: 1 auditoria afetada, 1 ocorrencia, 1 no afetado/);
 });
 
+test('formatter detalha erro de coleta Axe com eixos e artefato', async () => {
+  const {formatAttemptFailure} = await subject();
+  const formatted = formatAttemptFailure({
+    logicalTestId: 'primary--chromium',
+    attempt: 0,
+    captures: [],
+    proofs: {groups: [group({
+      a11y: {
+        audits: {
+          react: {
+            error: 'axe timeout depois de 30000ms',
+            artifactPath: 'results/primary--chromium/attempt-0/evidence/react.a11y.json',
+          },
+        },
+        ariaParity: [],
+      },
+    })]},
+    routes: [],
+  });
+
+  assert.match(formatted, /Axe/);
+  assert.match(formatted, /axe timeout depois de 30000ms/);
+  assert.match(formatted, /browser=chromium.*framework=react.*brand=gol.*story=Primary.*viewport=sm.*theme=light/);
+  assert.match(formatted, /results\/primary--chromium\/attempt-0\/evidence\/react\.a11y\.json/);
+});
+
 test('formatter inclui captura, visual, dimensoes, ARIA e comportamento quando falham', async () => {
   const {formatAttemptFailure} = await subject();
   const result = {

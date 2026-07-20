@@ -121,6 +121,15 @@ function axesText(axes: AxeAxes) {
     .join(', ');
 }
 
+const AXE_AXIS_DIMENSIONS: Array<keyof AxeAxes> = [
+  'browser',
+  'framework',
+  'brand',
+  'story',
+  'viewport',
+  'theme',
+];
+
 function renderAxeSummary(diagnostics: AxeDiagnostics) {
   if (diagnostics.totalAudits === 0) return [];
   const auditCounts = [
@@ -155,16 +164,27 @@ function renderAxeSummary(diagnostics: AxeDiagnostics) {
   ];
 }
 
-function renderAxeArtifacts(artifacts: string[]) {
+function renderAxeEvidenceArtifacts(artifacts: string[]) {
   const links = artifacts.map(safeAxeArtifactHref).filter((href): href is string => Boolean(href));
-  return links.length
-    ? `<p>Artefatos: ${links.map(href => `<a href="${escapeHtml(href)}">${escapeHtml(href.split('/').at(-1))}</a>`).join(' ')}</p>`
-    : '';
+  if (links.length === 0) return '';
+  const link = (href: string) => `<a href="${escapeHtml(href)}">${escapeHtml(href)}</a>`;
+  if (links.length === 1) return `<p>Artefato JSON: ${link(links[0])}</p>`;
+  return `<details class="axe-artifacts"><summary>Artefatos JSON (${escapeHtml(links.length)})</summary><ul>${links.map(href => `<li>${link(href)}</li>`).join('')}</ul></details>`;
 }
 
 function renderAxeAxes(axes: AxeAxes[]) {
-  return axes.length
-    ? `<p>Distribuicao por eixos:</p><ul>${axes.map(value => `<li>${escapeHtml(axesText(value))}</li>`).join('')}</ul>`
+  if (axes.length === 0) return '';
+  const dimensions = AXE_AXIS_DIMENSIONS.map(dimension => {
+    const counts = new Map<string, number>();
+    for (const value of axes.map(item => item[dimension]).filter(Boolean)) {
+      counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    const values = [...counts].sort(([left], [right]) => left < right ? -1 : left > right ? 1 : 0);
+    return values.length > 0 ? `<div><dt>${dimension}</dt><dd>${values
+      .map(([value, count]) => `${escapeHtml(value)} (${escapeHtml(count)})`).join(', ')}</dd></div>` : '';
+  }).filter(Boolean).join('');
+  return dimensions
+    ? `<p>Distribuicao por eixos:</p><dl class="axe-axis-distribution">${dimensions}</dl>`
     : '';
 }
 
@@ -174,24 +194,27 @@ function renderAxeRule(rule: AxeRuleDiagnostic, kind: 'violation' | 'review') {
 <p><strong>Alvo:</strong> ${escapeHtml(item.target || 'indisponivel')}</p>
 <p><strong>HTML afetado:</strong></p><pre><code>${escapeHtml(item.html || 'indisponivel')}</code></pre>
 <p><strong>failureSummary:</strong> ${escapeHtml(item.failureSummary || 'indisponivel')}</p>
-${renderAxeAxes(item.axes)}${renderAxeArtifacts(item.artifacts)}</details>`).join('');
+${renderAxeEvidenceArtifacts(item.artifacts)}</details>`).join('');
   return `<details class="axe-rule ${kind}"><summary><strong>${escapeHtml(rule.id)}</strong> · impacto: ${escapeHtml(impact)} · ${escapeHtml(plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'))} · ${escapeHtml(plural(rule.affectedNodes, 'no afetado', 'nos afetados'))}</summary>
 ${rule.description ? `<p>${escapeHtml(rule.description)}</p>` : ''}
 ${rule.wcag.length ? `<p>WCAG: ${rule.wcag.map(escapeHtml).join(', ')}</p>` : ''}
 <p>${escapeHtml(plural(rule.occurrences, 'ocorrencia', 'ocorrencias'))}</p>
-${renderAxeAxes(rule.axes)}${renderAxeArtifacts(rule.artifacts)}${evidence}</details>`;
+${renderAxeAxes(rule.axes)}${evidence}</details>`;
 }
 
 function renderAxeHtml(diagnostics: AxeDiagnostics) {
   if (diagnostics.totalAudits === 0) return '';
   const rules = diagnostics.rules.map(rule => renderAxeRule(rule, 'violation')).join('');
   const review = diagnostics.reviewRules.map(rule => renderAxeRule(rule, 'review')).join('');
+  const reviewState = review || (diagnostics.needsReview > 0
+    ? `<p>Há ${escapeHtml(plural(diagnostics.needsReview, 'item', 'itens'))} em needsReview com detalhes e metadados indisponíveis.</p>`
+    : '<p>Nenhum item requer revisão.</p>');
   const errors = diagnostics.errors.map(item =>
     `<li>${escapeHtml(axesText(item.axes))}: ${escapeHtml(item.error)}</li>`).join('');
   return `<section class="axe"><h2>Diagnostico Axe</h2>
 <p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis. ${escapeHtml(plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas'))}, ${escapeHtml(plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias'))}, ${escapeHtml(plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados'))}.</p>
 ${rules || '<p>Sem violacoes Axe.</p>'}
-<h3>needsReview (${escapeHtml(diagnostics.needsReview)})</h3>${review || '<p>Nenhum item requer revisao.</p>'}
+<h3>needsReview (${escapeHtml(diagnostics.needsReview)})</h3><p>needsReview é inconclusivo e não altera o gate.</p>${reviewState}
 <h3>Erros de coleta (${escapeHtml(diagnostics.errors.length)})</h3>${errors ? `<ul>${errors}</ul>` : '<p>Nenhum erro de coleta.</p>'}
 </section>`;
 }

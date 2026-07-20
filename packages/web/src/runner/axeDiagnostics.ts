@@ -35,6 +35,7 @@ export interface AxeRuleDiagnostic {
 export interface AxeCollectionError {
   error: string;
   axes: AxeAxes;
+  artifact?: string;
 }
 
 export interface AxeDiagnostics {
@@ -278,7 +279,10 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
         || !Array.isArray(auditCandidate.violations)
         || !auditCandidate.violations.every(isValidViolation)) {
         result.unavailableAudits += 1;
-        if (error) result.errors.push({error, axes});
+        if (error) {
+          const artifact = isRecord(auditCandidate) ? normalizedText(auditCandidate.artifactPath) : '';
+          result.errors.push({error, axes, ...(artifact ? {artifact} : {})});
+        }
         continue;
       }
 
@@ -390,8 +394,14 @@ function formatAxeCauses(groups: UnknownRecord[]) {
     ].filter(Boolean);
     return `- ${label}: ${details.join('; ')}`;
   });
-  if (diagnostics.unavailableAudits > 0) {
-    lines.push(`- ${plural(diagnostics.unavailableAudits, 'auditoria indisponivel', 'auditorias indisponiveis')}`);
+  lines.push(...diagnostics.errors.map(error => `- erro de coleta: ${[
+    formatAxes(error.axes),
+    error.error,
+    error.artifact ? `artefato: ${error.artifact}` : '',
+  ].filter(Boolean).join('; ')}`));
+  const unexplainedUnavailable = diagnostics.unavailableAudits - diagnostics.errors.length;
+  if (unexplainedUnavailable > 0) {
+    lines.push(`- ${plural(unexplainedUnavailable, 'auditoria indisponivel', 'auditorias indisponiveis')}`);
   }
   return lines;
 }

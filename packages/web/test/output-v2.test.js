@@ -172,7 +172,7 @@ test('galeria v2 detalha Axe por regra e evidencia sem link externo', async () =
   assert.match(html, /<details[^>]*>.*button-name.*<details[^>]*>.*tgr-button button/s);
   assert.match(html, /critical/);
   assert.match(html, /wcag2a/);
-  assert.match(html, /browser=firefox.*framework=wc.*brand=gol.*story=Primary.*viewport=sm.*theme=light/s);
+  assert.match(html, /<dt>browser<\/dt><dd>firefox \(1\)<\/dd>.*<dt>framework<\/dt><dd>wc \(1\)<\/dd>.*<dt>brand<\/dt><dd>gol \(1\)<\/dd>.*<dt>story<\/dt><dd>Primary \(1\)<\/dd>/s);
   assert.match(html, /&lt;button aria-label=&quot;&quot;&gt;Salvar&lt;\/button&gt;/);
   assert.match(html, /Corrija o nome acessivel/);
   assert.match(html, /needsReview/);
@@ -182,6 +182,46 @@ test('galeria v2 detalha Axe por regra e evidencia sem link externo', async () =
   assert.match(html, /axe timeout/);
   assert.match(html, /href="results\/primary--firefox\/attempt-0\/evidence\/wc\.a11y\.json"/);
   assert.doesNotMatch(html, /deque\.example/);
+});
+
+test('galeria v2 compacta eixos e nao duplica links Axe entre regra e evidencia', async () => {
+  const {renderHtmlV2} = await subject();
+  const repeated = structuredClone(manifest);
+  repeated.groups[0].a11y.audits = {wc: repeated.groups[0].a11y.audits.wc};
+  repeated.groups[0].a11y.audits.wc.needsReview = [];
+  const second = structuredClone(repeated.groups[0]);
+  second.browser = 'chromium';
+  second.label = 'chromium · gol · Primary · sm · light';
+  second.a11y.audits.wc.artifactPath = 'results/primary--chromium/attempt-0/evidence/wc.a11y.json';
+  repeated.groups.push(second);
+
+  const html = renderHtmlV2(repeated);
+  const firefoxArtifact = 'href="results/primary--firefox/attempt-0/evidence/wc.a11y.json"';
+  const chromiumArtifact = 'href="results/primary--chromium/attempt-0/evidence/wc.a11y.json"';
+
+  assert.equal((html.match(/<dt>browser<\/dt>/g) || []).length, 1);
+  assert.match(html, /chromium \(1\), firefox \(1\)/);
+  assert.equal(html.split(firefoxArtifact).length - 1, 1);
+  assert.equal(html.split(chromiumArtifact).length - 1, 1);
+  assert.match(html, /<details class="axe-artifacts">/);
+  assert.doesNotMatch(html, /<li>browser=/);
+});
+
+test('galeria v2 explica needsReview inconclusivo quando detalhes estao indisponiveis', async () => {
+  const {renderHtmlV2} = await subject();
+  const partial = structuredClone(manifest);
+  partial.groups[0].a11y.audits = {
+    wc: {
+      violations: [],
+      needsReview: [{id: 'manual-review'}],
+      artifactPath: 'results/primary--firefox/attempt-0/evidence/wc.a11y.json',
+    },
+  };
+  const html = renderHtmlV2(partial);
+
+  assert.match(html, /needsReview.*inconclusivo.*não altera o gate/is);
+  assert.match(html, /1 item.*detalhes.*metadados.*indisponíveis/is);
+  assert.doesNotMatch(html, /Nenhum item requer revisão/);
 });
 
 test('galeria v2 escapa diagnostico Axe e aceita somente artefato local a11y', async () => {
