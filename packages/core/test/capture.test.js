@@ -3,11 +3,51 @@ const assert = require('node:assert');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const {cellRelPath, assertSafePathSegment, captureCells} = require('../src/capture');
+const {
+  cellRelPath,
+  assertSafePathSegment,
+  captureCells,
+  captureCellOnPage,
+  assertSafeRelativePath,
+  resolveContainedPath,
+} = require('../src/capture');
 
 test('cellRelPath organiza por framework/brand/story/viewport/theme', () => {
   const rel = cellRelPath({framework: 'react', brand: 'gol', storyId: 'action-button--primary', storyName: 'Primary', viewport: 'sm', theme: 'dark'});
   assert.equal(rel, 'react/gol/action-button--primary/sm/dark.png');
+});
+
+test('cellRelPath inclui browser somente quando informado', () => {
+  const base = {framework: 'wc', brand: 'gol', storyId: 'primary', viewport: 'sm', theme: 'light'};
+  assert.equal(cellRelPath(base), path.join('wc', 'gol', 'primary', 'sm', 'light.png'));
+  assert.equal(cellRelPath({...base, browser: 'firefox'}), path.join('firefox', 'wc', 'gol', 'primary', 'sm', 'light.png'));
+});
+
+test('captureCellOnPage usa a Page recebida sem lancar browser', async t => {
+  const dest = fs.mkdtempSync(path.join(os.tmpdir(), 'anemoi-page-capture-'));
+  t.after(() => fs.rmSync(dest, {recursive: true, force: true}));
+  const calls = [];
+  const page = {
+    setViewportSize: async value => calls.push(['viewport', value]),
+    goto: async value => calls.push(['goto', value]),
+    locator: () => ({
+      screenshot: async ({path: output}) => {
+        fs.mkdirSync(path.dirname(output), {recursive: true});
+        fs.writeFileSync(output, 'png');
+      },
+    }),
+  };
+  const host = {
+    urlFor: () => 'http://fixture/scene',
+    selectorFor: () => '#evidence-root',
+    verify: async () => calls.push(['verify']),
+  };
+  const result = await captureCellOnPage(page, {
+    browser: 'webkit', framework: 'wc', brand: 'gol', storyId: 'primary', storyName: 'Primary',
+    viewport: 'sm', theme: 'light', width: 360,
+  }, host, 'http://fixture', dest, {collectA11y: false});
+  assert.equal(result.relPath, path.join('webkit', 'wc', 'gol', 'primary', 'sm', 'light.png'));
+  assert.deepEqual(calls.map(call => call[0]), ['viewport', 'goto', 'verify']);
 });
 
 test('captureCells fecha browser quando newContext falha', async () => {
@@ -72,6 +112,59 @@ test('assertSafePathSegment bloqueia traversal e separadores', () => {
     assert.throws(() => assertSafePathSegment(value, 'story'), /segmento de caminho invalido/);
   }
   assert.equal(assertSafePathSegment('Primary state', 'story'), 'Primary state');
+  assert.equal(assertSafePathSegment('card%20name', 'story'), 'card%20name');
+});
+
+test('assertSafeRelativePath aceita vazio ou caminho relativo composto seguro', () => {
+  assert.equal(assertSafeRelativePath('', 'artifactPrefix', {allowEmpty: true}), '');
+  assert.equal(
+    assertSafeRelativePath('attempts/0', 'artifactPrefix', {allowEmpty: true}),
+    path.join('attempts', '0'),
+  );
+});
+
+test('assertSafeRelativePath rejeita absoluto, segmentos vazios e traversal', () => {
+  const invalid = [
+    '/absolute',
+    'C:/absolute',
+    '.',
+    '..',
+    'attempts//0',
+    'attempts/./0',
+    'attempts/../0',
+    'attempts\\0',
+  ];
+  for (const value of invalid) {
+    assert.throws(
+      () => assertSafeRelativePath(value, 'artifactPrefix', {allowEmpty: true}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+});
+
+test('assertSafeRelativePath rejeita qualquer percent encoding, simples ou 5x', () => {
+  const encodedTraversal = [
+    '%2e%2e/outside',
+    '%252525252e%252525252e/outside',
+  ];
+  for (const value of encodedTraversal) {
+    assert.throws(
+      () => assertSafeRelativePath(value, 'artifactPrefix', {allowEmpty: true}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+});
+
+test('resolveContainedPath mantem a escrita dentro da raiz', () => {
+  const root = path.resolve('/tmp/anemoi-containment');
+  assert.equal(
+    resolveContainedPath(root, 'attempts/0/diff.png', 'artifactPath'),
+    path.join(root, 'attempts', '0', 'diff.png'),
+  );
+  assert.throws(
+    () => resolveContainedPath(root, '../outside.png', 'artifactPath'),
+    /artifactPath.*caminho relativo invalido/,
+  );
 });
 
 test('cellRelPath rejeita eixo inseguro antes de compor o output', () => {

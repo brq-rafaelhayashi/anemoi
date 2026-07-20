@@ -17,8 +17,10 @@ Em outras palavras:
 
 - `packages/core` oferece primitivas de browser: matriz, servidor estático, captura Playwright,
   comparação de pixels e geração de output.
-- `packages/web` orquestra o caso de uso e conhece o contrato do Tangerina, as stories CSF, os
-  wrappers e os hosts de renderização.
+- `packages/web` orquestra o caso de uso, mantém Cenas e Contratos Comportamentais e conhece os
+  wrappers e hosts de renderização do Tangerina.
+- `packages/service` preserva o fluxo local do Koba sobre `capturePipeline`; esse pipeline é uma
+  interface de compatibilidade e não participa do executor Web canônico.
 - O checkout configurado do `tangerina-web-core` fornece fontes, artefatos e scripts de build. Ele
   não depende do Anemoi por symlink, import de fonte ou pacote.
 - `anemoi-preset` continua sendo um runtime React Native/Detox separado e não depende de
@@ -29,27 +31,29 @@ Em outras palavras:
 ```text
 alias ou caminho
   -> validação do checkout Tangerina
-  -> builds do consumidor
-  -> Storybook estático e harnesses
-  -> stories e args CSF
-  -> matriz WC/React/Angular
-  -> screenshots
-  -> diffs contra WC
-  -> manifest, resumo e galeria offline
+  -> preflight (suporte + superfície + contrato + builds)
+  -> run-plan.json imutável
+  -> Playwright Test (Chromium + Firefox + WebKit)
+  -> Resultados Atômicos por tentativa
+  -> finalizador fail-closed
+  -> manifest.json v2, resumo e galeria offline
 ```
 
-O Web Component (WC) é a linha de base visual. As stories CSF do Tangerina são o registro único de
-variações: o Anemoi combina `meta.args` e `story.args` e entrega os mesmos argumentos aos hosts React
-e Angular. O WC usa a própria story do Storybook, preservando o comportamento nativo do componente.
+O Web Component (WC) é a linha de base visual e semântica de React e Angular dentro da mesma engine;
+pixels nunca são comparados entre browsers. As Cenas, o Contrato Comportamental, o fingerprint da
+superfície pública e a spec Playwright nativa pertencem ao Anemoi. A Matriz de Suporte versionada
+pertence ao Tangerina e define os browsers obrigatórios.
 
-Quando React ou Angular são solicitados sem WC, o WC é incluído automaticamente porque a comparação
-precisa da linha de base. Cada grupo de paridade compara `react-versus-wc` e
-`angular-versus-wc` por pixels na área comum das imagens.
+Cada teste lógico representa uma Cena, ambiente e viewport em uma engine. WC, React e Angular rodam
+como steps isolados da mesma unidade. Cada Roteiro remonta a Cena, coleta observações canônicas e
+avalia duas provas independentes: conformidade de cada framework com o contrato e igualdade exata
+das observações normalizadas entre wrappers.
 
 ## Contrato com o Tangerina
 
-O checkout consumidor precisa se identificar como `tangerina-web-core`, executar com pnpm 9 ou
-superior e oferecer os scripts e artefatos validados pelo doctor. A declaração `packageManager` é
+O checkout consumidor precisa se identificar como `tangerina-web-core`, publicar
+`packages/components/browser-support.json`, executar com pnpm 9 ou superior e oferecer os scripts e
+artefatos validados pelo doctor. A declaração `packageManager` é
 opcional; quando presente, também deve indicar pnpm 9 ou superior. O Anemoi pode executar os scripts normais de
 build, que por natureza podem atualizar artefatos gerados, mas nunca executa operações Git no
 consumidor: não faz `stash`, `reset`, `checkout`, limpeza, commit ou alteração de branches.
@@ -60,10 +64,14 @@ como substituição explícita do alias.
 
 ## Limites dos pacotes
 
-`packages/core` não conhece Tangerina, CSF nem wrappers. `packages/web` é responsável por traduzir
+`packages/core` não conhece Tangerina, Cenas nem wrappers. `packages/web` é responsável por traduzir
 o contrato do consumidor para as primitivas do core. Os harnesses React e Angular possuem árvores de
 dependências isoladas para evitar conflito de runtimes e recebem por build os caminhos absolutos do
-checkout configurado.
+checkout configurado. O harness WC também é independente do Storybook.
+
+`capturePipeline`, exportado por `packages/web`, permanece deprecated exclusivamente para o
+`packages/service`/Koba. O CLI `npm run web` não o usa: seu fluxo canônico é preflight, Playwright
+Test, Resultados Atômicos e finalizador.
 
 O runtime Mobile permanece separado porque usa React Native, Detox, dispositivos e contratos de
 aplicativo host, enquanto o core Web usa Playwright e servidores estáticos. Código só deve ser
@@ -73,10 +81,15 @@ compartilhado quando os contratos dos dois runtimes forem equivalentes.
 
 Cada execução grava um diretório próprio em
 `<tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/`. O identificador
-aleatório evita colisões entre execuções iniciadas no mesmo instante. Um sucesso publica
-`manifest.json` com `tool: "Anemoi Web"` e `status: "passed"`, screenshots, diffs, `summary.md` e
-`index.html` offline.
+aleatório evita colisões entre execuções iniciadas no mesmo instante. O preflight publica uma única
+vez `run-plan.json`; workers nunca escrevem o manifesto compartilhado. Cada tentativa publica de
+forma atômica e exclusiva `results/<teste-logico>/attempt-<n>/result.json` junto das evidências e
+attachments da própria tentativa. A publicação usa hard link para impedir sobrescrita concorrente. O
+finalizador exige exatamente a matriz planejada, consolida retries como
+`stable` ou `flaky` e só então publica `summary.md`, `index.html` e `manifest.json` v2.
 
-Uma falha preserva logs e um `manifest.json` com `status: "failed"`, estágio, erro e caminho do log.
-O `index.html` não é publicado em execuções incompletas, evitando que evidência parcial seja tomada
-como válida. Servidores e browsers são encerrados mesmo quando há erro.
+O Gate de Confiabilidade é fail-closed: dimensão obrigatória reprovada ou indisponível impede
+`trusted: true`; qualquer `flaky` reprova estabilidade. Um filtro de browsers/eixos ou `--no-a11y`
+marca o plano como diagnóstico, cujo gate é `not-approved` e nunca confiável. Falhas de execução
+preservam o log e um manifesto de falha com o estágio quando possível. Servidores e browsers são
+encerrados mesmo quando há erro.

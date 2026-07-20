@@ -14,7 +14,7 @@
     "web:configure": "node packages/web/bin/anemoi-web.js --configure",
     "service": "node packages/service/bin/anemoi-service.js",
     "test": "node --test test/*.test.js && npm test --workspaces --if-present",
-    "setup:harnesses": "npm --prefix packages/web/harness/react install && npm --prefix packages/web/harness/angular install",
+    "setup:harnesses": "npm --prefix packages/web/harness/wc install && npm --prefix packages/web/harness/react install && npm --prefix packages/web/harness/angular install",
     "postinstall": "npm run setup:harnesses"
   }
 }

@@ -1,0 +1,491 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import {randomUUID} from 'node:crypto';
+import type {AtomicResult, BehaviorObservation, Stability} from './types.ts';
+import {assertObservation as validateBehaviorObservation} from './observation.ts';
+
+export interface LogicalResult {
+  logicalTestId: string;
+  stability: Stability;
+  attempts: AtomicResult[];
+  final: AtomicResult;
+}
+
+const BROWSERS = new Set(['chromium', 'firefox', 'webkit']);
+const STATUSES = new Set(['passed', 'failed', 'error']);
+const FRAMEWORKS = ['wc', 'react', 'angular'] as const;
+const FRAMEWORK_SET = new Set(FRAMEWORKS);
+const EXECUTIONS = new Set(['passed', 'error']);
+const PROOF_VERDICTS = new Set(['passed', 'failed', 'not-run', 'not-comparable']);
+
+function safeId(value: unknown): string {
+  if (typeof value !== 'string'
+    || !value
+    || value === '.'
+    || value === '..'
+    || /[\\/\u0000-\u001f\u007f]/.test(value)) {
+    throw new Error(`logicalTestId invalido: ${JSON.stringify(value)}.`);
+  }
+  return value;
+}
+
+function assertAttempt(value: unknown): asserts value is number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`attempt invalido: ${String(value)}.`);
+  }
+}
+
+export function atomicResultPath(runDir: string, logicalTestId: string, attempt: number) {
+  assertAttempt(attempt);
+  return path.join(runDir, 'results', safeId(logicalTestId), `attempt-${attempt}`, 'result.json');
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
+const ARTIFACT_PATH_KEYS = new Set(['relPath', 'ariaRelPath', 'artifactPath', 'diffPath']);
+
+function assertArtifactPath(value: unknown) {
+  if (typeof value !== 'string'
+    || !value
+    || value.includes('\u0000')
+    || path.posix.isAbsolute(value)
+    || path.win32.isAbsolute(value)
+    || value.split(/[\\/]+/).includes('..')) {
+    throw new Error(`artifact path invalido: ${String(value)}.`);
+  }
+}
+
+function validateArtifactPaths(value: unknown, seen = new Set<object>()) {
+  if (Array.isArray(value)) {
+    if (seen.has(value)) throw new Error('Resultado Atomico nao e serializavel: referencia circular.');
+    seen.add(value);
+    value.forEach(item => validateArtifactPaths(item, seen));
+    seen.delete(value);
+    return;
+  }
+  if (!isRecord(value)) return;
+  if (seen.has(value)) throw new Error('Resultado Atomico nao e serializavel: referencia circular.');
+  seen.add(value);
+  for (const [key, item] of Object.entries(value)) {
+    if (ARTIFACT_PATH_KEYS.has(key)) {
+      assertArtifactPath(item);
+    } else if (key === 'attachments') {
+      if (!Array.isArray(item)) throw new Error('diagnostics.attachments invalido.');
+      item.forEach(assertArtifactPath);
+    } else {
+      validateArtifactPaths(item, seen);
+    }
+  }
+  seen.delete(value);
+}
+
+function assertStringArray(value: unknown, label: string) {
+  if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) {
+    throw new Error(`${label} invalido.`);
+  }
+}
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.length > 0;
+}
+
+function isSlotValue(value: unknown) {
+  return typeof value === 'string' || (isRecord(value) && isNonEmptyString(value.icon));
+}
+
+function assertScene(value: unknown): asserts value is AtomicResult['scene'] {
+  if (!isRecord(value)
+    || !isNonEmptyString(value.id)
+    || !isNonEmptyString(value.cellId)
+    || !isNonEmptyString(value.name)
+    || !isNonEmptyString(value.component)
+    || !isRecord(value.args)
+    || !isRecord(value.slots)
+    || Object.values(value.slots).some(item => !isSlotValue(item))
+    || !isNonEmptyString(value.brand)
+    || !isNonEmptyString(value.theme)
+    || !isNonEmptyString(value.viewport)
+    || !Number.isFinite(value.width)
+    || (value.width as number) <= 0) {
+    throw new Error('Resultado Atomico scene invalida.');
+  }
+}
+
+function assertFiniteDimension(value: unknown, label: string) {
+  if (!Number.isFinite(value) || (value as number) < 0) throw new Error(`${label} invalido.`);
+}
+
+function assertOptionalPath(value: Record<string, unknown>, key: string) {
+  if (key in value) assertArtifactPath(value[key]);
+}
+
+function assertCaptureA11y(value: unknown) {
+  if (!isRecord(value)) throw new Error('Resultado Atomico capture a11y invalido.');
+  for (const key of ['relPath', 'ariaRelPath']) assertOptionalPath(value, key);
+  if ('error' in value && !isNonEmptyString(value.error)) {
+    throw new Error('Resultado Atomico capture a11y invalido.');
+  }
+  for (const key of ['violations', 'needsReview', 'ruleset']) {
+    if (key in value && !Array.isArray(value[key])) {
+      throw new Error('Resultado Atomico capture a11y invalido.');
+    }
+  }
+  if ('ariaSnapshot' in value && typeof value.ariaSnapshot !== 'string') {
+    throw new Error('Resultado Atomico capture a11y invalido.');
+  }
+}
+
+function assertCapture(
+  value: Record<string, unknown>,
+  browser: AtomicResult['browser'],
+  scene: AtomicResult['scene'],
+) {
+  if (!FRAMEWORK_SET.has(value.framework as typeof FRAMEWORKS[number])) {
+    throw new Error('Resultado Atomico capture framework invalido.');
+  }
+  if (!BROWSERS.has(value.browser as string) || value.browser !== browser) {
+    throw new Error('Resultado Atomico capture browser invalido.');
+  }
+  if ('error' in value) {
+    if (!isNonEmptyString(value.error)) throw new Error('Resultado Atomico capture error invalido.');
+    return;
+  }
+  if (!isNonEmptyString(value.brand)
+    || !(isNonEmptyString(value.storyId) || isNonEmptyString(value.sceneId))
+    || !isNonEmptyString(value.viewport)
+    || !isNonEmptyString(value.theme)) {
+    throw new Error('Resultado Atomico capture invalido.');
+  }
+  const sceneId = isNonEmptyString(value.storyId) ? value.storyId : value.sceneId;
+  if (value.brand !== scene.brand
+    || sceneId !== scene.id
+    || value.viewport !== scene.viewport
+    || value.theme !== scene.theme) {
+    throw new Error('Resultado Atomico capture scene invalida.');
+  }
+  assertArtifactPath(value.relPath);
+  if ('a11y' in value) assertCaptureA11y(value.a11y);
+}
+
+function assertCaptures(value: unknown, browser: AtomicResult['browser'], scene: AtomicResult['scene']) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico captures invalido.');
+  }
+  value.forEach(item => assertCapture(item, browser, scene));
+}
+
+function assertSize(value: unknown, label: string) {
+  if (!isRecord(value)) throw new Error(`${label} invalido.`);
+  assertFiniteDimension(value.width, label);
+  assertFiniteDimension(value.height, label);
+}
+
+function assertProofParity(value: unknown) {
+  if (!isRecord(value)
+    || !FRAMEWORK_SET.has(value.against as typeof FRAMEWORKS[number])
+    || typeof value.sizeMatch !== 'boolean') {
+    throw new Error('Resultado Atomico proof parity invalido.');
+  }
+  assertFiniteDimension(value.mismatch, 'Resultado Atomico proof parity');
+  assertFiniteDimension(value.width, 'Resultado Atomico proof parity');
+  assertFiniteDimension(value.height, 'Resultado Atomico proof parity');
+  assertOptionalPath(value, 'diffPath');
+  if ('referenceSize' in value) assertSize(value.referenceSize, 'Resultado Atomico proof parity referenceSize');
+  if ('againstSize' in value) assertSize(value.againstSize, 'Resultado Atomico proof parity againstSize');
+}
+
+function assertProofA11y(value: unknown) {
+  if (!isRecord(value) || !isRecord(value.audits) || !Array.isArray(value.ariaParity)) {
+    throw new Error('Resultado Atomico proof a11y invalido.');
+  }
+  for (const audit of Object.values(value.audits)) {
+    if (!isRecord(audit)) throw new Error('Resultado Atomico proof a11y invalido.');
+    if ('error' in audit) {
+      if (!isNonEmptyString(audit.error)) throw new Error('Resultado Atomico proof a11y invalido.');
+    } else if (!Array.isArray(audit.violations)) {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    if ('needsReview' in audit && !Array.isArray(audit.needsReview)) {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    assertOptionalPath(audit, 'artifactPath');
+  }
+  for (const comparison of value.ariaParity) {
+    if (!isRecord(comparison)
+      || !FRAMEWORK_SET.has(comparison.against as typeof FRAMEWORKS[number])
+      || typeof comparison.match !== 'boolean') {
+      throw new Error('Resultado Atomico proof a11y invalido.');
+    }
+    assertOptionalPath(comparison, 'diffPath');
+  }
+}
+
+function assertProofGroup(
+  value: Record<string, unknown>,
+  browser: AtomicResult['browser'],
+  scene: AtomicResult['scene'],
+) {
+  if (!BROWSERS.has(value.browser as string) || value.browser !== browser) {
+    throw new Error('Resultado Atomico proof group browser invalido.');
+  }
+  if (!isNonEmptyString(value.brand)
+    || !(isNonEmptyString(value.storyId) || isNonEmptyString(value.sceneId))
+    || !isNonEmptyString(value.viewport)
+    || !isNonEmptyString(value.theme)
+    || !isNonEmptyString(value.label)
+    || !Array.isArray(value.parity)) {
+    throw new Error('Resultado Atomico proof group invalido.');
+  }
+  const sceneId = isNonEmptyString(value.storyId) ? value.storyId : value.sceneId;
+  if (value.brand !== scene.brand
+    || sceneId !== scene.id
+    || value.viewport !== scene.viewport
+    || value.theme !== scene.theme) {
+    throw new Error('Resultado Atomico proof group scene invalida.');
+  }
+  value.parity.forEach(assertProofParity);
+  for (const framework of FRAMEWORKS) assertOptionalPath(value, framework);
+  if ('a11y' in value) assertProofA11y(value.a11y);
+}
+
+function assertProofGroups(value: unknown, browser: AtomicResult['browser'], scene: AtomicResult['scene']) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico proofs invalido.');
+  }
+  value.forEach(item => assertProofGroup(item, browser, scene));
+}
+
+function assertObservationShape(value: unknown) {
+  if (!isRecord(value)
+    || !('focus' in value)
+    || !Array.isArray(value.events)
+    || value.events.some(event => !isRecord(event) || !isNonEmptyString(event.name))
+    || !isRecord(value.visibility)
+    || Object.values(value.visibility).some(visible => typeof visible !== 'boolean')
+    || !isRecord(value.state)) {
+    throw new Error('Resultado Atomico route observation invalida.');
+  }
+  validateBehaviorObservation(value as unknown as BehaviorObservation);
+}
+
+function assertFrameworkResult(value: unknown) {
+  if (!isRecord(value)) throw new Error('Resultado Atomico route framework invalido.');
+  if (!EXECUTIONS.has(value.execution as string)) {
+    throw new Error('Resultado Atomico route framework execution invalido.');
+  }
+  if (!PROOF_VERDICTS.has(value.conformance as string)) {
+    throw new Error('Resultado Atomico route framework conformance invalido.');
+  }
+
+  if (value.execution === 'passed' && value.conformance === 'passed') {
+    if (!('observation' in value)) {
+      throw new Error('Resultado Atomico route framework observation obrigatoria.');
+    }
+    if ('error' in value) {
+      throw new Error('Resultado Atomico route framework exige error ausente.');
+    }
+    assertObservationShape(value.observation);
+    return;
+  }
+  if (value.execution === 'passed' && value.conformance === 'failed') {
+    if (!('observation' in value)) {
+      throw new Error('Resultado Atomico route framework observation obrigatoria.');
+    }
+    if (!isNonEmptyString(value.error)) {
+      throw new Error('Resultado Atomico route framework error obrigatorio.');
+    }
+    assertObservationShape(value.observation);
+    return;
+  }
+  if (value.execution === 'error' && value.conformance === 'not-run') {
+    if (!isNonEmptyString(value.error)) {
+      throw new Error('Resultado Atomico route framework error obrigatorio.');
+    }
+    if ('observation' in value) {
+      throw new Error('Resultado Atomico route framework exige observation ausente.');
+    }
+    return;
+  }
+  throw new Error('Resultado Atomico route framework combinacao invalida.');
+}
+
+function assertRoute(value: Record<string, unknown>) {
+  if (!isNonEmptyString(value.routeId)
+    || !Array.isArray(value.covers)
+    || value.covers.some(item => !isNonEmptyString(item))
+    || !isRecord(value.frameworks)) {
+    throw new Error('Resultado Atomico route invalida.');
+  }
+  if (!PROOF_VERDICTS.has(value.parity as string)) {
+    throw new Error('Resultado Atomico route parity invalido.');
+  }
+  for (const framework of FRAMEWORKS) assertFrameworkResult(value.frameworks[framework]);
+}
+
+function assertRoutes(value: unknown) {
+  if (!Array.isArray(value) || value.some(item => !isRecord(item))) {
+    throw new Error('Resultado Atomico routes invalido.');
+  }
+  value.forEach(assertRoute);
+}
+
+export function validateAtomicResult(result: AtomicResult): AtomicResult {
+  if (!isRecord(result)) throw new Error('Resultado Atomico invalido.');
+  if (result.schemaVersion !== 1) {
+    throw new Error(`Resultado Atomico schemaVersion invalido: ${String(result.schemaVersion)}.`);
+  }
+  const logicalTestId = safeId(result.logicalTestId);
+  assertAttempt(result.attempt);
+  if (!BROWSERS.has(result.browser as string)) {
+    throw new Error(`Resultado Atomico browser invalido: ${String(result.browser)}.`);
+  }
+  if (!STATUSES.has(result.status as string)) {
+    throw new Error(`Resultado Atomico status invalido: ${String(result.status)}.`);
+  }
+  assertScene(result.scene);
+  if (logicalTestId !== `${result.scene.cellId}--${result.browser}`) {
+    throw new Error(`Resultado Atomico identidade invalida: ${logicalTestId}.`);
+  }
+  assertCaptures(result.captures, result.browser, result.scene);
+  if (!isRecord(result.proofs)) {
+    throw new Error('Resultado Atomico proofs invalido.');
+  }
+  assertProofGroups(result.proofs.groups, result.browser, result.scene);
+  assertRoutes(result.routes);
+  if (!isRecord(result.diagnostics)) throw new Error('Resultado Atomico diagnostics invalido.');
+  assertStringArray(result.diagnostics.console, 'diagnostics.console');
+  assertStringArray(result.diagnostics.pageErrors, 'diagnostics.pageErrors');
+  if (!Array.isArray(result.diagnostics.attachments)) {
+    throw new Error('diagnostics.attachments invalido.');
+  }
+  validateArtifactPaths(result);
+  return result;
+}
+
+export function writeAtomicResult(runDir: string, result: AtomicResult) {
+  validateAtomicResult(result);
+  const serialized = `${JSON.stringify(result, null, 2)}\n`;
+  const file = atomicResultPath(runDir, result.logicalTestId, result.attempt);
+  fs.mkdirSync(path.dirname(file), {recursive: true});
+  if (fs.existsSync(file)) {
+    throw new Error(`Resultado Atomico ja existe e e imutavel: ${file}.`);
+  }
+
+  const temporary = `${file}.${process.pid}.${randomUUID()}.tmp`;
+  try {
+    const handle = fs.openSync(temporary, 'wx');
+    try {
+      fs.writeFileSync(handle, serialized);
+      fs.fsyncSync(handle);
+    } finally {
+      fs.closeSync(handle);
+    }
+    fs.linkSync(temporary, file);
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'EEXIST') {
+      throw new Error(`Resultado Atomico ja existe e e imutavel: ${file}.`, {cause: error});
+    }
+    throw error;
+  } finally {
+    fs.rmSync(temporary, {force: true});
+  }
+  return file;
+}
+
+function readResult(file: string, logicalTestId: string, attempt: number) {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (error) {
+    throw new Error(`Resultado Atomico malformado: ${file}.`, {cause: error});
+  }
+  const result = validateAtomicResult(parsed as AtomicResult);
+  if (result.logicalTestId !== logicalTestId || result.attempt !== attempt) {
+    throw new Error(`Resultado Atomico identidade do path diverge do payload: ${file}.`);
+  }
+  return result;
+}
+
+export function readAtomicResults(runDir: string): AtomicResult[] {
+  const root = path.join(runDir, 'results');
+  if (!fs.existsSync(root)) return [];
+  const results: AtomicResult[] = [];
+  for (const logicalEntry of fs.readdirSync(root, {withFileTypes: true})) {
+    const logicalTestId = safeId(logicalEntry.name);
+    if (!logicalEntry.isDirectory()) {
+      throw new Error(`Diretorio de Resultado Atomico invalido: ${logicalEntry.name}.`);
+    }
+    const logicalDir = path.join(root, logicalTestId);
+    for (const attemptEntry of fs.readdirSync(logicalDir, {withFileTypes: true})) {
+      const match = /^attempt-(\d+)$/.exec(attemptEntry.name);
+      if (!attemptEntry.isDirectory() || !match) {
+        throw new Error(`Diretorio de tentativa invalido: ${attemptEntry.name}.`);
+      }
+      const attempt = Number(match[1]);
+      assertAttempt(attempt);
+      if (attemptEntry.name !== `attempt-${attempt}`) {
+        throw new Error(`Diretorio de tentativa invalido: ${attemptEntry.name}.`);
+      }
+      const file = path.join(logicalDir, attemptEntry.name, 'result.json');
+      if (!fs.existsSync(file)) throw new Error(`Resultado Atomico ausente na tentativa: ${file}.`);
+      results.push(readResult(file, logicalTestId, attempt));
+    }
+  }
+  return results.sort((left, right) =>
+    left.logicalTestId.localeCompare(right.logicalTestId) || left.attempt - right.attempt);
+}
+
+function normalizeAttemptLocalAddress(value: unknown) {
+  return typeof value === 'string'
+    ? value.replace(/(^|[\\/])attempt-\d+(?=[\\/])/g, '$1attempt-*')
+    : value;
+}
+
+function normalizeArtifactAddresses(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(normalizeArtifactAddresses);
+  if (isRecord(value)) {
+    return Object.fromEntries(Object.entries(value)
+      .map(([key, item]) => {
+        if (ARTIFACT_PATH_KEYS.has(key)) return [key, normalizeAttemptLocalAddress(item)];
+        if (key === 'attachments' && Array.isArray(item)) {
+          return [key, item.map(normalizeAttemptLocalAddress)];
+        }
+        return [key, normalizeArtifactAddresses(item)];
+      }));
+  }
+  return value;
+}
+
+function signature(result: AtomicResult) {
+  return JSON.stringify(normalizeArtifactAddresses({
+    status: result.status,
+    captures: result.captures,
+    proofs: result.proofs,
+    routes: result.routes,
+    diagnostics: {
+      console: result.diagnostics.console,
+      pageErrors: result.diagnostics.pageErrors,
+    },
+  }));
+}
+
+export function consolidateAttempts(results: AtomicResult[]): LogicalResult[] {
+  const groups = new Map<string, AtomicResult[]>();
+  for (const result of results) {
+    validateAtomicResult(result);
+    const attempts = groups.get(result.logicalTestId) || [];
+    if (attempts.some(item => item.attempt === result.attempt)) {
+      throw new Error(`Resultado Atomico com tentativa duplicada: ${result.logicalTestId} attempt-${result.attempt}.`);
+    }
+    groups.set(result.logicalTestId, [...attempts, result]);
+  }
+  return [...groups.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([logicalTestId, unordered]) => {
+      const attempts = [...unordered].sort((left, right) => left.attempt - right.attempt);
+      const stability: Stability = new Set(attempts.map(signature)).size === 1 ? 'stable' : 'flaky';
+      return {logicalTestId, stability, attempts, final: attempts.at(-1)!};
+    });
+}

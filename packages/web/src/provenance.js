@@ -27,14 +27,15 @@ function packageVersion(packageJsonPath) {
 }
 
 function playwrightVersion() {
-  try {
-    return require('playwright/package.json').version;
-  } catch {
-    return null;
+  for (const packageName of ['@playwright/test/package.json', 'playwright/package.json']) {
+    try {
+      return require(packageName).version;
+    } catch {}
   }
+  return null;
 }
 
-function collectProvenance({repo, anemoiDir = path.resolve(__dirname, '..')}) {
+function collectProvenance({repo, browsers = ['chromium'], anemoiDir = path.resolve(__dirname, '..')}) {
   return {
     anemoi: {
       version: packageVersion(path.join(anemoiDir, 'package.json')),
@@ -44,7 +45,9 @@ function collectProvenance({repo, anemoiDir = path.resolve(__dirname, '..')}) {
     environment: {
       os: `${process.platform} ${os.release()}`,
       node: process.version,
-      browser: 'chromium',
+      browser: browsers.length === 1 ? browsers[0] : null,
+      browsers,
+      runner: '@playwright/test',
       playwright: playwrightVersion(),
     },
     // Espelha os parametros fixos de captureCells (core/src/capture.js).

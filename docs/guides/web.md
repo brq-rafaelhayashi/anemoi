@@ -1,22 +1,23 @@
 # Guia do Anemoi Web
 
-Execute todos os comandos deste guia na raiz do repositório Anemoi. O checkout consumidor do
-`tangerina-web-core` é apenas o alvo configurado; não execute o Anemoi a partir dele.
+Execute todos os comandos deste guia na raiz do Anemoi. O checkout consumidor do
+`tangerina-web-core` é somente o alvo configurado.
 
 ## Preparação
 
-Use Node.js 24.13.1 e mantenha `node`, `npm` e `pnpm` no `PATH`. O runtime efetivo deve ser pnpm 9
-ou superior. `packageManager` é opcional no consumidor; se estiver declarado, também deve indicar
-pnpm 9 ou superior. Instale o Anemoi e configure um alias:
+Use Node.js 24.13.1, npm com workspaces e pnpm 9 ou superior no `PATH`. Instale as dependências, os
+três browsers da versão fixada do Playwright e configure o consumidor:
 
 ```bash
 npm install
+npx playwright install chromium firefox webkit
 npm run web:configure -- --alias tangerina --repo /absolute/path/to/tangerina-web-core
 npm run web -- --repo tangerina --doctor
 ```
 
-O comando de configuração grava `.anemoi.local.json`, que é local e ignorado pelo Git. O primeiro
-alias vira o padrão. Para alterar explicitamente o padrão:
+O doctor valida a identidade do checkout, pnpm efetivo, scripts e artefatos do consumidor, a Matriz
+de Suporte e Chromium, Firefox e WebKit. A configuração fica em `.anemoi.local.json`, arquivo local
+ignorado pelo Git. O primeiro alias vira o padrão; para trocá-lo explicitamente:
 
 ```bash
 npm run web:configure -- \
@@ -25,156 +26,196 @@ npm run web:configure -- \
   --default
 ```
 
-Aliases aceitam letras minúsculas, números e hifens simples, começam por letra e não podem conter
-hifens consecutivos. `--repo` aceita um alias configurado ou um caminho direto, absoluto ou relativo.
-Sem `--repo`, o comando usa `defaultRepository`.
+## Execução confiável
 
-## Execução
+O comando completo padrão executa todas as Cenas do contrato, nos eixos canônicos e nos três
+browsers obrigatórios:
 
-Exemplo completo:
+```bash
+npm run web -- --repo tangerina --component tgr-button --card CDCOM-123
+```
+
+Antes de aceitar uma mudança deliberada na superfície pública, revise o fingerprint:
+
+```bash
+npm run web -- --repo tangerina --component tgr-button --review-contract
+```
+
+Esse comando mostra o diff canônico e exige confirmação explícita. Cenas, Roteiros, observações e o
+fingerprint ficam em `packages/web/contracts/<consumidor>/<componente>/`; a Matriz de Suporte fica no
+Tangerina em `packages/components/browser-support.json`.
+
+### Flags públicas
+
+| Flag | Comportamento |
+| --- | --- |
+| `--repo <alias-ou-caminho>` | Seleciona o checkout consumidor; sem a flag, usa o alias padrão. |
+| `--component <nome>` | Componente obrigatório, por exemplo `tgr-button`. |
+| `--card <identificador>` | Segmento do output; o padrão é `sem-card`. |
+| `--stories <lista>` | Filtra Cenas pelo ID ou nome exato. Produz run diagnóstico. |
+| `--themes <lista>` | Filtra temas; padrão confiável `light,dark`. Reduzir o eixo produz run diagnóstico. |
+| `--viewports <lista>` | Filtra viewports; padrão confiável `sm,lg`. Valores conhecidos: `xs`, `sm`, `md`, `lg`, `xl`. |
+| `--brands <lista>` | Filtra marcas; padrão confiável `gol`. |
+| `--browsers <lista>` | Seleciona engines da Matriz de Suporte. Omitir browser obrigatório produz run diagnóstico. |
+| `--doctor` | Diagnostica consumidor e browsers sem capturar. |
+| `--list-stories` | Faz o preflight e lista as Cenas selecionadas sem executar a spec. |
+| `--skip-build` | Reutiliza builds do consumidor; preflight, validações e builds dos harnesses continuam. |
+| `--no-a11y` | Desliga Axe/ARIA e força run diagnóstico; não pode emitir gate confiável. |
+| `--review-contract` | Revisa e, após confirmação, atualiza o fingerprint da superfície pública. |
+
+`--frameworks`, `--fail-on-diff`, `--fail-on-a11y` e `--engine` pertenciam ao executor anterior e não
+controlam o Gate de Confiabilidade. `--engine` é rejeitado explicitamente. O executor canônico sempre
+avalia WC, React e Angular, e toda dimensão obrigatória participa do gate fail-closed.
+
+Para investigar rapidamente uma engine sem confundir a execução com aprovação:
 
 ```bash
 npm run web -- \
   --repo tangerina \
   --component tgr-button \
-  --card CDCOM-123 \
-  --frameworks wc,react,angular \
-  --stories Primary,Disabled \
-  --themes light,dark \
-  --viewports sm,lg \
-  --brands gol
+  --card DIAGNOSTICO-FIREFOX \
+  --browsers firefox
 ```
 
-Flags preservadas:
+O manifesto desse run terá `gate.status: "not-approved"` e `gate.trusted: false`, mesmo que todas as
+dimensões executadas passem.
 
-| Flag | Comportamento |
-| --- | --- |
-| `--repo <alias-ou-caminho>` | Seleciona o checkout consumidor; se omitido, usa o alias padrão. |
-| `--component <nome>` | Componente obrigatório para captura, por exemplo `tgr-button`. |
-| `--card <identificador>` | Segmento do output; o padrão é `sem-card`. |
-| `--frameworks <lista>` | Lista separada por vírgulas; padrão `wc,react,angular`. Aceita `wc`, `react` e `angular`. |
-| `--stories <lista>` | Filtra pelos nomes exatos das stories, separados por vírgulas. Sem a flag, usa todas as stories do componente. |
-| `--themes <lista>` | Lista separada por vírgulas; padrão `light,dark`. |
-| `--viewports <lista>` | Lista separada por vírgulas; padrão `sm,lg`. Valores disponíveis: `xs` 320 px, `sm` 360 px, `md` 768 px, `lg` 1024 px e `xl` 1440 px. |
-| `--brands <lista>` | Lista separada por vírgulas; padrão `gol`. Valores disponíveis: `gol`, `smiles` e `clube-smiles`. |
-| `--doctor` | Diagnostica identidade, scripts, pnpm, Storybook, artefatos WC/React/Angular e Chromium sem iniciar captura. |
-| `--list-stories` | Faz o preflight e o build do Storybook, lista as stories encontradas para o componente e encerra sem capturar. |
-| `--skip-build` | Reutiliza os artefatos dos seis builds do consumidor; os demais preflights e builds continuam ativos. |
-| `--fail-on-diff` | Encerra com código de saída 1 quando qualquer comparação de paridade diverge (pixels ou dimensões). Sem a flag, a divergência ainda aparece no manifesto (`status: "failed"`), mas o processo sai com 0. |
-| `--no-a11y` | Desliga a coleta de acessibilidade (auditoria axe-core e snapshot ARIA). Incompatível com `--fail-on-a11y`. |
-| `--fail-on-a11y` | Encerra com código de saída 1 quando há violação WCAG A/AA, árvore ARIA divergente do baseline WC ou coleta de a11y indisponível. Sem a flag, os apontamentos aparecem apenas no manifesto e na galeria, sem afetar status ou código de saída. |
+## Pipeline automático
 
-Na configuração, `--alias`, `--repo` e o booleano `--default` acompanham o comando
-`npm run web:configure`. O modo before/after não faz parte do fluxo suportado.
+O fluxo público é:
 
-## Ordem automática de build
+```text
+preflight -> run-plan.json -> Playwright Test -> Resultados Atômicos -> finalizador
+          -> manifest.json v2 + summary.md + index.html
+```
 
-Antes de capturar, o Anemoi valida a versão efetiva de pnpm e executa no checkout consumidor, nesta
-ordem:
+1. O preflight valida a Matriz de Suporte, contrato, cobertura, fingerprint e superfície pública.
+2. No consumidor, executa `build:tokens`, `build:assets`, `build:fonts`, `build:assets-react`,
+   `build:assets-angular`, `build:components`, `build:react` e `build:angular`, salvo `--skip-build`.
+3. Constrói os harnesses isolados de WC, React e Angular e publica `run-plan.json` uma única vez.
+4. Playwright Test expande os projetos Chromium, Firefox e WebKit. Cada teste lógico representa uma
+   Cena, ambiente e viewport em um browser; WC, React e Angular são steps internos.
+5. Cada tentativa publica seu próprio Resultado Atômico de forma atômica e exclusiva em
+   `results/<teste-logico>/attempt-<n>/result.json`. Evidências, traces e screenshots diagnósticos
+   ficam escopados à mesma tentativa; workers não atualizam o manifesto.
+6. O finalizador valida a completude exata contra o plano, consolida retries e publica o manifesto
+   por último. Um run finalizado é imutável.
 
-1. `pnpm build:tokens`
-2. `pnpm build:assets`
-3. `pnpm build:fonts`
-4. `pnpm build:components`
-5. `pnpm build:react`
-6. `pnpm build:angular`
+No CI existe um retry diagnóstico. `stable` significa que as tentativas concordam no resultado
+substantivo; `flaky` significa que elas divergem e reprova a dimensão de estabilidade, mesmo que a
+última tentativa passe. Uma falha determinística pode ser `stable` e ainda reprovar o gate pela prova
+afetada e pelo status final da execução.
 
-Depois, o doctor valida os artefatos. O Anemoi constrói o Storybook estático do WC para descobrir as
-stories, resolve os args CSF e constrói os harnesses React e Angular selecionados antes de capturar.
-O Storybook é necessário mesmo quando a lista original de frameworks não contém WC.
+## Manifesto v2 e gate
 
-`--skip-build` pula somente os seis comandos acima. A validação da versão de pnpm, o doctor, o build
-do Storybook, os builds dos harnesses e a captura continuam. Portanto, use a flag apenas quando os
-artefatos do consumidor já estiverem atualizados; ausência ou desatualização detectável ainda bloqueia
-a execução.
+`manifest.json` usa `schemaVersion: 2` e mantém separadas estas dimensões obrigatórias:
 
-Esses builds podem atualizar artefatos gerados conforme os scripts do Tangerina, mas o Anemoi nunca
-executa operações Git no checkout consumidor.
+- `browserCoverage`: cobertura exata dos browsers obrigatórios do Tangerina;
+- `visualParity`: pixels de React/Angular contra WC na mesma engine;
+- `dimensions`: largura e altura contra WC na mesma engine;
+- `axe`: violações WCAG coletadas em cada framework e browser;
+- `ariaParity`: árvore ARIA de React/Angular contra WC na mesma engine;
+- `behavioralConformance`: cada framework contra as expectativas do Contrato Comportamental;
+- `behavioralParity`: igualdade das observações normalizadas de React/Angular contra WC;
+- `contractCoverage`: todos os comportamentos obrigatórios cobertos pelos Roteiros;
+- `stability`: execução completa, sem interrupções, lacunas de tentativas ou resultados flaky.
 
-## Códigos de saída
+Uma dimensão obrigatória `failed` ou `unavailable` torna o gate `failed` e `trusted: false`. Um plano
+filtrado ou sem a11y é diagnóstico: seu gate é `not-approved` e `trusted: false`. Apenas uma matriz
+completa, contrato atual, todas as dimensões aprovadas e resultados estáveis produz:
 
-| Código | Significado |
-| --- | --- |
-| `0` | Execução completa; sem `--fail-on-diff`, mesmo com paridade divergente. |
-| `1` | Gate ligado divergente: paridade com `--fail-on-diff` (pixels ou dimensões), ou acessibilidade com `--fail-on-a11y` (violação WCAG, ARIA divergente ou coleta indisponível). O manifesto de bundle é preservado. |
-| `2` | Erro de execução (build, captura, configuração). Quando o diretório do run já existia, um manifesto de falha com `stage` e `logPath` é gravado. |
+```json
+{
+  "schemaVersion": 2,
+  "status": "passed",
+  "gate": {"status": "passed", "trusted": true}
+}
+```
 
-Para bloquear CI apenas em divergência real, rode com `--fail-on-diff` e trate `2` como falha de
-infraestrutura, não de paridade.
-
-A análise de acessibilidade roda em toda captura: cada célula ganha `<theme>.a11y.json` (auditoria
-axe-core, WCAG A/AA) e `<theme>.aria.yaml` (árvore ARIA) ao lado do PNG, e o manifesto agrega o
-veredito em `a11y`. A árvore ARIA de React e Angular é comparada à do WC baseline (paridade
-semântica); divergências geram `aria-diff/<par>/<célula>.txt`. Falha na coleta nunca invalida a
-evidência visual: a célula registra o erro e, com `--fail-on-a11y`, o gate falha — "não consegui
-medir" não é "está acessível".
-
-Cada violação carrega o `failureSummary` do axe (cores e ratios computados, ex.: "contrast of
-2.7") no artefato e na galeria, permitindo triar contraste sem re-rodar a auditoria. Itens que o
-axe não consegue medir (fundo com gradiente/imagem, stacking) aparecem como "a revisar"
-(`needsReview`) no manifesto, na galeria e no summary — são visibilidade, não veredito: não afetam
-o status nem o código de saída do `--fail-on-a11y`.
+Conformidade e paridade comportamental respondem perguntas diferentes. Se WC, React e Angular
+produzem exatamente a mesma observação, mas ela contradiz o contrato, a paridade passa e a
+conformidade falha. Não se deve relaxar o contrato ou o gate para converter essa evidência em sucesso.
 
 ## Estrutura do output
 
-Cada run cria:
+Cada run cria um diretório próprio:
 
 ```text
 <tangerina-web-core>/outputs/anemoi-web/<card>/<componente>/<timestamp>-<id>/
+├── run-plan.json
+├── builds.json
 ├── manifest.json
 ├── summary.md
 ├── index.html
 ├── logs/
-│   └── tangerina/
 ├── build/
 │   ├── wc/
 │   ├── react/
 │   └── angular/
-├── wc/<brand>/<story>/<viewport>/<theme>.png
-├── react/<brand>/<story>/<viewport>/<theme>.png
-├── angular/<brand>/<story>/<viewport>/<theme>.png
-└── diff/
-    ├── react-vs-wc/
-    └── angular-vs-wc/
+└── results/
+    └── <teste-logico>/
+        └── attempt-<n>/
+            ├── result.json
+            ├── evidence/
+            │   └── <browser>/<framework>/<brand>/<story>/<viewport>/<theme>.a11y.json
+            └── attachments/
 ```
 
-`manifest.json` contém `tool: "Anemoi Web"`, eixos, contagem de células, grupos de paridade e a
-proveniência do run (commits do Anemoi e do consumidor, browser, Node, thresholds e parâmetros de
-captura). `status` reflete a paridade: `"passed"` somente quando nenhuma comparação divergiu em
-pixels nem em dimensões; caso contrário, `"failed"`. `summary.md` resume o run, incluindo a
-proveniência. `index.html` usa caminhos relativos e pode ser aberto offline para comparar WC, React
-e Angular lado a lado.
+`axes.browsers` registra a cobertura efetiva. `behavior.results` separa Roteiros, conformidade e
+paridade. `attempts` expõe cada tentativa, seu `resultPath`, attachments e `stable`/`flaky`.
+`index.html` usa somente caminhos relativos e abre offline; além da evidência visual por browser,
+mostra dimensões, comportamento e links diagnósticos.
 
-## Falhas
+## Códigos de saída e falhas
 
-Se uma etapa falhar depois da criação do diretório do run, o Anemoi preserva um `manifest.json` com
-`status: "failed"`, `stage`, mensagem de erro e `logPath`. O log relevante fica dentro de `logs/`.
-Uma execução falha não publica `index.html`; se ele já existia, é removido.
+| Código | Significado |
+| --- | --- |
+| `0` | Gate confiável aprovado ou run diagnóstico concluído. Consulte o manifesto para distinguir os casos. |
+| `1` | Gate de Confiabilidade reprovado; o bundle e o manifesto v2 são preservados. |
+| `2` | Erro de execução no preflight, Playwright Test ou finalização. |
 
-Falhas anteriores à criação do run, como alias inexistente ou ausência de configuração, encerram com
-mensagem acionável e não geram um manifesto. Corrija o item indicado e rode novamente.
+O exit code do Playwright Test não é o veredito público isoladamente: o Anemoi aceita a conclusão de
+testes aprovados ou reprovados, lê todos os Resultados Atômicos e deixa o finalizador calcular o gate.
+Erro de infraestrutura, matriz incompleta ou Resultado Atômico inválido falha fechado.
 
-## Interpretação da paridade
+## Interpretação das evidências
 
-WC é sempre a linha de base visual. React e Angular recebem o mesmo conjunto serializável de
-`meta.args + story.args`; cada screenshot desses wrappers é comparado à célula WC com a mesma brand,
-story, viewport e theme.
+WC é a referência de React e Angular somente dentro da mesma engine. O Anemoi não compara pixels
+entre Chromium, Firefox e WebKit. `mismatch: 0` e `sizeMatch: true` comprovam paridade visual para a
+célula capturada; qualquer diferença fica no artefato de diff daquela tentativa.
 
-- `mismatch: 0` com `sizeMatch: true` significa paridade de pixels na união das dimensões capturadas.
-- `mismatch > 0` ou `sizeMatch: false` indica divergência naquele wrapper e naquela célula; abra o
-  PNG em `diff/` e a galeria para localizar o sinal. Área que existe em apenas uma das capturas
-  conta como divergência (o diff usa a união das dimensões, não a interseção).
-- Uma divergência apenas em React ou Angular deve aparecer somente no comparativo desse wrapper.
-- Se React ou Angular forem solicitados sem `wc`, o Anemoi inclui WC automaticamente para produzir a
-  comparação.
+Axe e ARIA são provas independentes da visual. Falha de coleta não significa acessibilidade e deixa
+a dimensão indisponível. `--no-a11y` serve apenas para diagnóstico e nunca produz confiança.
 
-Paridade zero comprova igualdade dos pixels capturados para a matriz executada; não substitui testes
-de comportamento, acessibilidade ou estados que não foram selecionados.
+Quando há coleta Axe, `summary.md` inclui a seção `Diagnostico Axe` para triagem e `index.html`
+detalha regra, impacto, WCAG, distribuição por eixos, alvo, HTML afetado e `failureSummary`. A
+galeria cria links relativos para os `.a11y.json` associados às ocorrências de `violations` e
+`needsReview` exibidas no diagnóstico; ela não funciona como índice de todas as auditorias. O padrão
+de caminho permite localizar qualquer auditoria gravada com sucesso em
+`results/<teste-logico>/attempt-<n>/evidence/<browser>/<framework>/<brand>/<story>/<viewport>/<theme>.a11y.json`.
+Uma falha de coleta pode não produzir esse JSON; nesse caso, a indisponibilidade aparece sem link.
 
-### Limite de stories com render customizado
+As contagens do diagnóstico têm unidades diferentes:
 
-Os harnesses React e Angular reproduzem stories que podem ser descritas por `meta.args + story.args`
-serializáveis. Um `render` CSF customizado que cria wrappers, conteúdo de light DOM ou slots não é
-traduzido automaticamente para os outros frameworks. Nesses casos, a divergência pode representar uma
-limitação do método, e não do componente. Até existir um contrato explícito para esse conteúdo, selecione
-somente stories baseadas em args com `--stories` ao exigir paridade entre frameworks.
+- **auditoria afetada**: uma combinação de Cena, browser e framework cuja auditoria contém ao menos
+  uma violação;
+- **regra distinta**: um ID Axe único, como `color-contrast`, independentemente de quantas
+  auditorias o repetem;
+- **ocorrência de regra**: uma aparição da regra dentro de uma auditoria; a mesma regra em 144
+  auditorias representa 144 ocorrências, mas apenas uma regra distinta;
+- **nó afetado**: uma entrada de elemento em `nodes` da ocorrência; uma ocorrência pode afetar mais
+  de um nó, portanto essa contagem pode ser maior que a de ocorrências.
+
+Use `summary.md` para localizar rapidamente a causa representativa. No `index.html`, cada estado da
+Cena reúne Axe, evidência visual, comportamento e tentativas. Estados com falha ou evidência
+indisponível aparecem primeiro e abertos; estados aprovados aparecem fechados. Dentro de cada estado,
+abra apenas a subseção necessária e consulte o `.a11y.json` vinculado quando precisar de todos os nós
+e metadados originais daquela auditoria. Os controles no topo reabrem estados falhos, fecham todos os
+estados e filtram evidências por browser sem alterar o veredito ou as contagens.
+
+Os Roteiros remontam a Cena antes de cada comportamento. Eventos preservam ordem e quantidade;
+observações são normalizadas e comparadas por igualdade profunda exata. Uma falha localizada em um
+wrapper deve aparecer em conformidade e/ou paridade sem apagar os resultados dos outros frameworks.
+
+O pipeline legado `capturePipeline` continua exportado somente para compatibilidade com
+`packages/service`/Koba. Ele não é o executor da CLI Web e não publica o Gate de Confiabilidade novo.

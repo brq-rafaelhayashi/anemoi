@@ -17,8 +17,17 @@ function entry(framework, overrides = {}) {
   };
 }
 
-function group(_a11y) {
-  return {label: 'gol · Primary · sm · light', wc: 'wc.png', react: 'react.png', parity: [], _a11y};
+function group(_a11y, browser) {
+  const browserFields = browser ? {browser} : {};
+  return {
+    ...browserFields,
+    label: 'gol · Primary · sm · light',
+    wc: 'wc.png',
+    react: 'react.png',
+    parity: [],
+    _a11y,
+    _cell: {...browserFields, brand: 'gol', storyId: 'button--primary', viewport: 'sm', theme: 'light'},
+  };
 }
 
 test('computeA11y monta audits por framework e remove _a11y', () => {
@@ -43,6 +52,38 @@ test('computeA11y: snapshots divergentes gravam aria-diff e marcam match false',
   assert.match(diff, /--- wc \(reference\)/);
   assert.match(diff, /\+\+\+ react \(against\)/);
   assert.match(diff, /button "Salvar"/);
+});
+
+test('computeA11y grava diff dentro do browser e remove _cell ao finalizar', () => {
+  const runDir = fs.mkdtempSync(path.join(os.tmpdir(), 'a11y-browser-'));
+  const source = group({
+    wc: entry('wc'),
+    react: entry('react', {ariaSnapshot: '- button\n'}),
+  }, 'webkit');
+  const [result] = computeA11y([source], runDir, {artifactPrefix: 'results/primary--webkit/attempt-1/evidence'});
+  assert.match(result.a11y.ariaParity[0].diffPath, /^results\/primary--webkit\/attempt-1\/evidence\/aria-diff\/webkit\/react-vs-wc\//);
+  assert.equal('_cell' in result, false);
+});
+
+test('computeA11y rejeita artifactPrefix inseguro antes de escrever', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'a11y-prefix-'));
+  t.after(() => fs.rmSync(root, {recursive: true, force: true}));
+  const runDir = path.join(root, 'run', 'nested');
+  fs.mkdirSync(runDir, {recursive: true});
+  const source = group({
+    wc: entry('wc'),
+    react: entry('react', {ariaSnapshot: '- button\n'}),
+  }, 'webkit');
+  const absolute = path.join(root, 'absolute');
+
+  for (const prefix of ['../../outside', absolute]) {
+    assert.throws(
+      () => computeA11y([source], runDir, {artifactPrefix: prefix}),
+      /artifactPrefix.*caminho relativo invalido/,
+    );
+  }
+  assert.equal(fs.existsSync(path.join(root, 'outside')), false);
+  assert.equal(fs.existsSync(absolute), false);
 });
 
 test('computeA11y: erro de coleta vira audits[fw].error e o par sai do ariaParity', () => {

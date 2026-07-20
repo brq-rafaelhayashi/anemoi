@@ -30,6 +30,9 @@ test('writeManifest: grava manifest.json formatado', () => {
   const parsed = JSON.parse(fs.readFileSync(p, 'utf8'));
   assert.equal(parsed.component, 'tgr-button');
   assert.equal(parsed.cellCount, 1);
+  assert.deepEqual(fs.readdirSync(dir).filter(name => name.endsWith('.tmp')), []);
+  assert.throws(() => writeManifest(dir, grid({component: 'tgr-link', runDir: dir})), /manifest\.json ja existe/);
+  assert.equal(JSON.parse(fs.readFileSync(p, 'utf8')).component, 'tgr-button');
 });
 
 test('writeSummary: grava summary.md legivel', () => {

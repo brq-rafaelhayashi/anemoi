@@ -2,7 +2,7 @@
 
 ## Project Structure & Module Organization
 
-Anemoi is an npm workspace for generating and comparing Tangerina DS visual evidence. `packages/core/src/` contains framework-agnostic matrix, Playwright capture, pixel diff, output, and static-server primitives. `packages/web/src/` orchestrates Tangerina Web Components, React, and Angular; its isolated harnesses live under `packages/web/harness/`. Tests are colocated in each package's `test/` directory, with workspace-level checks in `test/`. Operational documentation lives in `docs/guides/` and `docs/architecture.md`.
+Anemoi is an npm workspace for generating and comparing Tangerina DS visual evidence. `packages/core/src/` contains framework-agnostic matrix, Playwright capture, pixel diff, accessibility (axe/ARIA), output, and static-server primitives. `packages/web/src/` orchestrates Tangerina Web Components, React, and Angular; its isolated harnesses live under `packages/web/harness/`. `packages/service/src/` is a local HTTP service that verifies React×Angular parity on demand over Koba's live state, reusing the core/web capture pipeline. Tests are colocated in each package's `test/` directory, with workspace-level checks in `test/`. Operational documentation lives in `docs/guides/` and `docs/architecture.md`.
 
 `anemoi-preset/` and `gol-adapter-detox/` are the existing Mobile/Detox areas and are being migrated. Keep Mobile runtime concerns separate from the Web core unless their contracts are genuinely equivalent.
 
@@ -12,7 +12,7 @@ Anemoi is an npm workspace for generating and comparing Tangerina DS visual evid
 - `npm test` runs the root checks and every workspace test suite.
 - `npm run setup:harnesses` reinstalls only the isolated Web harnesses.
 - `npm run web:configure -- --alias tangerina --repo /absolute/path/to/tangerina-web-core` records a local consumer checkout.
-- `npm run web -- --repo tangerina --doctor` validates pnpm, builds, artifacts, and Chromium without capturing.
+- `npm run web -- --repo tangerina --doctor` validates pnpm, builds, artifacts, and Chromium/Firefox/WebKit without capturing.
 - `npm run web -- --repo tangerina --component tgr-button --card CDCOM-123` runs a complete evidence capture.
 
 ## Coding Style & Naming Conventions

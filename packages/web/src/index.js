@@ -4,12 +4,12 @@
 
 const {groupByCell, computeParity} = require('./parity');
 const {capturePipeline} = require('./pipeline');
-const {createRunDir, prepareCapture, runCurrentState} = require('./run');
+const {createRunDir, prepareCapture, runCurrentState, runPlaywrightState} = require('./run');
 const {writeFailureManifest} = require('./failure');
 const {VIEWPORT_WIDTHS} = require('./brands');
 const {readLocalConfig, resolveRepository} = require('./config');
 const {assertCaptureReady, runDoctor} = require('./doctor');
-const {makeWcHost} = require('./hosts/wc');
+const {makeWcHarnessHost} = require('./hosts/wc-harness');
 const {makeReactHost} = require('./hosts/react');
 const {makeAngularHost} = require('./hosts/angular');
 
@@ -20,13 +20,14 @@ module.exports = {
   createRunDir,
   prepareCapture,
   runCurrentState,
+  runPlaywrightState,
   writeFailureManifest,
   VIEWPORT_WIDTHS,
   readLocalConfig,
   resolveRepository,
   assertCaptureReady,
   runDoctor,
-  makeWcHost,
+  makeWcHost: makeWcHarnessHost,
   makeReactHost,
   makeAngularHost,
 };
