@@ -36,6 +36,7 @@ export interface AxeCollectionError {
   error: string;
   axes: AxeAxes;
   artifact?: string;
+  kind?: 'missing' | 'unexpected';
 }
 
 export interface AxeDiagnostics {
@@ -50,6 +51,11 @@ export interface AxeDiagnostics {
   rules: AxeRuleDiagnostic[];
   reviewRules: AxeRuleDiagnostic[];
   errors: AxeCollectionError[];
+  structuralUnavailable: number;
+}
+
+export interface AggregateAxeDiagnosticsOptions {
+  expectedFrameworks?: string[];
 }
 
 interface MutableEvidence {
@@ -248,7 +254,10 @@ function finalizedRules(rules: Map<string, MutableRule>): AxeRuleDiagnostic[] {
     }));
 }
 
-export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
+export function aggregateAxeDiagnostics(
+  groups: unknown,
+  options: AggregateAxeDiagnosticsOptions = {},
+): AxeDiagnostics {
   const result: AxeDiagnostics = {
     totalAudits: 0,
     failedAudits: 0,
@@ -261,18 +270,35 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
     rules: [],
     reviewRules: [],
     errors: [],
+    structuralUnavailable: 0,
   };
   const rules = new Map<string, MutableRule>();
   const reviewRules = new Map<string, MutableRule>();
+  const expectedFrameworks = Array.isArray(options.expectedFrameworks)
+    ? [...new Set(options.expectedFrameworks.map(normalizedText).filter(Boolean))]
+    : null;
+  const expectedFrameworkSet = expectedFrameworks ? new Set(expectedFrameworks) : null;
 
   for (const candidate of Array.isArray(groups) ? groups : []) {
-    if (!isRecord(candidate) || !isRecord(candidate.a11y) || !isRecord(candidate.a11y.audits)) {
-      continue;
-    }
-    for (const [framework, auditCandidate] of Object.entries(candidate.a11y.audits)) {
+    if (!isRecord(candidate)) continue;
+    const audits = isRecord(candidate.a11y) && isRecord(candidate.a11y.audits)
+      ? candidate.a11y.audits
+      : {};
+    if (!expectedFrameworks && Object.keys(audits).length === 0) continue;
+
+    for (const [framework, auditCandidate] of Object.entries(audits)) {
       result.totalAudits += 1;
       const auditId = result.totalAudits;
       const axes = axesFrom(candidate, framework);
+      if (expectedFrameworkSet && !expectedFrameworkSet.has(framework)) {
+        result.unavailableAudits += 1;
+        result.errors.push({
+          error: 'framework Axe inesperado',
+          axes,
+          kind: 'unexpected',
+        });
+        continue;
+      }
       const error = isRecord(auditCandidate) ? normalizedText(auditCandidate.error) : '';
       if (!isRecord(auditCandidate)
         || error
@@ -301,6 +327,17 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
         result.ruleOccurrences += 1;
         result.affectedNodes += violationCandidate.nodes.length;
       }
+    }
+
+    for (const framework of expectedFrameworks || []) {
+      if (Object.hasOwn(audits, framework)) continue;
+      result.totalAudits += 1;
+      result.unavailableAudits += 1;
+      result.errors.push({
+        error: 'auditoria Axe esperada ausente',
+        axes: axesFrom(candidate, framework),
+        kind: 'missing',
+      });
     }
   }
 
@@ -431,6 +468,35 @@ function formatAriaCauses(groups: UnknownRecord[]) {
   return lines.sort(compareText);
 }
 
+function canonicalSerializable(value: unknown, seen: Set<object>): unknown {
+  if (value === null || typeof value === 'string' || typeof value === 'boolean') return value;
+  if (typeof value === 'number') return Number.isFinite(value) ? value : String(value);
+  if (Array.isArray(value)) {
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
+    const result = value.map(item => canonicalSerializable(item, seen));
+    seen.delete(value);
+    return result;
+  }
+  if (isRecord(value)) {
+    if (seen.has(value)) return '[circular]';
+    seen.add(value);
+    const result: UnknownRecord = {};
+    for (const key of Object.keys(value).sort(compareText)) {
+      const normalized = canonicalSerializable(value[key], seen);
+      if (normalized !== undefined) result[key] = normalized;
+    }
+    seen.delete(value);
+    return result;
+  }
+  return undefined;
+}
+
+function stableSerialized(value: unknown) {
+  const serialized = JSON.stringify(canonicalSerializable(value, new Set()));
+  return serialized === undefined ? 'indisponivel' : serialized;
+}
+
 function formatBehaviorCauses(result: UnknownRecord) {
   const routes = Array.isArray(result.routes) ? result.routes.filter(isRecord) : [];
   const lines: string[] = [];
@@ -450,12 +516,27 @@ function formatBehaviorCauses(result: UnknownRecord) {
         ].filter(Boolean).join(' '));
       }
     }
+    const parityDiffs: string[] = [];
+    for (const comparison of Array.isArray(route.diff) ? route.diff.filter(isRecord) : []) {
+      const framework = normalizedText(comparison.framework) || 'framework desconhecido';
+      for (const difference of Array.isArray(comparison.diff)
+        ? comparison.diff.filter(isRecord)
+        : []) {
+        parityDiffs.push([
+          `diff framework=${framework}`,
+          `path=${normalizedText(difference.path) || 'indisponivel'}`,
+          `reference=${stableSerialized(difference.reference)}`,
+          `against=${stableSerialized(difference.against)}`,
+        ].join(' '));
+      }
+    }
     const parity = normalizedText(route.parity);
-    if (parity === 'passed' && frameworkFailures.length === 0) continue;
-    if (!parity && frameworkFailures.length === 0) continue;
+    if (parity === 'passed' && frameworkFailures.length === 0 && parityDiffs.length === 0) continue;
+    if (!parity && frameworkFailures.length === 0 && parityDiffs.length === 0) continue;
     lines.push(`- ${normalizedText(route.routeId) || 'rota desconhecida'}: ${[
       parity ? `paridade=${parity}` : '',
       ...frameworkFailures.sort(compareText),
+      ...parityDiffs.sort(compareText),
     ].filter(Boolean).join('; ')}`);
   }
   return lines.sort(compareText);

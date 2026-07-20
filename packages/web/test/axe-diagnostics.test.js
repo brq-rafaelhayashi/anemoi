@@ -145,6 +145,46 @@ test('processa shapes desconhecidos sem lancar e ordena regras e evidencias', as
   assert.deepEqual(first.rules.map(rule => rule.id), ['a-rule', 'z-rule']);
 });
 
+test('classifica frameworks Axe esperados ausentes e extras como indisponiveis', async () => {
+  const {aggregateAxeDiagnostics} = await subject();
+  const diagnostics = aggregateAxeDiagnostics([group({
+    a11y: {
+      audits: {
+        wc: {violations: []},
+        vue: {violations: []},
+      },
+      ariaParity: [],
+    },
+  })], {expectedFrameworks: ['wc', 'react', 'angular']});
+
+  assert.deepEqual(
+    {
+      totalAudits: diagnostics.totalAudits,
+      failedAudits: diagnostics.failedAudits,
+      passedAudits: diagnostics.passedAudits,
+      unavailableAudits: diagnostics.unavailableAudits,
+    },
+    {
+      totalAudits: 4,
+      failedAudits: 0,
+      passedAudits: 1,
+      unavailableAudits: 3,
+    },
+  );
+  assert.equal(
+    diagnostics.totalAudits,
+    diagnostics.failedAudits + diagnostics.passedAudits + diagnostics.unavailableAudits,
+  );
+  assert.deepEqual(diagnostics.errors.map(error => ({
+    framework: error.axes.framework,
+    error: error.error,
+  })), [
+    {framework: 'angular', error: 'auditoria Axe esperada ausente'},
+    {framework: 'react', error: 'auditoria Axe esperada ausente'},
+    {framework: 'vue', error: 'framework Axe inesperado'},
+  ]);
+});
+
 test('preserva metadados de triagem, needsReview e erros de coleta', async () => {
   const {aggregateAxeDiagnostics} = await subject();
   const diagnostics = aggregateAxeDiagnostics([group({
@@ -471,4 +511,48 @@ test('formatter inclui captura, visual, dimensoes, ARIA e comportamento quando f
   assert.match(formatted, /ARIA.*angular.*aria\.txt/s);
   assert.match(formatted, /Comportamento.*activation.*react.*evento ausente/s);
   assert.doesNotMatch(formatted, /^Axe$/m);
+});
+
+test('formatter preserva diff de paridade comportamental sem falha de conformidade', async () => {
+  const {formatAttemptFailure} = await subject();
+  const base = {
+    logicalTestId: 'primary--chromium',
+    captures: [],
+    proofs: {groups: []},
+    routes: [{
+      routeId: 'activation',
+      parity: 'failed',
+      frameworks: {
+        wc: {execution: 'passed', conformance: 'passed'},
+        react: {execution: 'passed', conformance: 'passed'},
+        angular: {execution: 'passed', conformance: 'passed'},
+      },
+      diff: [{
+        framework: 'react',
+        match: false,
+        diff: [{
+          path: 'state',
+          reference: {pressed: true, disabled: false},
+          against: {pressed: false, disabled: false},
+        }],
+      }, {
+        framework: 'angular',
+        match: false,
+        diff: [{path: 'focus', reference: 'button', against: null}],
+      }],
+    }],
+  };
+
+  const first = formatAttemptFailure(base);
+  const reversed = structuredClone(base);
+  reversed.routes[0].diff.reverse();
+  reversed.routes[0].diff[1].diff[0].reference = {disabled: false, pressed: true};
+  reversed.routes[0].diff[1].diff[0].against = {disabled: false, pressed: false};
+
+  assert.equal(first, formatAttemptFailure(reversed));
+  assert.match(first, /Comportamento.*activation.*paridade=failed/s);
+  assert.match(first, /framework=angular.*path=focus.*reference="button".*against=null/s);
+  assert.match(first, /framework=react.*path=state.*reference=\{"disabled":false,"pressed":true\}.*against=\{"disabled":false,"pressed":false\}/s);
+  assert.ok(first.indexOf('framework=angular') < first.indexOf('framework=react'));
+  assert.doesNotMatch(first, /conformance=failed/);
 });

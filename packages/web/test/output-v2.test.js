@@ -263,6 +263,28 @@ test('galeria v2 explica needsReview inconclusivo quando detalhes estao indispon
   assert.doesNotMatch(html, /Nenhum item requer revisão/);
 });
 
+test('outputs explicam gate Axe indisponivel sem auditorias nos groups', async () => {
+  const {renderHtmlV2, renderSummaryV2} = await subject();
+  const unavailable = structuredClone(manifest);
+  unavailable.groups = [];
+  unavailable.gate.dimensions.axe = {
+    status: 'unavailable',
+    required: true,
+    failed: 0,
+    unavailable: 3,
+  };
+
+  const summary = renderSummaryV2(unavailable);
+  const html = renderHtmlV2(unavailable);
+
+  for (const output of [summary, html]) {
+    assert.match(output, /Diagnostico Axe/);
+    assert.match(output, /0 auditorias.*0 falh.*0 pass.*0 indisponive/s);
+    assert.match(output, /3 indisponibilidades estruturais.*sem auditorias correspondentes/i);
+  }
+  assert.doesNotMatch(html, /Sem violacoes Axe/);
+});
+
 test('galeria v2 informa saldo needsReview sem metadados em cenario misto', async () => {
   const {renderHtmlV2} = await subject();
   const mixed = structuredClone(manifest);

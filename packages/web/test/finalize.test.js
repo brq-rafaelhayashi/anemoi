@@ -276,6 +276,13 @@ test('finalizeRun nao aprova provas visuais, captures ou a11y estruturalmente au
   assert.equal(manifest.gate.dimensions.visualParity.status, 'unavailable');
   assert.equal(manifest.gate.dimensions.axe.status, 'unavailable');
   assert.equal(manifest.gate.status, 'failed');
+  const summary = fs.readFileSync(path.join(value.runDir, 'summary.md'), 'utf8');
+  const html = fs.readFileSync(path.join(value.runDir, 'index.html'), 'utf8');
+  for (const output of [summary, html]) {
+    assert.match(output, /Diagnostico Axe/);
+    assert.match(output, /3 indisponibilidades estruturais.*sem auditorias correspondentes/i);
+  }
+  assert.doesNotMatch(html, /Sem violacoes Axe/);
 });
 
 test('finalizeRun exige conjuntos exatos de parity, audits e ariaParity', async t => {

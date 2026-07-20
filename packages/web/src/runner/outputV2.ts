@@ -13,7 +13,7 @@ type ManifestV2 = {
   card: string;
   component: string;
   cellCount: number;
-  axes: {browsers: string[]};
+  axes: {browsers: string[]; frameworks?: string[]};
   gate: {
     status?: string;
     trusted: boolean;
@@ -108,6 +108,10 @@ function plural(count: number, singular: string, pluralForm: string) {
   return `${count} ${count === 1 ? singular : pluralForm}`;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+}
+
 function axesText(axes: AxeAxes) {
   return [
     ['browser', axes.browser],
@@ -131,7 +135,7 @@ const AXE_AXIS_DIMENSIONS: Array<keyof AxeAxes> = [
 ];
 
 function renderAxeSummary(diagnostics: AxeDiagnostics) {
-  if (diagnostics.totalAudits === 0) return [];
+  if (diagnostics.totalAudits === 0 && diagnostics.structuralUnavailable === 0) return [];
   const auditCounts = [
     plural(diagnostics.totalAudits, 'auditoria', 'auditorias'),
     plural(diagnostics.failedAudits, 'falhou', 'falharam'),
@@ -152,6 +156,20 @@ function renderAxeSummary(diagnostics: AxeDiagnostics) {
     const impact = rule.impact ? ` (impacto: ${escapeMarkdownInline(rule.impact)})` : '';
     return `- ${escapeMarkdownInline(rule.id)}${impact}: ${details}`;
   });
+  const collectionErrors = diagnostics.errors.filter(error => !error.kind);
+  const structuralCauses = diagnostics.errors
+    .filter(error => error.kind)
+    .map(error => `- Auditoria indisponivel: ${[
+      axesText(error.axes),
+      error.error,
+    ].filter(Boolean).map(escapeMarkdownInline).join('; ')}`);
+  const unexplainedAudits = Math.max(0, diagnostics.unavailableAudits - diagnostics.errors.length);
+  const unexplained = unexplainedAudits > 0
+    ? [`- ${plural(unexplainedAudits, 'auditoria indisponivel sem causa estruturada', 'auditorias indisponiveis sem causa estruturada')}`]
+    : [];
+  const structuralUnavailable = diagnostics.structuralUnavailable > 0
+    ? [`- ${plural(diagnostics.structuralUnavailable, 'indisponibilidade estrutural', 'indisponibilidades estruturais')} do gate sem auditorias correspondentes nos groups.`]
+    : [];
   return [
     '',
     '## Diagnostico Axe',
@@ -159,7 +177,10 @@ function renderAxeSummary(diagnostics: AxeDiagnostics) {
     `- Auditorias: ${auditCounts}`,
     `- Regras: ${plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas')}; ${plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias')}; ${plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados')}`,
     `- needsReview: ${escapeMarkdownInline(diagnostics.needsReview)}`,
-    `- erros de coleta: ${escapeMarkdownInline(diagnostics.errors.length)}`,
+    `- erros de coleta: ${escapeMarkdownInline(collectionErrors.length)}`,
+    ...structuralUnavailable,
+    ...structuralCauses,
+    ...unexplained,
     ...rules,
   ];
 }
@@ -213,7 +234,7 @@ ${renderAxeAxes(rule.axes)}${evidence}</details>`;
 }
 
 function renderAxeHtml(diagnostics: AxeDiagnostics) {
-  if (diagnostics.totalAudits === 0) return '';
+  if (diagnostics.totalAudits === 0 && diagnostics.structuralUnavailable === 0) return '';
   const linkedArtifacts = new Set<string>();
   const rules = diagnostics.rules.map(rule => renderAxeRule(rule, 'violation', linkedArtifacts)).join('');
   const review = diagnostics.reviewRules
@@ -227,21 +248,64 @@ function renderAxeHtml(diagnostics: AxeDiagnostics) {
   const reviewState = (review || unavailableReview)
     ? `${review}${unavailableReview}`
     : '<p>Nenhum item requer revisão.</p>';
-  const errors = diagnostics.errors.map(item =>
+  const collectionErrors = diagnostics.errors.filter(item => !item.kind);
+  const errors = collectionErrors.map(item =>
     `<li>${escapeHtml(axesText(item.axes))}: ${escapeHtml(item.error)}</li>`).join('');
+  const structuralCauses = diagnostics.errors.filter(item => item.kind).map(item =>
+    `<li><strong>Eixos:</strong> ${escapeHtml(axesText(item.axes))}; <strong>Causa:</strong> ${escapeHtml(item.error)}</li>`).join('');
+  const unexplainedAudits = Math.max(0, diagnostics.unavailableAudits - diagnostics.errors.length);
+  const unavailableDetails = [
+    diagnostics.structuralUnavailable > 0
+      ? `<p>${escapeHtml(plural(diagnostics.structuralUnavailable, 'indisponibilidade estrutural', 'indisponibilidades estruturais'))} do gate sem auditorias correspondentes nos groups.</p>`
+      : '',
+    structuralCauses ? `<ul>${structuralCauses}</ul>` : '',
+    unexplainedAudits > 0
+      ? `<p>${escapeHtml(plural(unexplainedAudits, 'auditoria indisponivel sem causa estruturada', 'auditorias indisponiveis sem causa estruturada'))}.</p>`
+      : '',
+  ].filter(Boolean).join('');
+  const noConfirmedViolations = diagnostics.unavailableAudits > 0
+    || diagnostics.structuralUnavailable > 0
+    ? '<p>Nenhuma violacao Axe foi confirmada; ha evidencia indisponivel.</p>'
+    : '<p>Sem violacoes Axe.</p>';
   return `<section class="axe"><h2>Diagnostico Axe</h2>
 <p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis. ${escapeHtml(plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas'))}, ${escapeHtml(plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias'))}, ${escapeHtml(plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados'))}.</p>
-${rules || '<p>Sem violacoes Axe.</p>'}
+${rules || noConfirmedViolations}
+${unavailableDetails ? `<h3>Indisponibilidade estrutural</h3>${unavailableDetails}` : ''}
 <h3>needsReview (${escapeHtml(diagnostics.needsReview)})</h3><p>needsReview é inconclusivo e não altera o gate.</p>${reviewState}
-<h3>Erros de coleta (${escapeHtml(diagnostics.errors.length)})</h3>${errors ? `<ul>${errors}</ul>` : '<p>Nenhum erro de coleta.</p>'}
+<h3>Erros de coleta (${escapeHtml(collectionErrors.length)})</h3>${errors ? `<ul>${errors}</ul>` : '<p>Nenhum erro de coleta.</p>'}
 </section>`;
+}
+
+function axeDiagnosticsFor(manifest: ManifestV2) {
+  const groups = manifest.groups || [];
+  const hasObservedAudit = groups.some(group => {
+    const a11y = isRecord(group.a11y) ? group.a11y : null;
+    return a11y && isRecord(a11y.audits) && Object.keys(a11y.audits).length > 0;
+  });
+  const diagnostics = aggregateAxeDiagnostics(
+    groups,
+    hasObservedAudit && Array.isArray(manifest.axes.frameworks)
+      ? {expectedFrameworks: manifest.axes.frameworks}
+      : {},
+  );
+  const gateUnavailableCandidate = manifest.gate.dimensions.axe?.unavailable;
+  const gateUnavailable = typeof gateUnavailableCandidate === 'number'
+    && Number.isFinite(gateUnavailableCandidate)
+    && gateUnavailableCandidate > 0
+    ? gateUnavailableCandidate
+    : 0;
+  diagnostics.structuralUnavailable = Math.max(
+    0,
+    gateUnavailable - diagnostics.unavailableAudits,
+  );
+  return diagnostics;
 }
 
 export function renderSummaryV2(manifest: ManifestV2) {
   const dimensions = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
     `- ${escapeMarkdownInline(name)}: ${escapeMarkdownInline(value.status)} (falhas: ${escapeMarkdownInline(value.failed)}, indisponíveis: ${escapeMarkdownInline(value.unavailable)})`);
   const flaky = (manifest.attempts || []).filter(item => item.stability === 'flaky').length;
-  const axeDiagnostics = aggregateAxeDiagnostics(manifest.groups || []);
+  const axeDiagnostics = axeDiagnosticsFor(manifest);
   return [
     `# ${escapeMarkdownInline(manifest.tool)} - ${escapeMarkdownInline(manifest.component)}`,
     '',
@@ -266,7 +330,7 @@ export function renderSummaryV2(manifest: ManifestV2) {
 }
 
 export function renderHtmlV2(manifest: ManifestV2) {
-  const axeDiagnostics = aggregateAxeDiagnostics(manifest.groups || []);
+  const axeDiagnostics = axeDiagnosticsFor(manifest);
   const dimensionRows = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
     `<tr><td>${escapeHtml(name)}</td><td class="${escapeHtml(value.status)}">${escapeHtml(value.status)}</td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
   const visualRows = (manifest.groups || []).map(group => {
