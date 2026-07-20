@@ -1,3 +1,6 @@
+import {aggregateAxeDiagnostics} from './axeDiagnostics.ts';
+import type {AxeAxes, AxeDiagnostics, AxeRuleDiagnostic} from './axeDiagnostics.ts';
+
 type Dimension = {
   status: string;
   failed: number;
@@ -17,6 +20,14 @@ type ManifestV2 = {
     dimensions: Record<string, Dimension>;
   };
   groups?: Array<Record<string, unknown>>;
+  a11y?: {
+    totalViolations: number;
+    worstImpact: string | null;
+    ariaMismatches: number;
+    collectionErrors: number;
+    needsReview: number;
+    ruleset: string[];
+  };
   behavior?: {
     results?: Array<{
       logicalTestId: string;
@@ -70,6 +81,11 @@ function safeRelativeHref(value: unknown) {
   return segments.map(segment => encodeURIComponent(segment)).join('/');
 }
 
+function safeAxeArtifactHref(value: unknown) {
+  const href = safeRelativeHref(value);
+  return href?.startsWith('results/') && href.endsWith('.a11y.json') ? href : null;
+}
+
 function expectedResultHref(logicalTestId: unknown, attempt: unknown) {
   const id = safeRelativeHref(logicalTestId);
   if (!id || id.includes('/') || !Number.isSafeInteger(attempt) || (attempt as number) < 0) return null;
@@ -88,10 +104,103 @@ function titleCase(value: string) {
   return value.length ? value[0].toUpperCase() + value.slice(1) : value;
 }
 
+function plural(count: number, singular: string, pluralForm: string) {
+  return `${count} ${count === 1 ? singular : pluralForm}`;
+}
+
+function axesText(axes: AxeAxes) {
+  return [
+    ['browser', axes.browser],
+    ['framework', axes.framework],
+    ['brand', axes.brand],
+    ['story', axes.story],
+    ['viewport', axes.viewport],
+    ['theme', axes.theme],
+  ].filter((entry): entry is [string, string] => Boolean(entry[1]))
+    .map(([key, value]) => `${key}=${value}`)
+    .join(', ');
+}
+
+function renderAxeSummary(diagnostics: AxeDiagnostics) {
+  if (diagnostics.totalAudits === 0) return [];
+  const auditCounts = [
+    plural(diagnostics.totalAudits, 'auditoria', 'auditorias'),
+    plural(diagnostics.failedAudits, 'falhou', 'falharam'),
+    plural(diagnostics.passedAudits, 'passou', 'passaram'),
+    plural(diagnostics.unavailableAudits, 'indisponivel', 'indisponiveis'),
+  ].join('; ');
+  const rules = diagnostics.rules.map(rule => {
+    const evidence = rule.evidence[0];
+    const details = [
+      plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'),
+      plural(rule.occurrences, 'ocorrencia', 'ocorrencias'),
+      plural(rule.affectedNodes, 'no afetado', 'nos afetados'),
+      evidence?.target ? `alvo: ${escapeMarkdownInline(evidence.target)}` : '',
+      evidence?.failureSummary
+        ? `failureSummary: ${escapeMarkdownInline(evidence.failureSummary)}`
+        : '',
+    ].filter(Boolean).join('; ');
+    const impact = rule.impact ? ` (impacto: ${escapeMarkdownInline(rule.impact)})` : '';
+    return `- ${escapeMarkdownInline(rule.id)}${impact}: ${details}`;
+  });
+  return [
+    '',
+    '## Diagnostico Axe',
+    '',
+    `- Auditorias: ${auditCounts}`,
+    `- Regras: ${plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas')}; ${plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias')}; ${plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados')}`,
+    `- needsReview: ${escapeMarkdownInline(diagnostics.needsReview)}`,
+    `- erros de coleta: ${escapeMarkdownInline(diagnostics.errors.length)}`,
+    ...rules,
+  ];
+}
+
+function renderAxeArtifacts(artifacts: string[]) {
+  const links = artifacts.map(safeAxeArtifactHref).filter((href): href is string => Boolean(href));
+  return links.length
+    ? `<p>Artefatos: ${links.map(href => `<a href="${escapeHtml(href)}">${escapeHtml(href.split('/').at(-1))}</a>`).join(' ')}</p>`
+    : '';
+}
+
+function renderAxeAxes(axes: AxeAxes[]) {
+  return axes.length
+    ? `<p>Distribuicao por eixos:</p><ul>${axes.map(value => `<li>${escapeHtml(axesText(value))}</li>`).join('')}</ul>`
+    : '';
+}
+
+function renderAxeRule(rule: AxeRuleDiagnostic, kind: 'violation' | 'review') {
+  const impact = rule.impact || 'sem impacto';
+  const evidence = rule.evidence.map(item => `<details class="axe-evidence"><summary>Alvo: ${escapeHtml(item.target || 'indisponivel')} · ${escapeHtml(plural(item.affectedNodes, 'no', 'nos'))}</summary>
+<p><strong>Alvo:</strong> ${escapeHtml(item.target || 'indisponivel')}</p>
+<p><strong>HTML afetado:</strong></p><pre><code>${escapeHtml(item.html || 'indisponivel')}</code></pre>
+<p><strong>failureSummary:</strong> ${escapeHtml(item.failureSummary || 'indisponivel')}</p>
+${renderAxeAxes(item.axes)}${renderAxeArtifacts(item.artifacts)}</details>`).join('');
+  return `<details class="axe-rule ${kind}"><summary><strong>${escapeHtml(rule.id)}</strong> · impacto: ${escapeHtml(impact)} · ${escapeHtml(plural(rule.affectedAudits, 'auditoria afetada', 'auditorias afetadas'))} · ${escapeHtml(plural(rule.affectedNodes, 'no afetado', 'nos afetados'))}</summary>
+${rule.description ? `<p>${escapeHtml(rule.description)}</p>` : ''}
+${rule.wcag.length ? `<p>WCAG: ${rule.wcag.map(escapeHtml).join(', ')}</p>` : ''}
+<p>${escapeHtml(plural(rule.occurrences, 'ocorrencia', 'ocorrencias'))}</p>
+${renderAxeAxes(rule.axes)}${renderAxeArtifacts(rule.artifacts)}${evidence}</details>`;
+}
+
+function renderAxeHtml(diagnostics: AxeDiagnostics) {
+  if (diagnostics.totalAudits === 0) return '';
+  const rules = diagnostics.rules.map(rule => renderAxeRule(rule, 'violation')).join('');
+  const review = diagnostics.reviewRules.map(rule => renderAxeRule(rule, 'review')).join('');
+  const errors = diagnostics.errors.map(item =>
+    `<li>${escapeHtml(axesText(item.axes))}: ${escapeHtml(item.error)}</li>`).join('');
+  return `<section class="axe"><h2>Diagnostico Axe</h2>
+<p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis. ${escapeHtml(plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas'))}, ${escapeHtml(plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias'))}, ${escapeHtml(plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados'))}.</p>
+${rules || '<p>Sem violacoes Axe.</p>'}
+<h3>needsReview (${escapeHtml(diagnostics.needsReview)})</h3>${review || '<p>Nenhum item requer revisao.</p>'}
+<h3>Erros de coleta (${escapeHtml(diagnostics.errors.length)})</h3>${errors ? `<ul>${errors}</ul>` : '<p>Nenhum erro de coleta.</p>'}
+</section>`;
+}
+
 export function renderSummaryV2(manifest: ManifestV2) {
   const dimensions = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
     `- ${escapeMarkdownInline(name)}: ${escapeMarkdownInline(value.status)} (falhas: ${escapeMarkdownInline(value.failed)}, indisponíveis: ${escapeMarkdownInline(value.unavailable)})`);
   const flaky = (manifest.attempts || []).filter(item => item.stability === 'flaky').length;
+  const axeDiagnostics = aggregateAxeDiagnostics(manifest.groups || []);
   return [
     `# ${escapeMarkdownInline(manifest.tool)} - ${escapeMarkdownInline(manifest.component)}`,
     '',
@@ -105,6 +214,7 @@ export function renderSummaryV2(manifest: ManifestV2) {
     '## Dimensões de confiança',
     '',
     ...dimensions,
+    ...renderAxeSummary(axeDiagnostics),
     '',
     '## Artefatos',
     '',
@@ -115,6 +225,7 @@ export function renderSummaryV2(manifest: ManifestV2) {
 }
 
 export function renderHtmlV2(manifest: ManifestV2) {
+  const axeDiagnostics = aggregateAxeDiagnostics(manifest.groups || []);
   const dimensionRows = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
     `<tr><td>${escapeHtml(name)}</td><td class="${escapeHtml(value.status)}">${escapeHtml(value.status)}</td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
   const visualRows = (manifest.groups || []).map(group => {
@@ -153,9 +264,10 @@ export function renderHtmlV2(manifest: ManifestV2) {
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(manifest.component)} — confiança</title>
-<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}.chips button{margin-right:8px}</style></head><body>
+<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}.chips button{margin-right:8px}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body>
 <h1>${escapeHtml(manifest.component)}</h1><p>Gate: <strong>${escapeHtml(manifest.gate.status)}</strong> · confiável: ${manifest.gate.trusted ? 'sim' : 'não'}</p>
 <h2>Dimensões do gate</h2><table><thead><tr><th>Dimensão</th><th>Status</th><th>Falhas</th><th>Indisponíveis</th></tr></thead><tbody>${dimensionRows}</tbody></table>
+${renderAxeHtml(axeDiagnostics)}
 <h2>Evidência visual por browser</h2><div class="chips">${browserButtons}<button type="button" data-filter="all">todos</button></div>
 <table><thead><tr><th>Browser</th><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody id="visual">${visualRows}</tbody></table>
 <h2>Comportamento</h2><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${behaviorRows}</tbody></table>

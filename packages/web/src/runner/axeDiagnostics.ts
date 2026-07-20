@@ -1,4 +1,5 @@
 type UnknownRecord = Record<string, unknown>;
+type ValidRuleResult = UnknownRecord & {nodes: UnknownRecord[]};
 
 export interface AxeAxes {
   browser: string;
@@ -11,6 +12,7 @@ export interface AxeAxes {
 
 export interface AxeEvidence {
   target: string;
+  html: string;
   failureSummary: string;
   affectedNodes: number;
   axes: AxeAxes[];
@@ -20,12 +22,19 @@ export interface AxeEvidence {
 export interface AxeRuleDiagnostic {
   id: string;
   impact: string | null;
+  description: string;
+  wcag: string[];
   affectedAudits: number;
   occurrences: number;
   affectedNodes: number;
   axes: AxeAxes[];
   artifacts: string[];
   evidence: AxeEvidence[];
+}
+
+export interface AxeCollectionError {
+  error: string;
+  axes: AxeAxes;
 }
 
 export interface AxeDiagnostics {
@@ -38,11 +47,14 @@ export interface AxeDiagnostics {
   affectedNodes: number;
   needsReview: number;
   rules: AxeRuleDiagnostic[];
+  reviewRules: AxeRuleDiagnostic[];
+  errors: AxeCollectionError[];
 }
 
 interface MutableEvidence {
   target: string;
   failureSummary: string;
+  html: Set<string>;
   affectedNodes: number;
   axes: Map<string, AxeAxes>;
   artifacts: Set<string>;
@@ -51,6 +63,8 @@ interface MutableEvidence {
 interface MutableRule {
   id: string;
   impacts: Set<string>;
+  descriptions: Set<string>;
+  wcag: Set<string>;
   auditIds: Set<number>;
   occurrences: number;
   affectedNodes: number;
@@ -132,6 +146,8 @@ function mutableRule(rules: Map<string, MutableRule>, id: string) {
     rule = {
       id,
       impacts: new Set(),
+      descriptions: new Set(),
+      wcag: new Set(),
       auditIds: new Set(),
       occurrences: 0,
       affectedNodes: 0,
@@ -144,7 +160,7 @@ function mutableRule(rules: Map<string, MutableRule>, id: string) {
   return rule;
 }
 
-function isValidViolation(value: unknown): value is UnknownRecord {
+function isValidViolation(value: unknown): value is ValidRuleResult {
   return isRecord(value)
     && Boolean(normalizedText(value.id))
     && Array.isArray(value.nodes)
@@ -158,6 +174,7 @@ function mutableEvidence(rule: MutableRule, target: string, failureSummary: stri
     evidence = {
       target,
       failureSummary,
+      html: new Set(),
       affectedNodes: 0,
       axes: new Map(),
       artifacts: new Set(),
@@ -165,6 +182,69 @@ function mutableEvidence(rule: MutableRule, target: string, failureSummary: stri
     rule.evidence.set(key, evidence);
   }
   return evidence;
+}
+
+function addRuleResult(
+  rules: Map<string, MutableRule>,
+  candidate: UnknownRecord,
+  auditId: number,
+  axes: AxeAxes,
+  artifactPath: unknown,
+) {
+  const id = normalizedText(candidate.id);
+  const rule = mutableRule(rules, id);
+  rule.auditIds.add(auditId);
+  rule.occurrences += 1;
+  const impact = normalizedText(candidate.impact);
+  if (impact) rule.impacts.add(impact);
+  const description = normalizedText(candidate.description);
+  if (description) rule.descriptions.add(description);
+  for (const tag of Array.isArray(candidate.wcag) ? candidate.wcag : []) {
+    const normalized = normalizedText(tag);
+    if (normalized) rule.wcag.add(normalized);
+  }
+  addAxes(rule.axes, axes);
+  addArtifact(rule.artifacts, artifactPath);
+
+  for (const nodeCandidate of Array.isArray(candidate.nodes) ? candidate.nodes : []) {
+    if (!isRecord(nodeCandidate)) continue;
+    const target = normalizedText(nodeCandidate.target);
+    const failureSummary = normalizedText(nodeCandidate.failureSummary);
+    const evidence = mutableEvidence(rule, target, failureSummary);
+    const html = normalizedText(nodeCandidate.html);
+    if (html) evidence.html.add(html);
+    evidence.affectedNodes += 1;
+    rule.affectedNodes += 1;
+    addAxes(evidence.axes, axes);
+    addArtifact(evidence.artifacts, artifactPath);
+  }
+}
+
+function finalizedRules(rules: Map<string, MutableRule>): AxeRuleDiagnostic[] {
+  return [...rules.values()]
+    .sort((left, right) => compareText(left.id, right.id))
+    .map(rule => ({
+      id: rule.id,
+      impact: impactOf(rule.impacts),
+      description: [...rule.descriptions].sort(compareText)[0] || '',
+      wcag: [...rule.wcag].sort(compareText),
+      affectedAudits: rule.auditIds.size,
+      occurrences: rule.occurrences,
+      affectedNodes: rule.affectedNodes,
+      axes: [...rule.axes.values()].sort(compareAxes),
+      artifacts: [...rule.artifacts].sort(compareText),
+      evidence: [...rule.evidence.values()]
+        .sort((left, right) => compareText(left.target, right.target)
+          || compareText(left.failureSummary, right.failureSummary))
+        .map(evidence => ({
+          target: evidence.target,
+          html: [...evidence.html].sort(compareText)[0] || '',
+          failureSummary: evidence.failureSummary,
+          affectedNodes: evidence.affectedNodes,
+          axes: [...evidence.axes.values()].sort(compareAxes),
+          artifacts: [...evidence.artifacts].sort(compareText),
+        })),
+    }));
 }
 
 export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
@@ -178,8 +258,11 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
     affectedNodes: 0,
     needsReview: 0,
     rules: [],
+    reviewRules: [],
+    errors: [],
   };
   const rules = new Map<string, MutableRule>();
+  const reviewRules = new Map<string, MutableRule>();
 
   for (const candidate of Array.isArray(groups) ? groups : []) {
     if (!isRecord(candidate) || !isRecord(candidate.a11y) || !isRecord(candidate.a11y.audits)) {
@@ -188,11 +271,14 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
     for (const [framework, auditCandidate] of Object.entries(candidate.a11y.audits)) {
       result.totalAudits += 1;
       const auditId = result.totalAudits;
+      const axes = axesFrom(candidate, framework);
+      const error = isRecord(auditCandidate) ? normalizedText(auditCandidate.error) : '';
       if (!isRecord(auditCandidate)
-        || normalizedText(auditCandidate.error)
+        || error
         || !Array.isArray(auditCandidate.violations)
         || !auditCandidate.violations.every(isValidViolation)) {
         result.unavailableAudits += 1;
+        if (error) result.errors.push({error, axes});
         continue;
       }
 
@@ -201,56 +287,23 @@ export function aggregateAxeDiagnostics(groups: unknown): AxeDiagnostics {
       else result.failedAudits += 1;
       if (Array.isArray(auditCandidate.needsReview)) {
         result.needsReview += auditCandidate.needsReview.filter(isRecord).length;
+        for (const reviewCandidate of auditCandidate.needsReview.filter(isValidViolation)) {
+          addRuleResult(reviewRules, reviewCandidate, auditId, axes, auditCandidate.artifactPath);
+        }
       }
 
-      const axes = axesFrom(candidate, framework);
       for (const violationCandidate of violations) {
-        const id = normalizedText(violationCandidate.id);
-        const rule = mutableRule(rules, id);
-        rule.auditIds.add(auditId);
-        rule.occurrences += 1;
+        addRuleResult(rules, violationCandidate, auditId, axes, auditCandidate.artifactPath);
         result.ruleOccurrences += 1;
-        const impact = normalizedText(violationCandidate.impact);
-        if (impact) rule.impacts.add(impact);
-        addAxes(rule.axes, axes);
-        addArtifact(rule.artifacts, auditCandidate.artifactPath);
-
-        for (const nodeCandidate of Array.isArray(violationCandidate.nodes) ? violationCandidate.nodes : []) {
-          if (!isRecord(nodeCandidate)) continue;
-          const target = normalizedText(nodeCandidate.target);
-          const failureSummary = normalizedText(nodeCandidate.failureSummary);
-          const evidence = mutableEvidence(rule, target, failureSummary);
-          evidence.affectedNodes += 1;
-          rule.affectedNodes += 1;
-          result.affectedNodes += 1;
-          addAxes(evidence.axes, axes);
-          addArtifact(evidence.artifacts, auditCandidate.artifactPath);
-        }
+        result.affectedNodes += violationCandidate.nodes.length;
       }
     }
   }
 
-  result.rules = [...rules.values()]
-    .sort((left, right) => compareText(left.id, right.id))
-    .map(rule => ({
-      id: rule.id,
-      impact: impactOf(rule.impacts),
-      affectedAudits: rule.auditIds.size,
-      occurrences: rule.occurrences,
-      affectedNodes: rule.affectedNodes,
-      axes: [...rule.axes.values()].sort(compareAxes),
-      artifacts: [...rule.artifacts].sort(compareText),
-      evidence: [...rule.evidence.values()]
-        .sort((left, right) => compareText(left.target, right.target)
-          || compareText(left.failureSummary, right.failureSummary))
-        .map(evidence => ({
-          target: evidence.target,
-          failureSummary: evidence.failureSummary,
-          affectedNodes: evidence.affectedNodes,
-          axes: [...evidence.axes.values()].sort(compareAxes),
-          artifacts: [...evidence.artifacts].sort(compareText),
-        })),
-    }));
+  result.rules = finalizedRules(rules);
+  result.reviewRules = finalizedRules(reviewRules);
+  result.errors.sort((left, right) => compareAxes(left.axes, right.axes)
+    || compareText(left.error, right.error));
   result.uniqueRules = result.rules.length;
   return result;
 }

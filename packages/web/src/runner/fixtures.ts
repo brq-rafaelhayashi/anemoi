@@ -5,6 +5,7 @@ import {test as base, expect} from '@playwright/test';
 import {readRunPlan} from './runPlan.ts';
 import {executeBehaviorRoutes} from './behavior.ts';
 import {atomicResultPath, writeAtomicResult} from './atomicResult.ts';
+import {formatAttemptFailure} from './axeDiagnostics.ts';
 import type {AtomicResult, BehaviorScripts, ContractDefinition, Framework, PlannedScene} from './types.ts';
 
 const require = createRequire(path.join(__dirname, 'fixtures.ts'));
@@ -172,7 +173,7 @@ export const test = base.extend<{anemoi: AnemoiFixture}>({
           const resultPath = writeAtomicResult(plan.runDir, result);
           state.resultWritten = true;
           await testInfo.attach('anemoi-result', {path: resultPath, contentType: 'application/json'});
-          expect(result.status, JSON.stringify({logicalTestId, routes}, null, 2)).toBe('passed');
+          expect(result.status, formatAttemptFailure(result)).toBe('passed');
         },
       });
     } finally {

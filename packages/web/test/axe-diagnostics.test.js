@@ -145,6 +145,57 @@ test('processa shapes desconhecidos sem lancar e ordena regras e evidencias', as
   assert.deepEqual(first.rules.map(rule => rule.id), ['a-rule', 'z-rule']);
 });
 
+test('preserva metadados de triagem, needsReview e erros de coleta', async () => {
+  const {aggregateAxeDiagnostics} = await subject();
+  const diagnostics = aggregateAxeDiagnostics([group({
+    a11y: {
+      audits: {
+        wc: {
+          violations: [violation([{
+            target: ['button', '.label'],
+            html: '<button>Salvar</button>',
+            failureSummary: 'Corrija o nome acessivel',
+          }], {
+            id: 'button-name',
+            description: 'Botoes devem ter nome discernivel',
+            wcag: ['wcag2a', 'wcag412'],
+          })],
+          needsReview: [violation([{
+            target: '.gradient',
+            html: '<span class="gradient">Texto</span>',
+            failureSummary: 'Contraste requer revisao manual',
+          }], {
+            id: 'color-contrast',
+            description: 'Contraste deve ser verificavel',
+            wcag: ['wcag2aa'],
+          })],
+          artifactPath: 'results/primary--chromium/attempt-0/evidence/wc.a11y.json',
+        },
+        react: {error: 'axe timeout'},
+      },
+      ariaParity: [],
+    },
+  })]);
+
+  assert.equal(diagnostics.rules[0].description, 'Botoes devem ter nome discernivel');
+  assert.deepEqual(diagnostics.rules[0].wcag, ['wcag2a', 'wcag412']);
+  assert.equal(diagnostics.rules[0].evidence[0].html, '<button>Salvar</button>');
+  assert.equal(diagnostics.needsReview, 1);
+  assert.equal(diagnostics.reviewRules[0].id, 'color-contrast');
+  assert.equal(diagnostics.reviewRules[0].evidence[0].html, '<span class="gradient">Texto</span>');
+  assert.deepEqual(diagnostics.errors, [{
+    error: 'axe timeout',
+    axes: {
+      browser: 'chromium',
+      framework: 'react',
+      brand: 'gol',
+      story: 'Primary',
+      viewport: 'sm',
+      theme: 'light',
+    },
+  }]);
+});
+
 test('conta auditorias afetadas por regra sem reutilizar o total global', async () => {
   const {aggregateAxeDiagnostics, formatAttemptFailure} = await subject();
   const groups = [
