@@ -206,9 +206,12 @@ As contagens do diagnóstico têm unidades diferentes:
 - **nó afetado**: uma entrada de elemento em `nodes` da ocorrência; uma ocorrência pode afetar mais
   de um nó, portanto essa contagem pode ser maior que a de ocorrências.
 
-Use `summary.md` para localizar rapidamente a causa representativa e `index.html` para navegar por
-regra e evidência. Consulte o `.a11y.json` vinculado quando precisar de todos os nós e metadados
-originais daquela auditoria.
+Use `summary.md` para localizar rapidamente a causa representativa. No `index.html`, cada estado da
+Cena reúne Axe, evidência visual, comportamento e tentativas. Estados com falha ou evidência
+indisponível aparecem primeiro e abertos; estados aprovados aparecem fechados. Dentro de cada estado,
+abra apenas a subseção necessária e consulte o `.a11y.json` vinculado quando precisar de todos os nós
+e metadados originais daquela auditoria. Os controles no topo reabrem estados falhos, fecham todos os
+estados e filtram evidências por browser sem alterar o veredito ou as contagens.
 
 Os Roteiros remontam a Cena antes de cada comportamento. Eventos preservam ordem e quantidade;
 observações são normalizadas e comparadas por igualdade profunda exata. Uma falha localizada em um
