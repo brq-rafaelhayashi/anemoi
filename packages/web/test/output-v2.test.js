@@ -8,6 +8,11 @@ async function subject() {
   return import(pathToFileURL(path.resolve(__dirname, '../src/runner/outputV2.ts')).href);
 }
 
+function stateSection(html, stateId) {
+  const sections = html.split('<section class="state-shell">');
+  return sections.find(section => section.includes(`data-state="${stateId}"`)) || '';
+}
+
 const manifest = {
   schemaVersion: 2,
   tool: 'Anemoi Web',
@@ -31,14 +36,18 @@ const manifest = {
   groups: [{
     browser: 'firefox',
     brand: 'gol',
+    storyId: 'primary',
     story: 'Primary',
     viewport: 'sm',
     theme: 'light',
     label: 'firefox · gol · Primary · sm · light',
-    wc: 'firefox/wc/a.png',
-    react: 'firefox/react/a.png',
-    angular: 'firefox/angular/a.png',
-    parity: [],
+    wc: 'results/primary--firefox/attempt-1/evidence/firefox/wc/a.png',
+    react: 'results/primary--firefox/attempt-1/evidence/firefox/react/a.png',
+    angular: 'results/primary--firefox/attempt-1/evidence/firefox/angular/a.png',
+    parity: [
+      {against: 'react', mismatch: 0, sizeMatch: true},
+      {against: 'angular', mismatch: 0, sizeMatch: true},
+    ],
     a11y: {
       audits: {
         wc: {
@@ -116,6 +125,55 @@ const manifest = {
     ],
   }],
 };
+
+test('galeria agrupa visual comportamento Axe e tentativas pelo estado', async () => {
+  const {renderHtmlV2} = await subject();
+  const html = renderHtmlV2(manifest);
+
+  assert.match(html, /<details class="state-group failed" data-state="primary" data-status="failed" open>/);
+  assert.match(html, /<summary[^>]*>.*Primary.*1 combina[cç][aã]o.*falh/is);
+  assert.match(html, /data-state="primary"[\s\S]*Diagnostico Axe do estado[\s\S]*Evidencia visual[\s\S]*Comportamento[\s\S]*Tentativas e diagnosticos/);
+});
+
+test('galeria fecha estados aprovados e abre falhos ou indisponiveis', async () => {
+  const {renderHtmlV2} = await subject();
+  const passed = structuredClone(manifest.groups[0]);
+  passed.storyId = 'secondary';
+  passed.story = 'Secondary';
+  passed.label = 'firefox · gol · Secondary · sm · light';
+  passed.a11y.audits.wc.violations = [];
+  passed.a11y.audits.react = {violations: []};
+  passed.wc = passed.wc.replace('primary--firefox', 'secondary--firefox');
+  passed.react = passed.react.replace('primary--firefox', 'secondary--firefox');
+  passed.angular = passed.angular.replace('primary--firefox', 'secondary--firefox');
+  const grouped = structuredClone(manifest);
+  grouped.groups.push(passed);
+  grouped.behavior.results.push({logicalTestId: 'secondary--firefox', stability: 'stable', routes: []});
+  grouped.attempts.push({logicalTestId: 'secondary--firefox', stability: 'stable', attempts: [{
+    attempt: 0,
+    status: 'passed',
+    resultPath: 'results/secondary--firefox/attempt-0/result.json',
+  }]});
+
+  const html = renderHtmlV2(grouped);
+  assert.match(html, /class="state-group failed"[^>]*open/);
+  assert.match(html, /class="state-group passed" data-state="secondary" data-status="passed">/);
+});
+
+test('galeria mostra evidencias orfas em grupo indisponivel aberto', async () => {
+  const {renderHtmlV2} = await subject();
+  const orphaned = structuredClone(manifest);
+  orphaned.attempts.push({logicalTestId: 'orphan--webkit', stability: 'stable', attempts: [{
+    attempt: 0,
+    status: 'error',
+    resultPath: 'results/orphan--webkit/attempt-0/result.json',
+  }]});
+  const html = renderHtmlV2(orphaned);
+
+  assert.match(html, /data-state="__orphan__" data-status="unavailable" open/);
+  assert.match(html, /Evidências sem estado/);
+  assert.match(html, /orphan--webkit/);
+});
 
 test('summary v2 lista browsers e dimensoes independentes', async () => {
   const {renderSummaryV2} = await subject();
@@ -195,19 +253,20 @@ test('galeria v2 e autocontida e mostra browser, comportamento e estabilidade', 
 test('galeria v2 detalha Axe por regra e evidencia sem link externo', async () => {
   const {renderHtmlV2} = await subject();
   const html = renderHtmlV2(manifest);
+  const primary = stateSection(html, 'primary');
   assert.match(html, /<h2>Diagnostico Axe<\/h2>/);
-  assert.match(html, /<details[^>]*>.*button-name.*<details[^>]*>.*tgr-button button/s);
-  assert.match(html, /critical/);
-  assert.match(html, /wcag2a/);
-  assert.match(html, /<dt>browser<\/dt><dd>firefox \(1\)<\/dd>.*<dt>framework<\/dt><dd>wc \(1\)<\/dd>.*<dt>brand<\/dt><dd>gol \(1\)<\/dd>.*<dt>story<\/dt><dd>Primary \(1\)<\/dd>/s);
-  assert.match(html, /&lt;button aria-label=&quot;&quot;&gt;Salvar&lt;\/button&gt;/);
-  assert.match(html, /Corrija o nome acessivel/);
-  assert.match(html, /needsReview/);
-  assert.match(html, /color-contrast/);
-  assert.match(html, /Fundo complexo requer revisao manual/);
-  assert.match(html, /Erros de coleta/);
-  assert.match(html, /axe timeout/);
-  assert.match(html, /href="results\/primary--firefox\/attempt-0\/evidence\/wc\.a11y\.json"/);
+  assert.match(primary, /<details[^>]*>.*button-name.*<details[^>]*>.*tgr-button button/s);
+  assert.match(primary, /critical/);
+  assert.match(primary, /wcag2a/);
+  assert.match(primary, /<dt>browser<\/dt><dd>firefox \(1\)<\/dd>.*<dt>framework<\/dt><dd>wc \(1\)<\/dd>.*<dt>brand<\/dt><dd>gol \(1\)<\/dd>.*<dt>story<\/dt><dd>Primary \(1\)<\/dd>/s);
+  assert.match(primary, /&lt;button aria-label=&quot;&quot;&gt;Salvar&lt;\/button&gt;/);
+  assert.match(primary, /Corrija o nome acessivel/);
+  assert.match(primary, /needsReview/);
+  assert.match(primary, /color-contrast/);
+  assert.match(primary, /Fundo complexo requer revisao manual/);
+  assert.match(primary, /Erros de coleta/);
+  assert.match(primary, /axe timeout/);
+  assert.match(primary, /href="results\/primary--firefox\/attempt-0\/evidence\/wc\.a11y\.json"/);
   assert.doesNotMatch(html, /deque\.example/);
 });
 
@@ -223,27 +282,29 @@ test('galeria v2 compacta eixos e nao duplica links Axe entre regra e evidencia'
   repeated.groups.push(second);
 
   const html = renderHtmlV2(repeated);
+  const primary = stateSection(html, 'primary');
   const firefoxArtifact = 'href="results/primary--firefox/attempt-0/evidence/wc.a11y.json"';
   const chromiumArtifact = 'href="results/primary--chromium/attempt-0/evidence/wc.a11y.json"';
 
-  assert.equal((html.match(/<dt>browser<\/dt>/g) || []).length, 1);
-  assert.match(html, /chromium \(1\), firefox \(1\)/);
-  assert.equal(html.split(firefoxArtifact).length - 1, 1);
-  assert.equal(html.split(chromiumArtifact).length - 1, 1);
-  assert.match(html, /<details class="axe-artifacts">/);
-  assert.doesNotMatch(html, /<li>browser=/);
+  assert.equal((primary.match(/<dt>browser<\/dt>/g) || []).length, 1);
+  assert.match(primary, /chromium \(1\), firefox \(1\)/);
+  assert.equal(primary.split(firefoxArtifact).length - 1, 1);
+  assert.equal(primary.split(chromiumArtifact).length - 1, 1);
+  assert.match(primary, /<details class="axe-artifacts">/);
+  assert.doesNotMatch(primary, /<li>browser=/);
 });
 
 test('galeria v2 cria no maximo um href global por artefato compartilhado entre violation e needsReview', async () => {
   const {renderHtmlV2} = await subject();
   const html = renderHtmlV2(manifest);
+  const primary = stateSection(html, 'primary');
   const artifact = 'results/primary--firefox/attempt-0/evidence/wc.a11y.json';
   const href = `href="${artifact}"`;
 
-  assert.equal(html.split(href).length - 1, 1);
-  assert.ok(html.split(artifact).length - 1 >= 2, 'associacoes subsequentes devem preservar o path como texto');
-  assert.match(html, /color-contrast/);
-  assert.match(html, /já listado/);
+  assert.equal(primary.split(href).length - 1, 1);
+  assert.ok(primary.split(artifact).length - 1 >= 2, 'associacoes subsequentes devem preservar o path como texto');
+  assert.match(primary, /color-contrast/);
+  assert.match(primary, /já listado/);
 });
 
 test('galeria v2 explica needsReview inconclusivo quando detalhes estao indisponiveis', async () => {
@@ -257,10 +318,11 @@ test('galeria v2 explica needsReview inconclusivo quando detalhes estao indispon
     },
   };
   const html = renderHtmlV2(partial);
+  const primary = stateSection(html, 'primary');
 
-  assert.match(html, /needsReview.*inconclusivo.*não altera o gate/is);
-  assert.match(html, /1 item.*detalhes.*metadados.*indisponíveis/is);
-  assert.doesNotMatch(html, /Nenhum item requer revisão/);
+  assert.match(primary, /needsReview.*inconclusivo.*não altera o gate/is);
+  assert.match(primary, /1 item.*detalhes.*metadados.*indisponíveis/is);
+  assert.doesNotMatch(primary, /Nenhum item requer revisão/);
 });
 
 test('outputs explicam gate Axe indisponivel sem auditorias nos groups', async () => {
@@ -290,10 +352,11 @@ test('galeria v2 informa saldo needsReview sem metadados em cenario misto', asyn
   const mixed = structuredClone(manifest);
   mixed.groups[0].a11y.audits.wc.needsReview.push({id: 'manual-review-sem-nodes'});
   const html = renderHtmlV2(mixed);
+  const primary = stateSection(html, 'primary');
 
-  assert.match(html, /color-contrast/);
-  assert.match(html, /Há 1 item em needsReview com detalhes e metadados indisponíveis/);
-  assert.doesNotMatch(html, /Há 2 itens em needsReview com detalhes e metadados indisponíveis/);
+  assert.match(primary, /color-contrast/);
+  assert.match(primary, /Há 1 item em needsReview com detalhes e metadados indisponíveis/);
+  assert.doesNotMatch(primary, /Há 2 itens em needsReview com detalhes e metadados indisponíveis/);
 });
 
 test('galeria v2 escapa diagnostico Axe e aceita somente artefato local a11y', async () => {

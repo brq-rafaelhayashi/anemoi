@@ -1,5 +1,7 @@
 import {aggregateAxeDiagnostics, dominantAxeEvidence} from './axeDiagnostics.ts';
 import type {AxeAxes, AxeDiagnostics, AxeRuleDiagnostic} from './axeDiagnostics.ts';
+import {projectStateReport} from './stateReport.ts';
+import type {StateReportGroup} from './stateReport.ts';
 
 type Dimension = {
   status: string;
@@ -276,6 +278,156 @@ ${unavailableDetails ? `<h3>Indisponibilidade estrutural</h3>${unavailableDetail
 </section>`;
 }
 
+function renderAxeGlobalSummary(diagnostics: AxeDiagnostics) {
+  if (diagnostics.totalAudits === 0 && diagnostics.structuralUnavailable === 0) return '';
+  const dominantRule = [...diagnostics.rules].sort((left, right) => right.affectedNodes - left.affectedNodes)[0];
+  const dominantEvidence = dominantRule ? dominantAxeEvidence(dominantRule) : undefined;
+  const collectionErrors = diagnostics.errors.filter(item => !item.kind);
+  const violationsSummary = dominantRule
+    ? `<p>Regra dominante: <strong>${escapeHtml(dominantRule.id)}</strong>${dominantRule.impact ? ` (impacto: ${escapeHtml(dominantRule.impact)})` : ''} · ${escapeHtml(plural(dominantRule.affectedNodes, 'no afetado', 'nos afetados'))}${dominantEvidence?.target ? ` · alvo: ${escapeHtml(dominantEvidence.target)}` : ''}.</p>`
+    : diagnostics.unavailableAudits > 0 || diagnostics.structuralUnavailable > 0
+      ? '<p>Nenhuma violacao Axe foi confirmada; ha evidencia indisponivel.</p>'
+      : '<p>Sem violacoes Axe.</p>';
+  const structuralUnavailableParagraph = diagnostics.structuralUnavailable > 0
+    ? `<p>${escapeHtml(plural(diagnostics.structuralUnavailable, 'indisponibilidade estrutural', 'indisponibilidades estruturais'))} do gate sem auditorias correspondentes nos groups.</p>`
+    : '';
+  return `<section class="axe axe-summary"><h2>Diagnostico Axe</h2>
+<p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis. ${escapeHtml(plural(diagnostics.uniqueRules, 'regra unica', 'regras unicas'))}, ${escapeHtml(plural(diagnostics.ruleOccurrences, 'ocorrencia', 'ocorrencias'))}, ${escapeHtml(plural(diagnostics.affectedNodes, 'no afetado', 'nos afetados'))}.</p>
+${violationsSummary}
+${structuralUnavailableParagraph}
+<p>needsReview: ${escapeHtml(diagnostics.needsReview)} · Erros de coleta: ${escapeHtml(collectionErrors.length)}.</p>
+<p>Detalhes completos por regra, evidência e artefato estão dentro de cada estado.</p>
+</section>`;
+}
+
+function renderIssueBadges(state: StateReportGroup) {
+  const badges = [
+    state.issues.axeFailed > 0 ? plural(state.issues.axeFailed, 'falha de Axe', 'falhas de Axe') : '',
+    state.issues.axeUnavailable > 0 ? plural(state.issues.axeUnavailable, 'Axe indisponível', 'Axe indisponíveis') : '',
+    state.issues.parityFailed > 0 ? plural(state.issues.parityFailed, 'falha visual', 'falhas visuais') : '',
+    state.issues.parityUnavailable > 0 ? plural(state.issues.parityUnavailable, 'evidência visual indisponível', 'evidências visuais indisponíveis') : '',
+    state.issues.behaviorFailed > 0 ? plural(state.issues.behaviorFailed, 'falha de comportamento', 'falhas de comportamento') : '',
+    state.issues.behaviorUnavailable > 0 ? plural(state.issues.behaviorUnavailable, 'comportamento indisponível', 'comportamentos indisponíveis') : '',
+    state.issues.stabilityFailed > 0 ? plural(state.issues.stabilityFailed, 'falha de estabilidade', 'falhas de estabilidade') : '',
+    state.issues.stabilityUnavailable > 0 ? plural(state.issues.stabilityUnavailable, 'tentativa indisponível', 'tentativas indisponíveis') : '',
+  ].filter(Boolean);
+  if (badges.length === 0) return '<span class="state-badges ok">Sem pendências.</span>';
+  return `<span class="state-badges">${badges.map(text => `<span class="state-badge">${escapeHtml(text)}</span>`).join('')}</span>`;
+}
+
+function renderStateAxe(state: StateReportGroup, frameworks: string[]) {
+  const hasObservedAudit = state.groups.some(group => {
+    const a11y = isRecord(group.a11y) ? group.a11y : null;
+    return a11y && isRecord(a11y.audits) && Object.keys(a11y.audits).length > 0;
+  });
+  const diagnostics = aggregateAxeDiagnostics(
+    state.groups,
+    hasObservedAudit ? {expectedFrameworks: frameworks} : {},
+  );
+  if (diagnostics.totalAudits === 0 && diagnostics.structuralUnavailable === 0) {
+    return '<section class="state-section axe-evidence"><h3>Axe do estado</h3><p>Sem evidência aplicável.</p></section>';
+  }
+  const dominantRule = [...diagnostics.rules].sort((left, right) => right.affectedNodes - left.affectedNodes)[0];
+  const dominantEvidence = dominantRule ? dominantAxeEvidence(dominantRule) : undefined;
+  const summaryLine = dominantRule
+    ? `Regra dominante: <strong>${escapeHtml(dominantRule.id)}</strong>${dominantRule.impact ? ` (impacto: ${escapeHtml(dominantRule.impact)})` : ''} · ${escapeHtml(plural(dominantRule.affectedNodes, 'no afetado', 'nos afetados'))}${dominantEvidence?.target ? ` · alvo: ${escapeHtml(dominantEvidence.target)}` : ''}.`
+    : 'Nenhuma regra dominante confirmada.';
+  return `<section class="state-section axe-evidence">
+<h3>Diagnostico Axe do estado</h3>
+<p>${escapeHtml(plural(diagnostics.totalAudits, 'auditoria', 'auditorias'))}: ${escapeHtml(diagnostics.failedAudits)} falharam, ${escapeHtml(diagnostics.passedAudits)} passaram, ${escapeHtml(diagnostics.unavailableAudits)} indisponiveis.</p>
+<p>${summaryLine}</p>
+<details class="axe-evidence-detail"><summary>Detalhes completos por regra e artefato</summary>${renderAxeHtml(diagnostics)}</details>
+</section>`;
+}
+
+function renderStateVisual(state: StateReportGroup, browsers: string[]) {
+  if (state.groups.length === 0) {
+    return '<details class="state-section visual-evidence"><summary>Evidencia visual</summary><p>Sem evidência aplicável.</p></details>';
+  }
+  const orderedBrowsers = [
+    ...browsers.filter(browser => state.axes.browsers.includes(browser)),
+    ...state.axes.browsers.filter(browser => !browsers.includes(browser)),
+  ];
+  const browserSections = orderedBrowsers.map(browser => {
+    const rows = state.groups.filter(group => group.browser === browser).map(group => {
+      const frameworkCells = FRAMEWORKS.map(framework => {
+        const source = safeRelativeHref(group[framework]);
+        return source
+          ? `<td><img src="${escapeHtml(source)}" alt="${escapeHtml(framework)}" /></td>`
+          : '<td>indisponível</td>';
+      }).join('');
+      return `<tr><td>${escapeHtml(group.label)}</td>${frameworkCells}</tr>`;
+    }).join('');
+    return `<details class="browser-evidence" data-browser="${escapeHtml(browser)}"><summary>${escapeHtml(titleCase(String(browser)))}</summary><table><thead><tr><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+  }).join('');
+  return `<details class="state-section visual-evidence"><summary>Evidencia visual</summary>${browserSections}</details>`;
+}
+
+function routeSeverity(route: Record<string, unknown>) {
+  const frameworksValue = isRecord(route.frameworks) ? route.frameworks : {};
+  const failed = route.parity === 'failed'
+    || Object.values(frameworksValue).some((value: any) => value?.conformance === 'failed');
+  if (failed) return 2;
+  const unavailable = ['not-comparable', 'not-run'].includes(route.parity as string)
+    || Object.values(frameworksValue).some((value: any) => value?.execution === 'error' || !value?.conformance);
+  return unavailable ? 1 : 0;
+}
+
+function renderStateBehavior(state: StateReportGroup) {
+  const entries = state.behavior.flatMap(result =>
+    (Array.isArray(result.routes) ? result.routes : []).map((route: Record<string, unknown>) => ({result, route})));
+  if (entries.length === 0) {
+    return '<details class="state-section behavior-evidence"><summary>Comportamento</summary><p>Sem evidência aplicável.</p></details>';
+  }
+  const ordered = entries
+    .map((entry, index) => ({...entry, index}))
+    .sort((left, right) => routeSeverity(right.route) - routeSeverity(left.route) || left.index - right.index);
+  const rows = ordered.map(({result, route}) => {
+    const conformance = FRAMEWORKS.map(framework => {
+      const value = isRecord(route.frameworks) ? (route.frameworks as Record<string, any>)[framework] : undefined;
+      return `<td>${escapeHtml(value?.conformance || 'indisponível')}</td>`;
+    }).join('');
+    return `<tr><td>${escapeHtml(result.logicalTestId)}</td><td>${escapeHtml(result.stability)}</td><td>${escapeHtml(route.routeId)}</td><td>${escapeHtml(route.parity)}</td>${conformance}</tr>`;
+  }).join('');
+  const open = (state.issues.behaviorFailed > 0 || state.issues.behaviorUnavailable > 0) ? ' open' : '';
+  return `<details class="state-section behavior-evidence"${open}><summary>Comportamento</summary><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+}
+
+function renderStateAttempts(state: StateReportGroup) {
+  const entries = state.attempts.flatMap(logical =>
+    (Array.isArray(logical.attempts) ? logical.attempts : []).map((attempt: Record<string, unknown>) => ({logical, attempt})));
+  if (entries.length === 0) {
+    return '<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><p>Sem evidência aplicável.</p></details>';
+  }
+  const rows = entries.map(({logical, attempt}) => {
+    const candidateResultHref = safeRelativeHref(attempt.resultPath);
+    const expectedHref = expectedResultHref(logical.logicalTestId, attempt.attempt);
+    const resultHref = candidateResultHref === expectedHref ? candidateResultHref : null;
+    const attachments = (Array.isArray(attempt.attachments) ? attempt.attachments : []).map((item: unknown) => {
+      const href = scopedAttachmentHref(resultHref, item);
+      return href ? `<a href="${escapeHtml(href)}">${escapeHtml(String(item).split('/').at(-1))}</a>` : '';
+    }).filter(Boolean).join(' ') || '—';
+    const resultLink = resultHref
+      ? `<a href="${escapeHtml(resultHref)}">result.json</a>`
+      : 'indisponível';
+    return `<tr><td>${escapeHtml(logical.logicalTestId)}</td><td>${escapeHtml(logical.stability)}</td><td>${escapeHtml(attempt.attempt)}</td><td>${escapeHtml(attempt.status)}</td><td>${resultLink}</td><td>${attachments}</td></tr>`;
+  }).join('');
+  return `<details class="state-section attempt-evidence"><summary>Tentativas e diagnosticos</summary><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${rows}</tbody></table></details>`;
+}
+
+function renderStateGroup(state: StateReportGroup, manifest: ManifestV2) {
+  const open = state.open ? ' open' : '';
+  return `<section class="state-shell">
+<details class="state-group ${escapeHtml(state.status)}" data-state="${escapeHtml(state.id)}" data-status="${escapeHtml(state.status)}"${open}>
+<summary><span class="state-title">${escapeHtml(state.name)}</span><span>${escapeHtml(plural(state.groups.length, 'combinação', 'combinações'))}</span>${renderIssueBadges(state)}</summary>
+<div class="state-body">
+${renderStateAxe(state, manifest.axes.frameworks || FRAMEWORKS)}
+${renderStateVisual(state, manifest.axes.browsers)}
+${renderStateBehavior(state)}
+${renderStateAttempts(state)}
+</div></details></section>`;
+}
+
 function axeDiagnosticsFor(manifest: ManifestV2) {
   const groups = manifest.groups || [];
   const hasObservedAudit = groups.some(group => {
@@ -333,50 +485,18 @@ export function renderHtmlV2(manifest: ManifestV2) {
   const axeDiagnostics = axeDiagnosticsFor(manifest);
   const dimensionRows = Object.entries(manifest.gate.dimensions).map(([name, value]) =>
     `<tr><td>${escapeHtml(name)}</td><td class="${escapeHtml(value.status)}">${escapeHtml(value.status)}</td><td>${escapeHtml(value.failed)}</td><td>${escapeHtml(value.unavailable)}</td></tr>`).join('');
-  const visualRows = (manifest.groups || []).map(group => {
-    const browser = group.browser || (group._cell as Record<string, unknown> | undefined)?.browser;
-    const frameworkCells = FRAMEWORKS.map(framework => {
-      const source = safeRelativeHref(group[framework]);
-      return source
-        ? `<td><img src="${escapeHtml(source)}" alt="${escapeHtml(framework)}" /></td>`
-        : '<td>indisponível</td>';
-    }).join('');
-    return `<tr data-browser="${escapeHtml(browser)}"><td>${escapeHtml(browser)}</td><td>${escapeHtml(group.label)}</td>${frameworkCells}</tr>`;
-  }).join('');
-  const behaviorRows = (manifest.behavior?.results || []).flatMap(result =>
-    result.routes.map(route => {
-      const conformance = FRAMEWORKS.map(framework =>
-        `<td>${escapeHtml(route.frameworks?.[framework]?.conformance || 'indisponível')}</td>`).join('');
-      return `<tr><td>${escapeHtml(result.logicalTestId)}</td><td>${escapeHtml(result.stability)}</td><td>${escapeHtml(route.routeId)}</td><td>${escapeHtml(route.parity)}</td>${conformance}</tr>`;
-    })).join('');
-  const attemptRows = (manifest.attempts || []).flatMap(logical =>
-    (logical.attempts || []).map(attempt => {
-      const candidateResultHref = safeRelativeHref(attempt.resultPath);
-      const expectedHref = expectedResultHref(logical.logicalTestId, attempt.attempt);
-      const resultHref = candidateResultHref === expectedHref ? candidateResultHref : null;
-      const attachments = (attempt.attachments || []).map(item => {
-        const href = scopedAttachmentHref(resultHref, item);
-        return href ? `<a href="${escapeHtml(href)}">${escapeHtml(item.split('/').at(-1))}</a>` : '';
-      }).filter(Boolean).join(' ') || '—';
-      const resultLink = resultHref
-        ? `<a href="${escapeHtml(resultHref)}">result.json</a>`
-        : 'indisponível';
-      return `<tr><td>${escapeHtml(logical.logicalTestId)}</td><td>${escapeHtml(logical.stability)}</td><td>${escapeHtml(attempt.attempt)}</td><td>${escapeHtml(attempt.status)}</td><td>${resultLink}</td><td>${attachments}</td></tr>`;
-    })).join('');
-  const browserButtons = manifest.axes.browsers.map(browser =>
-    `<button type="button" data-filter="${escapeHtml(browser)}">${escapeHtml(browser)}</button>`).join('');
+  const states = projectStateReport(manifest);
+  const stateGroups = states.map(state => renderStateGroup(state, manifest)).join('');
 
   return `<!doctype html>
 <html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escapeHtml(manifest.component)} — confiança</title>
-<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}.chips button{margin-right:8px}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}</style></head><body>
+<style>body{font:14px system-ui;margin:24px;background:#f6f7f9;color:#1d2433}table{border-collapse:collapse;width:100%;background:white;margin:16px 0}th,td{border:1px solid #d8dce3;padding:8px;text-align:left;vertical-align:top}img{max-width:240px}.passed{color:#167044}.failed,.unavailable{color:#b42318}details{background:white;border:1px solid #d8dce3;margin:8px 0;padding:8px}details details{background:#f6f7f9}summary{cursor:pointer}pre{white-space:pre-wrap;overflow-wrap:anywhere}.state-badges .state-badge{margin-right:6px;padding:2px 6px;border-radius:10px;background:#fee4e2;color:#b42318;font-size:12px}.state-badges.ok .state-badge,.state-badges.ok{color:#167044}</style></head><body>
 <h1>${escapeHtml(manifest.component)}</h1><p>Gate: <strong>${escapeHtml(manifest.gate.status)}</strong> · confiável: ${manifest.gate.trusted ? 'sim' : 'não'}</p>
 <h2>Dimensões do gate</h2><table><thead><tr><th>Dimensão</th><th>Status</th><th>Falhas</th><th>Indisponíveis</th></tr></thead><tbody>${dimensionRows}</tbody></table>
-${renderAxeHtml(axeDiagnostics)}
-<h2>Evidência visual por browser</h2><div class="chips">${browserButtons}<button type="button" data-filter="all">todos</button></div>
-<table><thead><tr><th>Browser</th><th>Cena</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody id="visual">${visualRows}</tbody></table>
-<h2>Comportamento</h2><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Roteiro</th><th>Paridade</th><th>WC</th><th>React</th><th>Angular</th></tr></thead><tbody>${behaviorRows}</tbody></table>
-<h2>Tentativas e diagnósticos</h2><table><thead><tr><th>Teste</th><th>Estabilidade</th><th>Tentativa</th><th>Status</th><th>Resultado</th><th>Attachments</th></tr></thead><tbody>${attemptRows}</tbody></table>
-<script>document.querySelector('.chips').addEventListener('click',event=>{const button=event.target.closest('button');if(!button)return;document.querySelectorAll('#visual tr').forEach(row=>row.hidden=button.dataset.filter!=='all'&&row.dataset.browser!==button.dataset.filter);});</script>
+${renderAxeGlobalSummary(axeDiagnostics)}
+<h2>Estados do componente</h2>
+<div class="report-controls"></div>
+<div id="state-report">${stateGroups}</div>
 </body></html>`;
 }
