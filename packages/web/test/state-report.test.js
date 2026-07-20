@@ -11,20 +11,22 @@ function group({
   id,
   name,
   browser = 'chromium',
+  theme = 'light',
+  viewport = 'sm',
   parityFailed = false,
   axeFailed = false,
   axeError = false,
 }) {
-  const logicalTestId = `${id}--gol--light--sm--hash--${browser}`;
+  const logicalTestId = `${id}--gol--${theme}--${viewport}--hash--${browser}`;
   const root = `results/${logicalTestId}/attempt-0/evidence/${browser}`;
   return {
     browser,
     brand: 'gol',
     storyId: id,
     story: name,
-    viewport: 'sm',
-    theme: 'light',
-    label: `${browser} · gol · ${name} · sm · light`,
+    viewport,
+    theme,
+    label: `${browser} · gol · ${name} · ${viewport} · ${theme}`,
     wc: `${root}/wc.png`,
     react: `${root}/react.png`,
     angular: `${root}/angular.png`,
@@ -128,4 +130,61 @@ test('preserva resultados nao associaveis em Evidencias sem estado', async () =>
   assert.equal(orphan.name, 'Evidências sem estado');
   assert.equal(orphan.status, 'unavailable');
   assert.equal(orphan.attempts[0].logicalTestId, 'orphan--chromium');
+});
+
+test('projeta axes.browsers/themes/viewports deduplicados a partir das combinacoes', async () => {
+  const {projectStateReport} = await subject();
+  const states = projectStateReport(manifest([
+    group({id: 'primary', name: 'Primary', browser: 'chromium', theme: 'light', viewport: 'sm'}),
+    group({id: 'primary', name: 'Primary', browser: 'firefox', theme: 'dark', viewport: 'lg'}),
+    // browser 'chromium' e theme 'light' repetem o grupo acima; viewport 'md' e inedito.
+    group({id: 'primary', name: 'Primary', browser: 'chromium', theme: 'light', viewport: 'md'}),
+  ]));
+
+  assert.equal(states.length, 1);
+  assert.deepEqual(states[0].axes, {
+    browsers: ['chromium', 'firefox'],
+    themes: ['light', 'dark'],
+    viewports: ['sm', 'lg', 'md'],
+  });
+});
+
+test('conta issues.axeFailed quando um grupo tem violacao de axe', async () => {
+  const {projectStateReport} = await subject();
+  const states = projectStateReport(manifest([
+    group({id: 'primary', name: 'Primary', browser: 'chromium', axeFailed: true}),
+    group({id: 'primary', name: 'Primary', browser: 'firefox'}),
+  ]));
+
+  // Apenas o audit 'wc' do grupo chromium tem violations não vazio; os demais
+  // audits (react/angular em ambos os grupos, wc no grupo firefox) têm
+  // violations: [] fixos no fixture. Total esperado: 1.
+  assert.equal(states[0].issues.axeFailed, 1);
+});
+
+test('conta issues.axeUnavailable quando um grupo tem erro de auditoria de axe', async () => {
+  const {projectStateReport} = await subject();
+  const states = projectStateReport(manifest([
+    group({id: 'primary', name: 'Primary', browser: 'chromium', axeError: true}),
+    group({id: 'primary', name: 'Primary', browser: 'firefox'}),
+  ]));
+
+  // Apenas o audit 'wc' do grupo chromium tem {error: 'axe timeout'}; os demais
+  // audits não têm campo error. O termo extra de axeExpected (frameworks sem
+  // audit observado) é 0 porque o fixture sempre popula wc/react/angular em
+  // a11y.audits. Total esperado: 1.
+  assert.equal(states[0].issues.axeUnavailable, 1);
+});
+
+test('conta issues.parityFailed quando um grupo tem mismatch de parity', async () => {
+  const {projectStateReport} = await subject();
+  const states = projectStateReport(manifest([
+    group({id: 'primary', name: 'Primary', browser: 'chromium', parityFailed: true}),
+    group({id: 'primary', name: 'Primary', browser: 'firefox'}),
+  ]));
+
+  // No grupo chromium só o item 'against: react' tem mismatch: 1 (> 0); o item
+  // 'against: angular' permanece mismatch: 0/sizeMatch: true. O grupo firefox
+  // não contribui (ambos os itens com mismatch: 0). Total esperado: 1.
+  assert.equal(states[0].issues.parityFailed, 1);
 });
