@@ -189,9 +189,11 @@ a dimensão indisponível. `--no-a11y` serve apenas para diagnóstico e nunca pr
 
 Quando há coleta Axe, `summary.md` inclui a seção `Diagnostico Axe` para triagem e `index.html`
 detalha regra, impacto, WCAG, distribuição por eixos, alvo, HTML afetado e `failureSummary`. A
-galeria também aponta, por links relativos, para o resultado completo de cada auditoria gravada
-com sucesso em
+galeria cria links relativos para os `.a11y.json` associados às ocorrências de `violations` e
+`needsReview` exibidas no diagnóstico; ela não funciona como índice de todas as auditorias. O padrão
+de caminho permite localizar qualquer auditoria gravada com sucesso em
 `results/<teste-logico>/attempt-<n>/evidence/<browser>/<framework>/<brand>/<story>/<viewport>/<theme>.a11y.json`.
+Uma falha de coleta pode não produzir esse JSON; nesse caso, a indisponibilidade aparece sem link.
 
 As contagens do diagnóstico têm unidades diferentes:
 
